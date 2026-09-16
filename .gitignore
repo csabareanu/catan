@@ -1,0 +1,32 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies and generated output
+apps/api/vendor/
+apps/api/node_modules/
+apps/api/public/build/
+apps/web/node_modules/
+apps/web/dist/
+services/game-engine/bin/
+coverage/
+
+# Test and runtime artifacts
+*.log
+*.out
+.phpunit.cache/
+.phpunit.result.cache
+
+# Local Codex skill links
+/.agents/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Game - Catan Prototype</title>
+    <link rel="stylesheet" href="theme.css">
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="game-library.html" aria-label="Catan game library">
+          <span class="brand-mark"><span>C</span></span>
+          <span class="brand-copy">
+            <strong>Catan</strong>
+            <small>Engine table</small>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="Prototype screens">
+          <a class="nav-link" href="game-library.html">Game library</a>
+          <a class="nav-link" href="board-observer.html">Board</a>
+          <a class="nav-link active" href="new-game.html">New game</a>
+        </nav>
+        <button class="profile-chip" type="button">
+          <span class="avatar">CS</span>
+          <span>csabareanu</span>
+        </button>
+      </header>
+
+      <main class="setup-page">
+        <section class="setup-form-wrap">
+          <p class="eyebrow">Prepare the table</p>
+          <h1>Chart a new coast.</h1>
+          <p class="setup-intro">Choose who takes a seat, preserve a deterministic seed, and start from a board that can always be played again.</p>
+
+          <form>
+            <section class="form-section">
+              <div class="form-section-header">
+                <h2>Game mode</h2>
+                <span>How this table will be controlled</span>
+              </div>
+              <div class="mode-grid">
+                <button class="mode-card selected" type="button">
+                  <span class="selection-mark">✓</span>
+                  <h3>Play against AI</h3>
+                  <p>Take one seat and play a complete match against deterministic opponents.</p>
+                </button>
+                <button class="mode-card" type="button">
+                  <span class="selection-mark">✓</span>
+                  <h3>AI simulation</h3>
+                  <p>Queue a headless game and observe its state, events, and final result.</p>
+                </button>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="form-section-header">
+                <h2>Table configuration</h2>
+                <span>One human seat is reserved for you</span>
+              </div>
+              <div class="option-row">
+                <div class="field">
+                  <label for="opponents">AI opponents</label>
+                  <div class="counter" id="opponents">
+                    <button type="button" aria-label="Decrease opponents">−</button>
+                    <strong>3</strong>
+                    <button type="button" aria-label="Increase opponents">＋</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="seat">Your seat</label>
+                  <div class="input-wrap">
+                    <select id="seat" name="seat">
+                      <option>Seat 1 - Gold</option>
+                      <option>Seat 2 - Blue</option>
+                      <option>Seat 3 - Green</option>
+                      <option>Seat 4 - Clay</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="form-section-header">
+                <h2>Deterministic seed</h2>
+                <span>Use the same seed to reproduce this board</span>
+              </div>
+              <div class="option-row">
+                <div class="field">
+                  <label for="seed">Board seed</label>
+                  <div class="input-wrap">
+                    <input class="mono" id="seed" name="seed" value="894177203164" inputmode="numeric">
+                    <button class="btn btn-quiet" type="button">Regenerate</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="name">Game name</label>
+                  <div class="input-wrap">
+                    <input id="name" name="name" value="Amber Coast">
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="form-section-header">
+                <h2>Ruleset</h2>
+                <span>Rules are pinned for reproducible history</span>
+              </div>
+              <div class="ruleset-row">
+                <div class="ruleset-copy">
+                  <strong>Base game</strong>
+                  <span>Standard board, 10 victory points, no expansions</span>
+                </div>
+                <span class="version-chip">base@1.0.0</span>
+              </div>
+            </section>
+
+            <footer class="form-footer">
+              <p>The board and game record remain private to your account.</p>
+              <div class="action-buttons">
+                <a class="btn" href="game-library.html">Cancel</a>
+                <a class="btn btn-primary" href="board-observer.html">Create game →</a>
+              </div>
+            </footer>
+          </form>
+        </section>
+
+        <aside class="setup-preview" aria-label="Generated game preview">
+          <div class="preview-card">
+            <div class="preview-label">
+              <div>
+                <p class="eyebrow">Seed preview</p>
+                <h2>Amber Coast</h2>
+              </div>
+              <span class="version-chip">4 seats</span>
+            </div>
+
+            <svg class="mini-board" viewBox="0 0 620 560" role="img" aria-label="Preview of generated board">
+              <defs><polygon id="preview-hex" points="0,-47 41,-24 41,24 0,47 -41,24 -41,-24"></polygon></defs>
+              <circle class="sea-disc" cx="310" cy="280" r="250"></circle>
+              <circle class="sea-ring" cx="310" cy="280" r="226"></circle>
+
+              <g transform="translate(228 139)"><use class="hex mountains" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">10</text></g>
+              <g transform="translate(310 139)"><use class="hex pasture" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">2</text></g>
+              <g transform="translate(392 139)"><use class="hex forest" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">9</text></g>
+
+              <g transform="translate(187 210)"><use class="hex fields" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">12</text></g>
+              <g transform="translate(269 210)"><use class="hex hills" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">6</text></g>
+              <g transform="translate(351 210)"><use class="hex pasture" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">4</text></g>
+              <g transform="translate(433 210)"><use class="hex forest" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">8</text></g>
+
+              <g transform="translate(146 281)"><use class="hex hills" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">5</text></g>
+              <g transform="translate(228 281)"><use class="hex forest" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">11</text></g>
+              <g transform="translate(310 281)"><use class="hex desert" href="#preview-hex"></use></g>
+              <g transform="translate(392 281)"><use class="hex mountains" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">3</text></g>
+              <g transform="translate(474 281)"><use class="hex fields" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">6</text></g>
+
+              <g transform="translate(187 352)"><use class="hex pasture" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">8</text></g>
+              <g transform="translate(269 352)"><use class="hex fields" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">4</text></g>
+              <g transform="translate(351 352)"><use class="hex hills" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">9</text></g>
+              <g transform="translate(433 352)"><use class="hex mountains" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">5</text></g>
+
+              <g transform="translate(228 423)"><use class="hex forest" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">3</text></g>
+              <g transform="translate(310 423)"><use class="hex pasture" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">10</text></g>
+              <g transform="translate(392 423)"><use class="hex fields" href="#preview-hex"></use><circle class="token" r="14"></circle><text class="token-text" y="5">11</text></g>
+            </svg>
+
+            <div class="seat-preview">
+              <div class="seat-chip"><strong>You</strong><span>Gold</span></div>
+              <div class="seat-chip"><strong>Ada</strong><span>Blue AI</span></div>
+              <div class="seat-chip"><strong>Linus</strong><span>Green AI</span></div>
+              <div class="seat-chip"><strong>Grace</strong><span>Clay AI</span></div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amber Coast - Catan Prototype</title>
+    <link rel="stylesheet" href="theme.css">
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="game-library.html" aria-label="Catan game library">
+          <span class="brand-mark"><span>C</span></span>
+          <span class="brand-copy">
+            <strong>Catan</strong>
+            <small>Engine table</small>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="Prototype screens">
+          <a class="nav-link" href="game-library.html">Game library</a>
+          <a class="nav-link active" href="board-observer.html">Board</a>
+          <a class="nav-link" href="new-game.html">New game</a>
+        </nav>
+        <button class="profile-chip" type="button">
+          <span class="avatar">CS</span>
+          <span>csabareanu</span>
+        </button>
+      </header>
+
+      <main class="board-page">
+        <div class="board-layout">
+          <aside class="panel players-panel" id="players-panel" aria-label="Players">
+            <div class="panel-heading">
+              <div class="panel-heading-copy">
+                <p class="eyebrow">Table order</p>
+                <h2>Players</h2>
+                <p>First to 10 victory points</p>
+              </div>
+              <div class="panel-heading-actions">
+                <span class="status live">Live</span>
+                <button class="icon-button panel-toggle" id="players-toggle" type="button" aria-label="Collapse players panel" aria-controls="player-list" aria-expanded="true"><span aria-hidden="true">‹</span></button>
+              </div>
+            </div>
+
+            <div class="player-list" id="player-list">
+              <article class="player-card player-human active">
+                <div class="player-top">
+                  <div>
+                    <div class="player-name">You</div>
+                    <div class="player-role">Human - gold</div>
+                  </div>
+                  <span class="score-block"><strong class="score">4</strong><small>public VP</small></span>
+                </div>
+                <div class="player-meta">
+                  <span>Your turn</span>
+                  <span>1:24</span>
+                </div>
+                <div class="player-assets">
+                  <span class="asset-pill">8 resources</span>
+                  <span class="asset-pill">7 dev</span>
+                  <span class="asset-pill">1 knight</span>
+                </div>
+              </article>
+
+              <article class="player-card player-sable">
+                <div class="player-top">
+                  <div>
+                    <div class="player-name">Ada</div>
+                    <div class="player-role">AI - blue</div>
+                  </div>
+                  <span class="score-block"><strong class="score">5</strong><small>public VP</small></span>
+                </div>
+                <div class="player-meta">
+                  <span>Waiting</span>
+                  <span>Thinking fast</span>
+                </div>
+                <div class="player-assets">
+                  <span class="asset-pill">7 resources</span>
+                  <span class="asset-pill">1 dev</span>
+                  <span class="asset-pill">2 knights</span>
+                </div>
+              </article>
+
+              <article class="player-card player-moss">
+                <div class="player-top">
+                  <div>
+                    <div class="player-name">Linus</div>
+                    <div class="player-role">AI - green</div>
+                  </div>
+                  <span class="score-block"><strong class="score">4</strong><small>public VP</small></span>
+                </div>
+                <div class="player-meta">
+                  <span>Waiting</span>
+                  <span>Longest road</span>
+                </div>
+                <div class="player-assets">
+                  <span class="asset-pill">4 resources</span>
+                  <span class="asset-pill">0 dev</span>
+                  <span class="asset-pill">0 knights</span>
+                </div>
+              </article>
+
+              <article class="player-card player-clay">
+                <div class="player-top">
+                  <div>
+                    <div class="player-name">Grace</div>
+                    <div class="player-role">AI - clay</div>
+                  </div>
+                  <span class="score-block"><strong class="score">3</strong><small>public VP</small></span>
+                </div>
+                <div class="player-meta">
+                  <span>Discard phase</span>
+                  <span>Must discard 4</span>
+                </div>
+                <div class="player-assets">
+                  <span class="asset-pill">9 resources</span>
+                  <span class="asset-pill">3 dev</span>
+                  <span class="asset-pill">2 knights</span>
+                </div>
+              </article>
+            </div>
+            <div class="player-rail" aria-label="Public player scores">
+              <div class="rail-player player-human active" title="You, 4 public victory points, your turn" aria-label="You, 4 public victory points, your turn" aria-current="true"><span class="rail-player-mark">Y</span><strong>4</strong></div>
+              <div class="rail-player player-sable" title="Ada, 5 public victory points" aria-label="Ada, 5 public victory points"><span class="rail-player-mark">A</span><strong>5</strong></div>
+              <div class="rail-player player-moss" title="Linus, 4 public victory points" aria-label="Linus, 4 public victory points"><span class="rail-player-mark">L</span><strong>4</strong></div>
+              <div class="rail-player player-clay" title="Grace, 3 public victory points" aria-label="Grace, 3 public victory points"><span class="rail-player-mark">G</span><strong>3</strong></div>
+            </div>
+          </aside>
+
+          <section class="paper-panel board-stage" aria-label="Amber Coast game board">
+            <div class="board-meta">
+              <p class="eyebrow">Base game - turn 18</p>
+              <h1>Amber Coast</h1>
+              <p class="mono">Seed 8941-7720-3164</p>
+            </div>
+            <div class="turn-card"><span class="turn-pip"></span>Your action - move the robber</div>
+            <div class="board-view-controls" aria-label="Board view controls">
+              <button class="btn board-control" id="activity-toggle" type="button" aria-controls="timeline-panel" aria-expanded="true">
+                Activity <span class="unread-count" aria-label="5 new events">5</span>
+              </button>
+              <button class="btn board-control focus-control" id="focus-toggle" type="button" aria-pressed="false">Board focus</button>
+            </div>
+
+            <svg class="board-svg" viewBox="0 0 820 680" role="img" aria-label="Nineteen tile Catan board">
+              <defs>
+                <polygon id="hex" points="0,-54 47,-27 47,27 0,54 -47,27 -47,-27"></polygon>
+              </defs>
+              <circle class="sea-disc" cx="410" cy="352" r="304"></circle>
+              <circle class="sea-ring" cx="410" cy="352" r="278"></circle>
+
+              <g transform="translate(316 190)"><use class="hex mountains" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">10</text><text class="token-pips" y="30">•••</text></g>
+              <g transform="translate(410 190)"><use class="hex pasture" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">2</text><text class="token-pips" y="30">•</text></g>
+              <g transform="translate(504 190)"><use class="hex forest" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">9</text><text class="token-pips" y="30">••••</text></g>
+
+              <g transform="translate(269 271)"><use class="hex fields" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">12</text><text class="token-pips" y="30">•</text></g>
+              <g transform="translate(363 271)"><use class="hex hills" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">6</text><text class="token-pips" y="30">•••••</text></g>
+              <g transform="translate(457 271)"><use class="hex pasture" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">4</text><text class="token-pips" y="30">•••</text></g>
+              <g transform="translate(551 271)"><use class="hex forest" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">8</text><text class="token-pips" y="30">•••••</text></g>
+
+              <g transform="translate(222 352)"><use class="hex hills" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">5</text><text class="token-pips" y="30">••••</text></g>
+              <g transform="translate(316 352)"><use class="hex forest" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">11</text><text class="token-pips" y="30">••</text></g>
+              <g transform="translate(410 352)"><use class="hex desert" href="#hex"></use><path class="hex-detail" d="M-22 18 Q0 -22 22 18"></path></g>
+              <g transform="translate(504 352)"><use class="hex mountains" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">3</text><text class="token-pips" y="30">••</text></g>
+              <g transform="translate(598 352)"><use class="hex fields" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">6</text><text class="token-pips" y="30">•••••</text></g>
+
+              <g transform="translate(269 433)"><use class="hex pasture" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">8</text><text class="token-pips" y="30">•••••</text></g>
+              <g transform="translate(363 433)"><use class="hex fields" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">4</text><text class="token-pips" y="30">•••</text></g>
+              <g transform="translate(457 433)"><use class="hex hills" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">9</text><text class="token-pips" y="30">••••</text></g>
+              <g transform="translate(551 433)"><use class="hex mountains" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">5</text><text class="token-pips" y="30">••••</text></g>
+
+              <g transform="translate(316 514)"><use class="hex forest" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">3</text><text class="token-pips" y="30">••</text></g>
+              <g transform="translate(410 514)"><use class="hex pasture" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">10</text><text class="token-pips" y="30">•••</text></g>
+              <g transform="translate(504 514)"><use class="hex fields" href="#hex"></use><circle class="token" r="17"></circle><text class="token-text" y="6">11</text><text class="token-pips" y="30">••</text></g>
+
+              <path class="road road-human" d="M363 325 L410 298"></path>
+              <path class="road road-human" d="M410 298 L457 325"></path>
+              <path class="road road-sable" d="M504 379 L551 406"></path>
+              <path class="road road-sable" d="M551 406 L598 379"></path>
+              <path class="road road-moss" d="M316 460 L363 487"></path>
+              <path class="road road-clay" d="M269 298 L316 325"></path>
+              <polygon class="settlement settlement-human" points="410,282 420,291 417,305 403,305 400,291"></polygon>
+              <polygon class="settlement settlement-sable" points="551,390 561,399 558,413 544,413 541,399"></polygon>
+              <polygon class="settlement settlement-moss" points="363,471 373,480 370,494 356,494 353,480"></polygon>
+              <polygon class="settlement settlement-clay" points="316,309 326,318 323,332 309,332 306,318"></polygon>
+            </svg>
+
+            <section class="player-tray" id="player-tray" aria-label="Your private player tray">
+              <header class="tray-header">
+                <div class="tray-title">
+                  <span class="private-flag">Private to you</span>
+                  <strong>Your player tray</strong>
+                  <span class="tray-context">Rolled 7 - resolve the robber before building</span>
+                </div>
+                <div class="tray-summary-counts" aria-label="Private cards in hand">
+                  <span>8 resources</span>
+                  <span>7 development</span>
+                </div>
+                <div class="private-score" aria-label="Four public victory points plus two hidden victory points equals six total">
+                  <span><strong>4</strong> public</span>
+                  <b>＋</b>
+                  <span><strong>2</strong> hidden</span>
+                  <b>＝</b>
+                  <span class="score-total"><strong>6</strong> VP</span>
+                </div>
+                <div class="tray-controls">
+                  <button class="btn btn-primary" type="button">Move robber</button>
+                  <button class="btn btn-quiet tray-toggle" id="tray-toggle" type="button" aria-controls="tray-details" aria-expanded="true"><span>Collapse tray</span></button>
+                </div>
+              </header>
+
+              <div class="tray-grid" id="tray-details">
+                <section class="tray-section" aria-label="Your resource cards">
+                  <div class="tray-section-title"><strong>Resources</strong><span>8 cards</span></div>
+                  <div class="resource-row tray-resources">
+                    <div class="resource-card"><span class="resource-dot brick"></span><strong>2</strong><span>Brick</span></div>
+                    <div class="resource-card"><span class="resource-dot lumber"></span><strong>1</strong><span>Wood</span></div>
+                    <div class="resource-card"><span class="resource-dot wool"></span><strong>3</strong><span>Wool</span></div>
+                    <div class="resource-card"><span class="resource-dot grain"></span><strong>1</strong><span>Grain</span></div>
+                    <div class="resource-card"><span class="resource-dot ore"></span><strong>1</strong><span>Ore</span></div>
+                  </div>
+                </section>
+
+                <section class="tray-section" aria-label="Your unplayed development cards">
+                  <div class="tray-section-title"><strong>Development cards</strong><span>7 unplayed</span></div>
+                  <div class="development-hand" aria-label="Seven unplayed cards grouped by type; additional types can scroll">
+                    <button class="development-card ready" type="button">
+                      <span class="development-name">Knight</span>
+                      <strong class="development-count">×2</strong>
+                      <small>Ready</small>
+                    </button>
+                    <button class="development-card ready" type="button">
+                      <span class="development-name">Road Building</span>
+                      <strong class="development-count">×1</strong>
+                      <small>Ready</small>
+                    </button>
+                    <button class="development-card ready" type="button">
+                      <span class="development-name">Year of Plenty</span>
+                      <strong class="development-count">×1</strong>
+                      <small>Ready</small>
+                    </button>
+                    <button class="development-card ready" type="button">
+                      <span class="development-name">Monopoly</span>
+                      <strong class="development-count">×1</strong>
+                      <small>Ready</small>
+                    </button>
+                    <button class="development-card secret" type="button">
+                      <span class="development-name">Victory Point</span>
+                      <strong class="development-count">×2</strong>
+                      <small>Secret</small>
+                    </button>
+                  </div>
+                </section>
+
+                <section class="tray-section" aria-label="Your remaining building pieces">
+                  <div class="tray-section-title"><strong>Pieces remaining</strong><span>Supply</span></div>
+                  <div class="piece-grid">
+                    <div class="piece-count"><span class="piece-symbol road-symbol"></span><strong>9</strong><small>Roads</small></div>
+                    <div class="piece-count"><span class="piece-symbol settlement-symbol">⌂</span><strong>4</strong><small>Settlements</small></div>
+                    <div class="piece-count"><span class="piece-symbol city-symbol">♜</span><strong>3</strong><small>Cities</small></div>
+                  </div>
+                </section>
+
+                <section class="tray-section build-section" aria-label="Build costs">
+                  <div class="tray-section-title"><strong>Build palette</strong><span>Hover for rules</span></div>
+                  <div class="build-grid">
+                    <button class="build-option affordable" type="button">
+                      <span class="build-name">Road</span>
+                      <span class="recipe">
+                        <span class="cost-item"><span class="cost brick" title="Brick" aria-label="Brick">B</span>1</span>
+                        <span class="cost-item"><span class="cost lumber" title="Lumber" aria-label="Lumber">L</span>1</span>
+                      </span>
+                      <span class="affordability">Can afford</span>
+                      <span class="build-tooltip" role="tooltip">Connect it to your existing road, settlement, or city. Building unlocks after the robber is resolved.</span>
+                    </button>
+                    <button class="build-option affordable" type="button">
+                      <span class="build-name">Settlement</span>
+                      <span class="recipe">
+                        <span class="cost-item"><span class="cost brick" title="Brick" aria-label="Brick">B</span>1</span>
+                        <span class="cost-item"><span class="cost lumber" title="Lumber" aria-label="Lumber">L</span>1</span>
+                        <span class="cost-item"><span class="cost wool" title="Wool" aria-label="Wool">W</span>1</span>
+                        <span class="cost-item"><span class="cost grain" title="Grain" aria-label="Grain">G</span>1</span>
+                      </span>
+                      <span class="affordability">Can afford</span>
+                      <span class="build-tooltip" role="tooltip">Place it on a connected empty vertex at least two edges from another building.</span>
+                    </button>
+                    <button class="build-option unaffordable" type="button">
+                      <span class="build-name">City</span>
+                      <span class="recipe">
+                        <span class="cost-item"><span class="cost grain" title="Grain" aria-label="Grain">G</span>2</span>
+                        <span class="cost-item"><span class="cost ore" title="Ore" aria-label="Ore">O</span>3</span>
+                      </span>
+                      <span class="affordability">Need 1 grain, 2 ore</span>
+                      <span class="build-tooltip" role="tooltip">Upgrade one of your settlements. You need two grain and three ore.</span>
+                    </button>
+                    <button class="build-option affordable" type="button">
+                      <span class="build-name">Development</span>
+                      <span class="recipe">
+                        <span class="cost-item"><span class="cost wool" title="Wool" aria-label="Wool">W</span>1</span>
+                        <span class="cost-item"><span class="cost grain" title="Grain" aria-label="Grain">G</span>1</span>
+                        <span class="cost-item"><span class="cost ore" title="Ore" aria-label="Ore">O</span>1</span>
+                      </span>
+                      <span class="affordability">Can afford</span>
+                      <span class="build-tooltip" role="tooltip">Draw the top development card. A newly bought action card cannot be played this turn.</span>
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </section>
+          </section>
+
+          <aside class="panel timeline-panel" id="timeline-panel" aria-label="Game chronicle">
+            <div class="panel-heading">
+              <div class="panel-heading-copy">
+                <p class="eyebrow">Event stream</p>
+                <h2>Chronicle</h2>
+                <p>Event 86 of 134</p>
+              </div>
+              <div class="panel-heading-actions">
+                <button class="icon-button activity-dock" type="button" data-action="dock-activity" aria-label="Show activity beside the board">↔</button>
+                <button class="icon-button activity-collapse" type="button" data-action="collapse-activity" aria-label="Collapse activity panel">−</button>
+                <button class="icon-button activity-close" type="button" data-action="close-activity" aria-label="Close activity drawer">×</button>
+                <button class="icon-button activity-options" type="button" aria-label="Chronicle options">•••</button>
+              </div>
+            </div>
+            <div class="timeline-tabs" role="tablist" aria-label="Chronicle views">
+              <button class="tab active" type="button">Events</button>
+              <button class="tab" type="button">State</button>
+            </div>
+            <div class="event-list">
+              <article class="event">
+                <span class="event-icon">7</span>
+                <div class="event-copy">
+                  <strong>You rolled seven</strong>
+                  <p>The robber wakes. Grace must discard four cards.</p>
+                  <small>Turn 18 - Event 86</small>
+                </div>
+              </article>
+              <article class="event">
+                <span class="event-icon">R</span>
+                <div class="event-copy">
+                  <strong>Grace produced</strong>
+                  <p>Two hidden resource cards entered Grace's hand.</p>
+                  <small>Turn 17 - Event 85</small>
+                </div>
+              </article>
+              <article class="event">
+                <span class="event-icon">⌁</span>
+                <div class="event-copy">
+                  <strong>Grace extended a road</strong>
+                  <p>A clay road now connects the eastern pasture.</p>
+                  <small>Turn 17 - Event 84</small>
+                </div>
+              </article>
+              <article class="event">
+                <span class="event-icon">⇄</span>
+                <div class="event-copy">
+                  <strong>Bank trade completed</strong>
+                  <p>Linus exchanged four wool for one ore.</p>
+                  <small>Turn 16 - Event 82</small>
+                </div>
+              </article>
+              <article class="event">
+                <span class="event-icon">6</span>
+                <div class="event-copy">
+                  <strong>Linus rolled six</strong>
+                  <p>Five settlements produced grain and brick.</p>
+                  <small>Turn 16 - Event 79</small>
+                </div>
+              </article>
+            </div>
+            <footer class="timeline-footer">
+              <div class="range-track"><div class="range-fill"></div></div>
+              <div class="playback-controls">
+                <button class="icon-button" type="button" aria-label="Previous event">←</button>
+                <button class="btn" type="button">Live state</button>
+                <button class="icon-button" type="button" aria-label="Next event">→</button>
+              </div>
+            </footer>
+          </aside>
+        </div>
+      </main>
+    </div>
+    <script>
+      const boardLayout = document.querySelector(".board-layout");
+      const shell = document.querySelector(".shell");
+      const playersToggle = document.querySelector("#players-toggle");
+      const trayToggle = document.querySelector("#tray-toggle");
+      const trayToggleLabel = trayToggle.querySelector("span");
+      const activityToggle = document.querySelector("#activity-toggle");
+      const focusToggle = document.querySelector("#focus-toggle");
+
+      const isFocused = () => boardLayout.classList.contains("focus-mode");
+      const isActivityVisible = () => boardLayout.classList.contains("activity-open") || (
+        !isFocused()
+        && !boardLayout.classList.contains("timeline-collapsed")
+        && !window.matchMedia("(max-width: 78rem)").matches
+      );
+
+      const syncControls = () => {
+        const focused = isFocused();
+        const playersExpanded = !focused && !boardLayout.classList.contains("players-collapsed");
+        const trayExpanded = !focused && !boardLayout.classList.contains("tray-collapsed");
+        playersToggle.setAttribute("aria-expanded", String(playersExpanded));
+        playersToggle.setAttribute("aria-label", playersExpanded ? "Collapse players panel" : "Expand players panel");
+        playersToggle.querySelector("span").textContent = playersExpanded ? "‹" : "›";
+        trayToggle.setAttribute("aria-expanded", String(trayExpanded));
+        trayToggleLabel.textContent = trayExpanded ? "Collapse tray" : "Expand tray";
+        activityToggle.setAttribute("aria-expanded", String(isActivityVisible()));
+        activityToggle.setAttribute("aria-label", isActivityVisible() ? "Activity, 5 new events" : "Open activity, 5 new events");
+        focusToggle.setAttribute("aria-pressed", String(focused));
+        focusToggle.textContent = focused ? "Exit board focus" : "Board focus";
+        document.querySelector("#timeline-panel").setAttribute("aria-hidden", String(!isActivityVisible()));
+      };
+
+      playersToggle.addEventListener("click", () => {
+        if (isFocused()) {
+          boardLayout.classList.remove("focus-mode");
+          shell.classList.remove("focus-mode");
+          boardLayout.classList.remove("players-collapsed");
+        } else {
+          boardLayout.classList.toggle("players-collapsed");
+        }
+        syncControls();
+      });
+
+      trayToggle.addEventListener("click", () => {
+        if (isFocused()) {
+          boardLayout.classList.remove("focus-mode", "tray-collapsed");
+          shell.classList.remove("focus-mode");
+        } else {
+          boardLayout.classList.toggle("tray-collapsed");
+        }
+        syncControls();
+      });
+
+      activityToggle.addEventListener("click", () => {
+        boardLayout.classList.toggle("activity-open");
+        syncControls();
+      });
+
+      focusToggle.addEventListener("click", () => {
+        const enteringFocus = !isFocused();
+        boardLayout.classList.toggle("focus-mode", enteringFocus);
+        shell.classList.toggle("focus-mode", enteringFocus);
+        if (enteringFocus) boardLayout.classList.remove("activity-open");
+        syncControls();
+      });
+
+      document.querySelector('[data-action="collapse-activity"]').addEventListener("click", () => {
+        boardLayout.classList.add("timeline-collapsed");
+        boardLayout.classList.remove("activity-open");
+        syncControls();
+      });
+
+      document.querySelector('[data-action="close-activity"]').addEventListener("click", () => {
+        boardLayout.classList.remove("activity-open");
+        syncControls();
+      });
+
+      document.querySelector('[data-action="dock-activity"]').addEventListener("click", () => {
+        boardLayout.classList.remove("activity-open", "timeline-collapsed");
+        if (isFocused()) {
+          boardLayout.classList.remove("focus-mode");
+          shell.classList.remove("focus-mode");
+        }
+        syncControls();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && boardLayout.classList.contains("activity-open")) {
+          boardLayout.classList.remove("activity-open");
+          syncControls();
+        }
+      });
+
+      window.addEventListener("resize", syncControls);
+      syncControls();
+    </script>
+  </body>
+</html>
