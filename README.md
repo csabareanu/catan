@@ -28,3 +28,14 @@ them now.
 A combined root development command, Docker Compose environment, and CI checks
 have not been configured yet. The Go module also has no packages to test until
 the first engine slice is implemented.
+
+## Licensing and CATAN intellectual property
+
+Original code and documentation authored for this project are licensed under
+MIT; see [LICENSE](LICENSE). Third-party code and assets remain under their
+respective licenses and notices. The MIT license does not grant rights to
+CATAN trademarks or CATAN-owned artwork, text, or other intellectual property.
+This is an independent project, not an official CATAN product or one endorsed by
+CATAN GmbH or CATAN Studio. See [CATAN's IP guidelines](https://www.catan.com/guidelines-dealing-intellectual-property-catan)
+before using CATAN marks or materials; this notice does not grant permission to
+use them.
