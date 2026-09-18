@@ -75,7 +75,7 @@ was too big, so split it.
   `cd apps/web && npm run test:e2e` pass, proving the themed shell, editable
   seed field, truthful empty state, metadata, disabled generation action, and
   desktop/mobile overflow behavior.
-- [ ] **Step 2 - generate deterministic standard-map tiles** - add Go board
+- [x] **Step 2 - generate deterministic standard-map tiles** - add Go board
   domain types and seeded assignment of standard terrain and number tokens over
   the 19 classic axial hex coordinates. *Done when:*
   `cd services/game-engine && go test ./...` proves the standard tile/token

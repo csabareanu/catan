@@ -98,10 +98,9 @@ slice.
 
 - Laravel uses PHPUnit. Logic-bearing Laravel changes require focused feature or
   unit coverage and `cd apps/api && composer test` as the API gate.
-- Go will use the standard test runner. The empty module has no runnable package
-  yet. The first engine package must include tests; from then on, engine rules,
-  deterministic behavior, and AI decisions require focused coverage and
-  `cd services/game-engine && go test ./...` becomes the engine gate.
+- Go uses the standard test runner. Every logic-bearing package must include
+  focused tests; engine rules, deterministic behavior, and AI decisions require
+  coverage through `cd services/game-engine && go test ./...`.
 - React uses `npm run lint`, `npm run build`, and Playwright browser tests via
   `npm run test:e2e` for UI changes. Install the managed Chromium binary with
   `npx playwright install chromium` when setting up a development environment.
