@@ -29,6 +29,8 @@ Run commands from the repository root unless noted otherwise.
 - React development: `cd apps/web && npm run dev`
 - React lint: `cd apps/web && npm run lint`
 - React build: `cd apps/web && npm run build`
+- React browser tests: `cd apps/web && npm run test:e2e` (install the managed
+  Chromium binary first with `cd apps/web && npx playwright install chromium`)
 - React preview: `cd apps/web && npm run preview`
 
 There is no root-level combined Verify command yet. Docker Compose and CI are

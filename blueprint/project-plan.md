@@ -49,6 +49,10 @@ A secondary user is the developer or API consumer who wants to:
 
 Future users may include several authenticated humans playing together over the internet, but multiplayer between humans is not part of the MVP.
 
+Anonymous users may generate a stateless board preview from a supplied seed.
+It creates no game or user data and is not persisted. Authentication is required
+for stored games, simulations, histories, results, and seat-private views.
+
 ## 3. Features - What does the MVP need?
 
 ### Delivery strategy

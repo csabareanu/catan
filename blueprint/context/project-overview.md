@@ -19,6 +19,8 @@ base-game match.
 
 ## Users
 
+- **Anonymous visitor** - generates a stateless seeded-board preview without
+  accessing user or game data.
 - **Authenticated player** - creates private games, controls one human seat
   against two or three AI opponents, completes matches, and reviews or deletes
   owned games.
@@ -28,8 +30,11 @@ base-game match.
 - **Future remote players** - multiple human seats over the internet are an
   architectural consideration, not an MVP user journey.
 
-Anonymous access is limited to registration and login. Stored games, simulations,
-history, results, and seat-private views are owner-scoped.
+Anonymous access is limited to registration and login plus stateless board
+preview generation from a supplied seed. A preview creates no game record, is
+not persisted, and contains no user or private game data. Stored games,
+simulations, history, results, and seat-private views require authentication
+and are owner-scoped.
 
 ## Product and architecture constraints
 
@@ -91,6 +96,10 @@ and ordered by dependency.
 
 PostgreSQL is the durable source of truth. Redis contains only disposable queue,
 cache, session, lock, and coordination data.
+
+A generated-board preview is an ephemeral API response, not a stored record. A
+later authenticated game-creation flow persists its board configuration on the
+owning game.
 
 The model below is the logical persistence contract. Feature specifications own
 the exact migrations, indexes, and enum implementation.
@@ -277,6 +286,10 @@ remain implementation decisions.
 The same data-driven SVG board evolves from the first seeded-board view into the
 simulation observer, replay tool, and interactive match. Live and replayed state
 must remain visually consistent.
+
+The initial anonymous view renders only the generated board and seed/map
+metadata. Player panels, private hands, activity, and game actions wait until
+real game state is available.
 
 ## Deployment
 
