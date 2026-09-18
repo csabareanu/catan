@@ -48,12 +48,23 @@ func Generate(config Config) (Board, error) {
 	if err := assignNumberTokens(hexes, &random); err != nil {
 		return Board{}, err
 	}
+	topology, err := deriveBoardTopology(hexes)
+	if err != nil {
+		return Board{}, err
+	}
+	ports, err := generateStandardPorts(topology.perimeterEdges, &random)
+	if err != nil {
+		return Board{}, err
+	}
 
 	return Board{
 		Seed:       config.Seed,
 		RulesetKey: config.RulesetKey,
 		MapKey:     config.MapKey,
 		Hexes:      hexes,
+		Vertices:   topology.vertices,
+		Edges:      topology.edges,
+		Ports:      ports,
 	}, nil
 }
 

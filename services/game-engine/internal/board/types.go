@@ -24,6 +24,9 @@ type Board struct {
 	RulesetKey string
 	MapKey     string
 	Hexes      []Hex
+	Vertices   []Vertex
+	Edges      []Edge
+	Ports      []Port
 }
 
 // Hex is one tile in the board's axial coordinate grid.
@@ -33,6 +36,40 @@ type Hex struct {
 	R           int
 	Terrain     Terrain
 	NumberToken *int
+	VertexIDs   []string
+}
+
+// Vertex is a board corner in integer logical-lattice coordinates, not pixels.
+type Vertex struct {
+	ID string
+	X  int
+	Y  int
+}
+
+// Edge is one side of a hex, identified by its two canonical endpoint IDs.
+type Edge struct {
+	ID        string
+	VertexIDs [2]string
+}
+
+// Resource identifies the resource traded at a specific 2:1 port.
+type Resource string
+
+const (
+	Lumber Resource = "lumber"
+	Wool   Resource = "wool"
+	Grain  Resource = "grain"
+	Brick  Resource = "brick"
+	Ore    Resource = "ore"
+)
+
+// Port is a trade location on one perimeter edge. A nil ResourceType is a
+// generic 3:1 port; resource-specific ports trade at 2:1.
+type Port struct {
+	ID           string
+	EdgeID       string
+	ResourceType *Resource
+	TradeRatio   int
 }
 
 // Terrain identifies the resource terrain or desert on a hex.

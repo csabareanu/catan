@@ -81,7 +81,7 @@ was too big, so split it.
   `cd services/game-engine && go test ./...` proves the standard tile/token
   counts, rejects malformed seeds/configuration, and a golden seed fixture
   remains stable across repeated runs.
-- [ ] **Step 3 - derive topology and ports** - add stable logical vertices,
+- [x] **Step 3 - derive topology and ports** - add stable logical vertices,
   edges, and deterministic port placement to the generated board. *Done when:*
   Go tests prove 54 unique vertices, 72 unique edges, 9 ports, valid references,
   the standard port mix, and no adjacent 6/8 tokens.
