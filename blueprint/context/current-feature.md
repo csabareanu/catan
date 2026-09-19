@@ -90,7 +90,7 @@ was too big, so split it.
   root `AGENTS.md`. *Done when:* handler tests cover valid generation, invalid
   input, unsupported map/ruleset, and stable JSON output, and the service runs
   without database or Redis access.
-- [ ] **Step 5 - add the anonymous Laravel API boundary** - validate the public
+- [x] **Step 5 - add the anonymous Laravel API boundary** - validate the public
   request, call the configured Go service, return the versioned board response,
   and map input/upstream failures to safe JSON errors. *Done when:*
   `cd apps/api && composer test` covers the forwarded contract, validation
