@@ -455,6 +455,18 @@
   box-shadow: none;
 }
 
+.board-state-loading .board-state-dot {
+  background: var(--warning);
+}
+
+.board-state-success .board-state-dot {
+  background: var(--success);
+}
+
+.board-state-error .board-state-dot {
+  background: var(--danger);
+}
+
 .empty-state {
   display: flex;
   flex: 1;
@@ -578,6 +590,103 @@
   width: 0.38rem;
   background: var(--paper-muted);
   box-shadow: none;
+}
+
+.board-feedback,
+.board-result {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.board-feedback-error {
+  color: var(--danger);
+}
+
+.feedback-mark {
+  display: grid;
+  width: 3.5rem;
+  aspect-ratio: 1;
+  place-items: center;
+  margin-bottom: var(--space-5);
+  border: var(--line-strong) solid currentColor;
+  border-radius: 50%;
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.feedback-mark-loading {
+  border-color: var(--warning);
+  border-right-color: transparent;
+  animation: board-spinner 0.9s linear infinite;
+}
+
+.feedback-mark-success {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.board-feedback .empty-kicker,
+.board-result .empty-kicker {
+  color: var(--paper-muted);
+}
+
+.board-feedback h3,
+.board-result h3 {
+  margin: 0 0 var(--space-3);
+  color: var(--paper-ink);
+  font-size: clamp(var(--text-xl), 3vw, var(--text-2xl));
+  line-height: 1.08;
+}
+
+.board-feedback .empty-copy,
+.board-result .empty-copy {
+  max-width: 27rem;
+}
+
+.board-feedback-error .empty-copy {
+  color: var(--paper-muted);
+}
+
+.board-result-metadata {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 28rem);
+  margin-top: var(--space-5);
+  border: var(--line) solid var(--paper-border);
+  border-radius: var(--radius-sm);
+  background: rgb(255 255 255 / 22%);
+}
+
+.board-result-metadata span {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  color: var(--paper-muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+
+.board-result-metadata span + span {
+  border-left: var(--line) solid var(--paper-border);
+}
+
+.board-result-metadata strong {
+  color: var(--paper-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+@keyframes board-spinner {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .page-footer {
@@ -738,5 +847,9 @@
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .feedback-mark-loading {
+    animation: none;
   }
 }

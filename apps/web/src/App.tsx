@@ -1,10 +1,60 @@
 import { useState } from 'react'
+import {
+  BoardApiError,
+  generateBoard,
+} from './features/board/boardApi'
+import type { BoardResponse } from './features/board/boardApi'
 import './App.css'
 
 const EXAMPLE_SEED = '894177203164'
 
+type GenerationState = 'idle' | 'loading' | 'success' | 'error'
+
 function App() {
   const [seed, setSeed] = useState(EXAMPLE_SEED)
+  const [generationState, setGenerationState] = useState<GenerationState>('idle')
+  const [board, setBoard] = useState<BoardResponse | null>(null)
+  const [error, setError] = useState<BoardApiError | null>(null)
+
+  const handleGenerate = async () => {
+    setGenerationState('loading')
+    setBoard(null)
+    setError(null)
+
+    try {
+      const generatedBoard = await generateBoard({
+        seed,
+        ruleset_key: 'base',
+        map_key: 'standard',
+      })
+
+      setBoard(generatedBoard)
+      setGenerationState('success')
+    } catch (caught: unknown) {
+      const boardError =
+        caught instanceof BoardApiError
+          ? caught
+          : new BoardApiError(
+              'The board could not be generated. Please try again.',
+              'unknown_error',
+              0,
+            )
+
+      setError(boardError)
+      setGenerationState('error')
+    }
+  }
+
+  const boardData = board?.data
+  const boardStateLabel =
+    generationState === 'loading'
+      ? 'Generating'
+      : generationState === 'success'
+        ? 'Generated'
+        : generationState === 'error'
+          ? 'Unavailable'
+          : 'Not generated'
+  const requestWasRejected = error?.status === 422
 
   return (
     <div className="app-shell">
@@ -56,7 +106,11 @@ function App() {
               </span>
               <span className="availability-badge">
                 <span className="availability-dot" aria-hidden="true" />
-                Seed input ready
+                {generationState === 'loading'
+                  ? 'Generating'
+                  : boardData
+                    ? 'Board ready'
+                    : 'Seed input ready'}
               </span>
             </div>
 
@@ -93,17 +147,28 @@ function App() {
             <button
               className="generate-button"
               type="button"
-              disabled
+              disabled={generationState === 'loading'}
+              aria-busy={generationState === 'loading'}
               aria-describedby="generation-note"
+              onClick={handleGenerate}
             >
-              <span>Generate preview</span>
+              <span>
+                {generationState === 'loading'
+                  ? 'Generating preview'
+                  : 'Generate preview'}
+              </span>
               <span className="button-arrow" aria-hidden="true">
                 ↗
               </span>
             </button>
             <p className="generation-note" id="generation-note">
-              Generation connects in a later step. The seed field is ready, but
-              no board is generated yet.
+              {generationState === 'loading'
+                ? 'Asking the board service for a canonical response.'
+                : generationState === 'error'
+                  ? error?.message
+                  : generationState === 'success'
+                    ? 'The response is ready for the board renderer.'
+                    : 'Generate a stateless preview. Nothing is saved.'}
             </p>
 
             <div className="metadata-list">
@@ -112,14 +177,22 @@ function App() {
                   <span className="metadata-label">Ruleset</span>
                   <strong>Base game</strong>
                 </div>
-                <code className="version-chip">base@1.0.0</code>
+                <code className="version-chip">
+                  {boardData
+                    ? `${boardData.ruleset.key}@${boardData.ruleset.version}`
+                    : 'base@1.0.0'}
+                </code>
               </div>
               <div className="metadata-row">
                 <div className="metadata-copy">
                   <span className="metadata-label">Map</span>
                   <strong>Standard · pointy-top</strong>
                 </div>
-                <code className="version-chip">standard@1.0.0</code>
+                <code className="version-chip">
+                  {boardData
+                    ? `${boardData.map.key}@${boardData.map.version}`
+                    : 'standard@1.0.0'}
+                </code>
               </div>
             </div>
 
@@ -135,35 +208,90 @@ function App() {
                 <p className="eyebrow">Map canvas</p>
                 <h2 id="board-title">Your board</h2>
               </div>
-              <span className="board-state">
+              <span className={`board-state board-state-${generationState}`}>
                 <span className="board-state-dot" aria-hidden="true" />
-                Not generated
+                {boardStateLabel}
               </span>
             </div>
 
-            <div className="empty-state" role="group" aria-labelledby="empty-title">
-              <div className="empty-illustration" aria-hidden="true">
-                <span className="empty-orbit empty-orbit-outer" />
-                <span className="empty-orbit empty-orbit-inner" />
-                <svg className="empty-hex" viewBox="0 0 128 128">
-                  <polygon points="64,8 112,36 112,92 64,120 16,92 16,36" />
-                  <path d="M64 44v40M44 64h40" />
-                  <circle cx="64" cy="64" r="3.5" />
-                </svg>
-                <span className="constellation-dot constellation-dot-one" />
-                <span className="constellation-dot constellation-dot-two" />
+            {generationState === 'idle' && (
+              <div className="empty-state" role="group" aria-labelledby="empty-title">
+                <div className="empty-illustration" aria-hidden="true">
+                  <span className="empty-orbit empty-orbit-outer" />
+                  <span className="empty-orbit empty-orbit-inner" />
+                  <svg className="empty-hex" viewBox="0 0 128 128">
+                    <polygon points="64,8 112,36 112,92 64,120 16,92 16,36" />
+                    <path d="M64 44v40M44 64h40" />
+                    <circle cx="64" cy="64" r="3.5" />
+                  </svg>
+                  <span className="constellation-dot constellation-dot-one" />
+                  <span className="constellation-dot constellation-dot-two" />
+                </div>
+                <p className="empty-kicker">Waiting for a seed</p>
+                <h3 id="empty-title">Nothing charted yet.</h3>
+                <p className="empty-copy">
+                  Generate a board to receive terrain, number tokens, and ports
+                  from the canonical service.
+                </p>
+                <span className="empty-state-note">
+                  <span className="empty-state-dot" aria-hidden="true" />
+                  No board data yet
+                </span>
               </div>
-              <p className="empty-kicker">Waiting for a seed</p>
-              <h3 id="empty-title">Nothing charted yet.</h3>
-              <p className="empty-copy">
-                When board generation is connected, terrain, number tokens, and
-                ports will appear here.
-              </p>
-              <span className="empty-state-note">
-                <span className="empty-state-dot" aria-hidden="true" />
-                No board data yet
-              </span>
-            </div>
+            )}
+
+            {generationState === 'loading' && (
+              <div className="board-feedback" role="status" aria-live="polite">
+                <span className="feedback-mark feedback-mark-loading" aria-hidden="true" />
+                <p className="empty-kicker">Contacting board service</p>
+                <h3>Generating your board.</h3>
+                <p className="empty-copy">
+                  The same seed will always produce the same response.
+                </p>
+              </div>
+            )}
+
+            {generationState === 'error' && error && (
+              <div className="board-feedback board-feedback-error" role="alert">
+                <span className="feedback-mark" aria-hidden="true">!</span>
+                <p className="empty-kicker">
+                  {requestWasRejected ? 'Request rejected' : 'Generation failed'}
+                </p>
+                <h3>{requestWasRejected ? 'Check your seed.' : 'Board unavailable.'}</h3>
+                <p className="empty-copy">{error.message}</p>
+                <span className="empty-state-note">
+                  <span className="empty-state-dot" aria-hidden="true" />
+                  {requestWasRejected ? 'Update the seed and try again' : 'Try the request again'}
+                </span>
+              </div>
+            )}
+
+            {generationState === 'success' && boardData && (
+              <div className="board-result" role="status" aria-live="polite">
+                <span className="feedback-mark feedback-mark-success" aria-hidden="true">✓</span>
+                <p className="empty-kicker">Canonical response received</p>
+                <h3>Board ready to render.</h3>
+                <p className="empty-copy">
+                  Seed <strong>{boardData.seed}</strong> produced a{' '}
+                  {boardData.map.key} map with {boardData.hexes.length} hexes.
+                </p>
+                <div className="board-result-metadata">
+                  <span>
+                    Schema <strong>{boardData.board_schema_version}</strong>
+                  </span>
+                  <span>
+                    Ruleset <strong>{boardData.ruleset.version}</strong>
+                  </span>
+                  <span>
+                    Map <strong>{boardData.map.version}</strong>
+                  </span>
+                </div>
+                <span className="empty-state-note">
+                  <span className="empty-state-dot" aria-hidden="true" />
+                  Topology received · renderer next
+                </span>
+              </div>
+            )}
           </section>
         </div>
 

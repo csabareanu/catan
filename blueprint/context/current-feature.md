@@ -96,7 +96,7 @@ was too big, so split it.
   `cd apps/api && composer test` covers the forwarded contract, validation
   without an upstream call, timeout/unavailable handling, and malformed
   upstream responses.
-- [ ] **Step 6 - connect the React preview to Laravel** - add explicit TypeScript
+- [x] **Step 6 - connect the React preview to Laravel** - add explicit TypeScript
   API types/client, a local Vite `/api` proxy, seed submission, and loading,
   success, and error states. *Done when:* the browser receives the canonical
   board from Laravel and displays its seed and version metadata; repeating the
