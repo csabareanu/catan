@@ -85,7 +85,7 @@ was too big, so split it.
   edges, and deterministic port placement to the generated board. *Done when:*
   Go tests prove 54 unique vertices, 72 unique edges, 9 ports, valid references,
   the standard port mix, and no adjacent 6/8 tokens.
-- [ ] **Step 4 - expose the Go board-generation API** - add a versioned HTTP/JSON
+- [x] **Step 4 - expose the Go board-generation API** - add a versioned HTTP/JSON
   endpoint around the generator and document its local run/test commands in the
   root `AGENTS.md`. *Done when:* handler tests cover valid generation, invalid
   input, unsupported map/ruleset, and stable JSON output, and the service runs
