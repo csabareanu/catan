@@ -1,0 +1,10 @@
+id,edge_id,resource_type,trade_ratio
+port:edge:vertex:-1:7|vertex:0:8,edge:vertex:-1:7|vertex:0:8,ore,2
+port:edge:vertex:2:8|vertex:3:7,edge:vertex:2:8|vertex:3:7,-,3
+port:edge:vertex:4:2|vertex:4:4,edge:vertex:4:2|vertex:4:4,brick,2
+port:edge:vertex:4:-2|vertex:4:-4,edge:vertex:4:-2|vertex:4:-4,-,3
+port:edge:vertex:2:-8|vertex:3:-7,edge:vertex:2:-8|vertex:3:-7,wool,2
+port:edge:vertex:-1:-7|vertex:0:-8,edge:vertex:-1:-7|vertex:0:-8,lumber,2
+port:edge:vertex:-3:-5|vertex:-4:-4,edge:vertex:-3:-5|vertex:-4:-4,grain,2
+port:edge:vertex:-5:-1|vertex:-5:1,edge:vertex:-5:-1|vertex:-5:1,-,3
+port:edge:vertex:-3:5|vertex:-4:4,edge:vertex:-3:5|vertex:-4:4,-,3

@@ -5,7 +5,7 @@
 
 ## MVP
 
-- [ ] 1. **Seeded board walking skeleton** - a supplied seed produces the same configurable board in Go, exposes it through the versioned Laravel API, and renders it as a responsive SVG board in React.
+- [x] 1. **Seeded board walking skeleton** - a supplied seed produces the same configurable board in Go, exposes it through the versioned Laravel API, and renders it as a responsive SVG board in React.
 - [ ] 2. **Authenticated private game library** - users can register, authenticate, use API tokens, create games with two or three AI opponents, and list, view, or delete only their own games.
 - [ ] 3. **Durable queued game execution** - owned games can run through a retry-safe Laravel queue and Go service pipeline, with lifecycle status, current state, failures, and ordered events persisted in PostgreSQL and the local stack running through Docker Compose.
 - [ ] 4. **Replayable simulation observer** - users can inspect a game's status and event history in the API and step through its evolving board state in the browser.

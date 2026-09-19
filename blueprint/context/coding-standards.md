@@ -98,13 +98,12 @@ slice.
 
 - Laravel uses PHPUnit. Logic-bearing Laravel changes require focused feature or
   unit coverage and `cd apps/api && composer test` as the API gate.
-- Go will use the standard test runner. The empty module has no runnable package
-  yet. The first engine package must include tests; from then on, engine rules,
-  deterministic behavior, and AI decisions require focused coverage and
-  `cd services/game-engine && go test ./...` becomes the engine gate.
-- React currently has no test runner. Use `npm run lint`, `npm run build`, and
-  browser or manual evidence for UI changes. Add a frontend test runner only as
-  an explicitly approved setup slice.
+- Go uses the standard test runner. Every logic-bearing package must include
+  focused tests; engine rules, deterministic behavior, and AI decisions require
+  coverage through `cd services/game-engine && go test ./...`.
+- React uses `npm run lint`, `npm run build`, and Playwright browser tests via
+  `npm run test:e2e` for UI changes. Install the managed Chromium binary with
+  `npx playwright install chromium` when setting up a development environment.
 - Cross-service changes require contract or integration evidence on both sides
   of the boundary.
 - An empty test suite is not evidence that newly added logic works.
@@ -112,8 +111,8 @@ slice.
 ## Browser verification
 
 Use real browser evidence for flows that click, type, navigate, render the SVG
-board, animate events, or depend on client-side state. Playwright is not
-currently installed; do not add it during an unrelated feature.
+board, animate events, or depend on client-side state. Keep browser tests
+focused on user-visible behavior and use Playwright's managed Chromium.
 
 ## Code quality and comments
 

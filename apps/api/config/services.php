@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'game_engine' => [
+        'url' => env('GAME_ENGINE_URL', 'http://127.0.0.1:8080'),
+        'timeout' => (float) env('GAME_ENGINE_TIMEOUT', 2.0),
+    ],
+
 ];

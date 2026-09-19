@@ -26,14 +26,18 @@ Run commands from the repository root unless noted otherwise.
 - Laravel development: `cd apps/api && composer run dev`
 - Laravel tests: `cd apps/api && composer test`
 - Laravel formatting: `cd apps/api && vendor/bin/pint`
+- Go engine tests: `cd services/game-engine && go test ./...`
+- Go engine API: `cd services/game-engine && go run ./cmd/game-engine`
+  (listens on `127.0.0.1:8080`; stateless, with no database or Redis dependency)
 - React development: `cd apps/web && npm run dev`
 - React lint: `cd apps/web && npm run lint`
 - React build: `cd apps/web && npm run build`
+- React browser tests: `cd apps/web && npm run test:e2e` (install the managed
+  Chromium binary first with `cd apps/web && npx playwright install chromium`)
 - React preview: `cd apps/web && npm run preview`
 
 There is no root-level combined Verify command yet. Docker Compose and CI are
-also not configured yet. The Go module contains no packages, so it has no
-runnable test command until the first engine package is implemented.
+also not configured yet.
 
 ## Working conventions
 
