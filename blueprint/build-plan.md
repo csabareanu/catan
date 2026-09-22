@@ -11,6 +11,10 @@
   - [x] 2b. **Authenticated game creation** - an owner can create a seeded game with one human seat and two or three AI seats, persisting the game configuration and seat ownership.
   - [x] 2c. **Private game library** - an owner can list, inspect, and delete only their own games through owner-scoped API resources.
 - [ ] 3. **Durable queued game execution** - owned games can run through a retry-safe Laravel queue and Go service pipeline, with lifecycle status, current state, failures, and ordered events persisted in PostgreSQL and the local stack running through Docker Compose.
+  - [x] 3a. **Execution persistence contract** - persist versioned lifecycle state, failure metadata, commands, events, and snapshots without starting queued execution yet.
+  - [ ] 3b. **Deterministic engine run contract** - add the first versioned Go execution boundary and Laravel client contract for a reproducible bootstrap run.
+  - [ ] 3c. **Queued game orchestration** - let an owner start a run through a retry-safe Laravel job that calls Go and persists lifecycle, state, events, and failures.
+  - [ ] 3d. **Local Docker Compose runtime** - run the API, worker, Go engine, PostgreSQL, and Redis together with documented health checks and smoke verification.
 - [ ] 4. **Replayable simulation observer** - users can inspect a game's status and event history in the API and step through its evolving board state in the browser.
 - [ ] 5. **Initial placement phase** - three- or four-seat games enforce deterministic turn order and legal settlement and road placement, while AI seats can complete setup and the observer renders every event.
 - [ ] 6. **Core turn economy** - deterministic dice rolls, resource production, private seat views, roads, settlements, cities, and bank or port trading form a legal replayable turn loop.

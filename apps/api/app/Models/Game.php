@@ -20,6 +20,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'lifecycle_status',
     'configuration',
     'board_configuration',
+    'state_schema_version',
+    'current_state',
+    'result',
+    'last_command_sequence',
+    'last_event_sequence',
+    'run_attempts',
+    'failure_code',
+    'failure_message',
+    'started_at',
+    'completed_at',
 ])]
 class Game extends Model
 {
@@ -43,6 +53,30 @@ class Game extends Model
     }
 
     /**
+     * Get the ordered commands accepted for the game.
+     */
+    public function commands(): HasMany
+    {
+        return $this->hasMany(GameCommand::class)->orderBy('sequence');
+    }
+
+    /**
+     * Get the ordered events produced for the game.
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(GameEvent::class)->orderBy('sequence');
+    }
+
+    /**
+     * Get the snapshots ordered by their command position.
+     */
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(GameSnapshot::class)->orderBy('command_sequence');
+    }
+
+    /**
      * Get the JSON game configuration attributes.
      *
      * @return array<string, string>
@@ -54,6 +88,13 @@ class Game extends Model
             'human_seat_number' => 'integer',
             'configuration' => 'array',
             'board_configuration' => 'array',
+            'current_state' => 'array',
+            'result' => 'array',
+            'last_command_sequence' => 'integer',
+            'last_event_sequence' => 'integer',
+            'run_attempts' => 'integer',
+            'started_at' => 'immutable_datetime',
+            'completed_at' => 'immutable_datetime',
         ];
     }
 }
