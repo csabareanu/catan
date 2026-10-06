@@ -85,10 +85,11 @@ type apiError struct {
 	Message string `json:"message"`
 }
 
-// NewHandler returns the stateless, versioned board-generation HTTP API.
+// NewHandler returns the stateless, versioned game-engine HTTP API.
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/boards/generate", generateBoard)
+	mux.HandleFunc("/v1/runs/bootstrap", bootstrapRun)
 	return mux
 }
 

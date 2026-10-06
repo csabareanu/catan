@@ -30,11 +30,10 @@ base-game match.
 - **Future remote players** - multiple human seats over the internet are an
   architectural consideration, not an MVP user journey.
 
-Anonymous access is limited to registration and login plus stateless board
-preview generation from a supplied seed. A preview creates no game record, is
-not persisted, and contains no user or private game data. Stored games,
-simulations, history, results, and seat-private views require authentication
-and are owner-scoped.
+Anonymous users may register, log in, or generate a stateless board preview
+from a supplied seed. A preview creates no game record, is not persisted, and
+contains no user or private game data. Stored games, simulations, history,
+results, and seat-private views require authentication and are owner-scoped.
 
 ## Product and architecture constraints
 
@@ -66,6 +65,13 @@ and ordered by dependency.
    reproducible board generation and responsive SVG rendering.
 2. **Authenticated private game library** - let users authenticate and manage
    only their own seeded games and API credentials.
+   - **2a. Identity and API access** - register users, issue Sanctum bearer
+     tokens, inspect the current identity, and revoke the current token.
+   - **2b. Authenticated game creation** - create a seeded game with one human
+     seat and two or three AI seats while persisting configuration and
+     ownership.
+   - **2c. Private game library** - list, inspect, and delete only the owner's
+     games through owner-scoped API resources.
 3. **Durable queued game execution** - run retry-safe engine work asynchronously
    while PostgreSQL stores lifecycle state and history and Docker Compose runs
    the local stack.
@@ -129,7 +135,8 @@ only when issued.
 - `mode` (string enum) - `simulation` or `human_vs_ai`.
 - `ruleset_key` (string) - identifies the base game or a future ruleset.
 - `ruleset_version` (string) - pins the engine contract used by the game.
-- `state_schema_version` (string) - identifies the serialized state shape.
+- `state_schema_version` (nullable string) - identifies the serialized state
+  shape once execution initializes.
 - `seed` (string) - canonical integer representation shared safely by PHP, Go,
   JSON, and TypeScript without numeric precision loss.
 - `seat_count` (small integer) - three or four.
@@ -139,8 +146,8 @@ only when issued.
   topology.
 - `lifecycle_status` (string enum) - created, queued, running, awaiting human
   input, completed, or failed.
-- `current_state` (JSONB) - latest canonical engine state; never returned
-  directly without the Go-owned public or seat-specific projection.
+- `current_state` (nullable JSONB) - latest canonical engine state; never
+  returned directly without the Go-owned public or seat-specific projection.
 - `last_command_sequence`, `last_event_sequence` (big integers) - ordering
   cursors.
 - `run_attempts` (integer) - orchestration attempt count.
@@ -166,8 +173,8 @@ every query and route.
 - `created_at`, `updated_at` (timestamps).
 - Unique on `game_id` plus `seat_number`.
 
-The schema permits future human seats without providing multiplayer behavior in
-the MVP.
+The schema permits future human seats and AI-only simulations without providing
+multiplayer behavior in the MVP.
 
 ### GameCommand
 
@@ -235,7 +242,7 @@ game rules. Snapshot frequency is a feature-level performance decision.
 
 - **Laravel 13 on PHP 8.3** - REST control plane for identity, authorization,
   lifecycle, persistence, validation, and engine orchestration.
-- **Laravel Sanctum 4** - secure cookie authentication for the first-party React
+- **Laravel Sanctum** - secure cookie authentication for the first-party React
   client and hashed API tokens for CLI or external clients.
 - **Laravel queue workers** - asynchronous simulation orchestration and safe
   retries.
