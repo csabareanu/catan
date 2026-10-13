@@ -1,0 +1,142 @@
+x-laravel-environment: &laravel-environment
+  APP_NAME: ${APP_NAME:-Catan}
+  APP_ENV: ${APP_ENV:-local}
+  APP_DEBUG: ${APP_DEBUG:-true}
+  APP_KEY: ${APP_KEY:-base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+  APP_URL: ${APP_URL:-http://localhost:8000}
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: ${LOG_LEVEL:-debug}
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_DATABASE: ${DB_DATABASE:-catan}
+  DB_USERNAME: ${DB_USERNAME:-catan}
+  DB_PASSWORD: ${DB_PASSWORD:-catan}
+  QUEUE_CONNECTION: redis
+  CACHE_STORE: redis
+  SESSION_DRIVER: redis
+  REDIS_CLIENT: phpredis
+  REDIS_HOST: redis
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  REDIS_PORT: 6379
+  GAME_ENGINE_URL: http://engine:8080
+  GAME_ENGINE_TIMEOUT: ${GAME_ENGINE_TIMEOUT:-2}
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-catan}
+      POSTGRES_USER: ${DB_USERNAME:-catan}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-catan}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  engine:
+    build:
+      context: ./services/game-engine
+      dockerfile: Dockerfile
+    environment:
+      GAME_ENGINE_ADDR: 0.0.0.0:8080
+    ports:
+      - "${ENGINE_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: catan-api:local
+    environment: *laravel-environment
+    command:
+      - sh
+      - -c
+      - php artisan migrate --force && exec php artisan serve --host=0.0.0.0 --port=8000
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: catan-api:local
+    environment: *laravel-environment
+    command:
+      - php
+      - artisan
+      - queue:work
+      - redis
+      - --queue=default
+      - --sleep=1
+      - --tries=3
+      - --timeout=90
+      - --verbose
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'php artisan queue:work redis' >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    image: catan-web:local
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

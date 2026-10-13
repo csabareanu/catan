@@ -88,6 +88,7 @@ type apiError struct {
 // NewHandler returns the stateless, versioned game-engine HTTP API.
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", health)
 	mux.HandleFunc("/v1/boards/generate", generateBoard)
 	mux.HandleFunc("/v1/runs/bootstrap", bootstrapRun)
 	return mux
