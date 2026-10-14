@@ -27,6 +27,15 @@ class StartGameRunController extends Controller
             return $this->gameNotFoundResponse();
         }
 
+        if ($result['outcome'] === 'dispatch_failed') {
+            return response()->json([
+                'error' => [
+                    'code' => 'queue_dispatch_failed',
+                    'message' => 'The game could not be queued for execution.',
+                ],
+            ], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
         if ($result['outcome'] === 'conflict') {
             return response()->json([
                 'error' => [

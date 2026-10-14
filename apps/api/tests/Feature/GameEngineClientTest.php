@@ -68,24 +68,72 @@ class GameEngineClientTest extends TestCase
         $invalidEventSequence = $this->bootstrapResponse();
         $invalidEventSequence['data']['events'][0]['sequence'] = '1';
 
+        $mismatchedSeed = $this->bootstrapResponse();
+        $mismatchedSeed['data']['seed'] = '894177203165';
+
+        $mismatchedBoardSeed = $this->bootstrapResponse();
+        $mismatchedBoardSeed['data']['state']['board']['seed'] = '894177203165';
+
+        $mismatchedSeats = $this->bootstrapResponse();
+        $mismatchedSeats['data']['state']['seats'][0]['controller_type'] = 'ai';
+
+        $mismatchedSeatCount = $this->bootstrapResponse();
+        $mismatchedSeatCount['data']['events'][0]['payload']['seat_count'] = 4;
+
+        $nonContiguousEvents = $this->bootstrapResponse();
+        $nonContiguousEvents['data']['events'][] = [
+            'sequence' => 3,
+            'event_type' => 'bootstrap_checked.v1',
+            'payload' => [],
+            'visibility' => 'public',
+            'visible_to_seat_number' => null,
+        ];
+
+        $invalidVisibility = $this->bootstrapResponse();
+        $invalidVisibility['data']['events'][0]['visibility'] = 'private';
+
+        $invalidPublicRecipient = $this->bootstrapResponse();
+        $invalidPublicRecipient['data']['events'][0]['visible_to_seat_number'] = 1;
+
+        $invalidPrivateRecipient = $this->bootstrapResponse();
+        $invalidPrivateRecipient['data']['events'][] = [
+            'sequence' => 2,
+            'event_type' => 'bootstrap_checked.v1',
+            'payload' => [],
+            'visibility' => 'seat_private',
+            'visible_to_seat_number' => 4,
+        ];
+
         foreach ([
             'missing data envelope' => ['unexpected' => []],
             'missing state' => $missingState,
             'invalid event sequence type' => $invalidEventSequence,
+            'mismatched seed' => $mismatchedSeed,
+            'mismatched board seed' => $mismatchedBoardSeed,
+            'mismatched seats' => $mismatchedSeats,
+            'mismatched initialization seat count' => $mismatchedSeatCount,
+            'non-contiguous events' => $nonContiguousEvents,
+            'invalid visibility' => $invalidVisibility,
+            'invalid public recipient' => $invalidPublicRecipient,
+            'invalid private recipient' => $invalidPrivateRecipient,
         ] as $case => $engineResponse) {
             Http::fake([
                 '*' => Http::response($engineResponse, 200),
             ]);
 
+            $rejected = false;
+
             try {
                 app(GameEngineClient::class)->bootstrapRun($this->bootstrapPayload());
-                $this->fail("The {$case} response was accepted.");
             } catch (GameEngineProtocolException $exception) {
+                $rejected = true;
                 $this->assertSame(
                     'The game engine returned an invalid bootstrap response.',
                     $exception->getMessage(),
                 );
             }
+
+            $this->assertTrue($rejected, "The {$case} response was accepted.");
         }
     }
 

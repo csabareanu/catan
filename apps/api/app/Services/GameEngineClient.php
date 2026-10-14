@@ -54,7 +54,7 @@ class GameEngineClient
     {
         $body = $this->post('/v1/runs/bootstrap', $payload);
 
-        if (! $this->isBootstrapResponse($body)) {
+        if (! $this->isBootstrapResponse($body, $payload)) {
             throw new GameEngineProtocolException('The game engine returned an invalid bootstrap response.');
         }
 
@@ -109,33 +109,44 @@ class GameEngineClient
             && is_array($data['ports'] ?? null);
     }
 
-    private function isBootstrapResponse(mixed $body): bool
+    /**
+     * @param  array{
+     *     seed: string,
+     *     ruleset_key: string,
+     *     map_key: string,
+     *     seats: list<array{seat_number: int, controller_type: 'human'|'ai'}>
+     * }  $payload
+     */
+    private function isBootstrapResponse(mixed $body, array $payload): bool
     {
         if (! is_array($body) || ! is_array($body['data'] ?? null)) {
             return false;
         }
 
         $data = $body['data'];
+        $ruleset = $data['ruleset'] ?? null;
+        $map = $data['map'] ?? null;
         $state = $data['state'] ?? null;
         $events = $data['events'] ?? null;
 
         if (($data['execution_schema_version'] ?? null) !== '1'
             || ($data['state_schema_version'] ?? null) !== 'state-v1'
-            || ! is_string($data['seed'] ?? null)
-            || ! $this->isRulesetData($data['ruleset'] ?? null)
-            || ! $this->isMapData($data['map'] ?? null)
+            || ($data['seed'] ?? null) !== $payload['seed']
+            || ! $this->isRulesetData($ruleset)
+            || ($ruleset['key'] ?? null) !== $payload['ruleset_key']
+            || ! $this->isMapData($map)
+            || ($map['key'] ?? null) !== $payload['map_key']
             || ! is_array($state)
             || ($state['phase'] ?? null) !== 'initialized'
             || ! $this->isBoardData($state['board'] ?? null)
             || (($state['board']['board_schema_version'] ?? null) !== '1')
-            || ! $this->isSeatList($state['seats'] ?? null)
-            || ! is_array($events)
-            || ! array_is_list($events)
-            || $events === []) {
+            || ! $this->isBoardMetadataConsistent($state['board'], $data)
+            || ! $this->isSeatList($state['seats'] ?? null, $payload['seats'])
+            || ! $this->isEventList($events, $payload['seed'], count($payload['seats']))) {
             return false;
         }
 
-        return $this->isInitializationEvent($events[0]);
+        return true;
     }
 
     private function isRulesetData(mixed $ruleset): bool
@@ -153,7 +164,10 @@ class GameEngineClient
             && is_string($map['orientation'] ?? null);
     }
 
-    private function isSeatList(mixed $seats): bool
+    /**
+     * @param  list<array{seat_number: int, controller_type: 'human'|'ai'}>|null  $expectedSeats
+     */
+    private function isSeatList(mixed $seats, ?array $expectedSeats = null): bool
     {
         if (! is_array($seats)
             || ! array_is_list($seats)
@@ -167,12 +181,72 @@ class GameEngineClient
                 || ! in_array($seat['controller_type'] ?? null, ['human', 'ai'], true)) {
                 return false;
             }
+
+            if ($expectedSeats !== null) {
+                $expectedSeat = $expectedSeats[$index] ?? null;
+
+                if (! is_array($expectedSeat)
+                    || ($seat['seat_number'] ?? null) !== ($expectedSeat['seat_number'] ?? null)
+                    || ($seat['controller_type'] ?? null) !== ($expectedSeat['controller_type'] ?? null)) {
+                    return false;
+                }
+            }
         }
 
         return true;
     }
 
-    private function isInitializationEvent(mixed $event): bool
+    private function isBoardMetadataConsistent(array $board, array $responseData): bool
+    {
+        $ruleset = $responseData['ruleset'] ?? null;
+        $map = $responseData['map'] ?? null;
+        $boardRuleset = $board['ruleset'] ?? null;
+        $boardMap = $board['map'] ?? null;
+
+        return is_array($ruleset)
+            && is_array($map)
+            && is_array($boardRuleset)
+            && is_array($boardMap)
+            && ($board['seed'] ?? null) === ($responseData['seed'] ?? null)
+            && ($boardRuleset['key'] ?? null) === ($ruleset['key'] ?? null)
+            && ($boardRuleset['version'] ?? null) === ($ruleset['version'] ?? null)
+            && ($boardMap['key'] ?? null) === ($map['key'] ?? null)
+            && ($boardMap['version'] ?? null) === ($map['version'] ?? null)
+            && ($boardMap['orientation'] ?? null) === ($map['orientation'] ?? null);
+    }
+
+    private function isEventList(mixed $events, string $seed, int $seatCount): bool
+    {
+        if (! is_array($events) || ! array_is_list($events) || $events === []) {
+            return false;
+        }
+
+        foreach ($events as $index => $event) {
+            if (! is_array($event)
+                || ($event['sequence'] ?? null) !== $index + 1
+                || ! is_string($event['event_type'] ?? null)
+                || ($event['event_type'] ?? '') === ''
+                || ! is_array($event['payload'] ?? null)
+                || ! in_array($event['visibility'] ?? null, ['public', 'seat_private'], true)
+                || ! array_key_exists('visible_to_seat_number', $event)) {
+                return false;
+            }
+
+            $visibleToSeatNumber = $event['visible_to_seat_number'];
+
+            if (($event['visibility'] === 'public' && $visibleToSeatNumber !== null)
+                || ($event['visibility'] === 'seat_private'
+                    && (! is_int($visibleToSeatNumber)
+                        || $visibleToSeatNumber < 1
+                        || $visibleToSeatNumber > $seatCount))) {
+                return false;
+            }
+        }
+
+        return $this->isInitializationEvent($events[0], $seed, $seatCount);
+    }
+
+    private function isInitializationEvent(mixed $event, string $seed, int $seatCount): bool
     {
         if (! is_array($event) || ! is_array($event['payload'] ?? null)) {
             return false;
@@ -182,8 +256,8 @@ class GameEngineClient
 
         return ($event['sequence'] ?? null) === 1
             && ($event['event_type'] ?? null) === 'game_initialized.v1'
-            && is_string($payload['seed'] ?? null)
-            && is_int($payload['seat_count'] ?? null)
+            && ($payload['seed'] ?? null) === $seed
+            && ($payload['seat_count'] ?? null) === $seatCount
             && ($event['visibility'] ?? null) === 'public'
             && array_key_exists('visible_to_seat_number', $event)
             && $event['visible_to_seat_number'] === null;

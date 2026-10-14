@@ -35,9 +35,29 @@ Run commands from the repository root unless noted otherwise.
 - React browser tests: `cd apps/web && npm run test:e2e` (install the managed
   Chromium binary first with `cd apps/web && npx playwright install chromium`)
 - React preview: `cd apps/web && npm run preview`
+- Docker development stack: `docker compose -f compose.yaml -f compose.dev.yaml up -d`
+- Docker stable image-based stack: `docker compose up --build -d`
+- Development Compose smoke test: `COMPOSE_FILE=compose.yaml:compose.dev.yaml scripts/compose-smoke.sh`
+- Stable Compose smoke test: `scripts/compose-smoke.sh`
 
-There is no root-level combined Verify command yet. Docker Compose and CI are
-also not configured yet.
+There is no root-level combined Verify command yet. CI is not configured yet.
+
+The development Compose workflow mounts Laravel, React, and Go source code, so
+ordinary PHP and React edits do not require image rebuilds. Restart the Go
+engine after Go edits:
+
+`docker compose -f compose.yaml -f compose.dev.yaml restart engine`
+
+Refresh the container-managed dependency volumes after lockfile changes:
+
+- Composer: `docker compose -f compose.yaml -f compose.dev.yaml run --rm api composer install`
+- npm: `docker compose -f compose.yaml -f compose.dev.yaml run --rm web npm ci`
+
+Rebuild the affected development image after Dockerfile or base-image changes.
+The stable image-based workflow requires rebuilds after source, dependency,
+Dockerfile, or base-image changes. `APP_PORT`, `WEB_PORT`, and `ENGINE_PORT`
+override the published host ports; internal service names and ports stay the
+same.
 
 ## Working conventions
 

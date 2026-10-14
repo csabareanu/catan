@@ -6,15 +6,18 @@ use App\Jobs\BootstrapGameRun;
 use App\Models\Game;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class GameRunService
 {
+    public function __construct(private readonly BootstrapGameRunDispatcher $bootstrapGameRunDispatcher) {}
+
     /**
      * Queue a new bootstrap or retry an unfinished failed bootstrap.
      *
      * @return array{
      *     game: Game,
-     *     outcome: 'accepted'|'in_progress'|'saved'|'conflict'
+     *     outcome: 'accepted'|'dispatch_failed'|'in_progress'|'saved'|'conflict'
      * }|null
      */
     public function start(User $owner, string $gameId): ?array
@@ -56,10 +59,54 @@ class GameRunService
         });
 
         if ($result !== null && $result['outcome'] === 'accepted') {
-            BootstrapGameRun::dispatch($result['game']->getKey());
+            try {
+                $this->bootstrapGameRunDispatcher->dispatch($result['game']->getKey());
+            } catch (Throwable) {
+                $failedGame = $this->recordDispatchFailure($result['game']->getKey());
+
+                if ($failedGame !== null) {
+                    return [
+                        'game' => $failedGame,
+                        'outcome' => 'dispatch_failed',
+                    ];
+                }
+            }
         }
 
         return $result;
+    }
+
+    private function recordDispatchFailure(int $gameId): ?Game
+    {
+        return DB::transaction(function () use ($gameId): ?Game {
+            $game = Game::query()
+                ->with('seats')
+                ->lockForUpdate()
+                ->find($gameId);
+
+            if ($game === null
+                || $this->hasCommittedBootstrap($game)
+                || ! in_array($game->lifecycle_status, ['queued', 'running'], true)) {
+                return null;
+            }
+
+            $game->forceFill([
+                'lifecycle_status' => 'failed',
+                'result' => null,
+                'failure_code' => 'queue_dispatch_failed',
+                'failure_message' => 'The game could not be queued for execution.',
+                'completed_at' => now(),
+            ])->save();
+
+            return $game;
+        });
+    }
+
+    private function hasCommittedBootstrap(Game $game): bool
+    {
+        return $game->commands()
+            ->where('idempotency_key', BootstrapGameRun::idempotencyKey($game->getKey()))
+            ->exists();
     }
 
     private function canRetry(Game $game): bool

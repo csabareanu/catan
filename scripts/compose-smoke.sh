@@ -43,7 +43,29 @@ else
     exit 1
 fi
 
-COMPOSE+=(--project-directory "$ROOT_DIR" -f "$ROOT_DIR/compose.yaml")
+COMPOSE_FILE_SPEC="$(dotenv_value COMPOSE_FILE compose.yaml)"
+IFS=: read -r -a compose_files <<< "$COMPOSE_FILE_SPEC"
+COMPOSE=(env -u COMPOSE_FILE "${COMPOSE[@]}" --project-directory "$ROOT_DIR")
+for compose_file in "${compose_files[@]}"; do
+    if [[ -z "$compose_file" ]]; then
+        printf 'SMOKE FAILED: COMPOSE_FILE contains an empty Compose file path.\n' >&2
+        exit 1
+    fi
+
+    if [[ "$compose_file" = /* ]]; then
+        compose_path="$compose_file"
+    else
+        compose_path="$ROOT_DIR/$compose_file"
+    fi
+
+    if [[ ! -f "$compose_path" ]]; then
+        printf 'SMOKE FAILED: Compose file not found: %s\n' "$compose_path" >&2
+        exit 1
+    fi
+
+    COMPOSE+=(-f "$compose_path")
+done
+
 if [[ ! -f "$ROOT_DIR/.env" ]]; then
     COMPOSE+=(--env-file "$ROOT_DIR/compose.env.example")
 fi

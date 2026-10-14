@@ -119,13 +119,18 @@ class GameBootstrapService
     private function persistResult(int $gameId, array $payload, array $response): void
     {
         DB::transaction(function () use ($gameId, $payload, $response): void {
-            $game = Game::query()->lockForUpdate()->find($gameId);
+            $game = Game::query()
+                ->with('seats')
+                ->lockForUpdate()
+                ->find($gameId);
 
             if ($game === null
                 || $this->hasCommittedBootstrap($game)
                 || ! in_array($game->lifecycle_status, ['queued', 'running'], true)) {
                 return;
             }
+
+            $this->validatePersistableResponse($game, $payload, $response);
 
             $data = $response['data'];
             $state = $data['state'];
@@ -178,6 +183,75 @@ class GameBootstrapService
                 'failure_message' => null,
             ])->save();
         });
+    }
+
+    /**
+     * Ensure the response still describes the game whose history is about to
+     * be committed. The client validates the transport contract; this second
+     * boundary validates identity against the persisted game configuration.
+     *
+     * @param  array{
+     *     seed: string,
+     *     ruleset_key: string,
+     *     map_key: string,
+     *     seats: list<array{seat_number: int, controller_type: string}>
+     * }  $payload
+     * @param  array<string, mixed>  $response
+     */
+    private function validatePersistableResponse(Game $game, array $payload, array $response): void
+    {
+        $data = $response['data'] ?? null;
+        $configuration = $game->configuration;
+        $boardConfiguration = $game->board_configuration;
+        $state = is_array($data) ? ($data['state'] ?? null) : null;
+        $responseRuleset = is_array($data) ? ($data['ruleset'] ?? null) : null;
+        $responseMap = is_array($data) ? ($data['map'] ?? null) : null;
+        $stateBoard = is_array($state) ? ($state['board'] ?? null) : null;
+        $expectedSeats = $this->enginePayload($game)['seats'];
+
+        if (! is_array($data)
+            || ! is_array($configuration)
+            || ! is_array($boardConfiguration)
+            || ! is_array($responseRuleset)
+            || ! is_array($responseMap)
+            || ! is_array($state)
+            || ! is_array($stateBoard)
+            || $payload !== $this->enginePayload($game)
+            || ($data['seed'] ?? null) !== (string) $game->seed
+            || ($responseRuleset['key'] ?? null) !== (string) $game->ruleset_key
+            || ($responseRuleset['version'] ?? null) !== (string) $game->ruleset_version
+            || ($responseMap['key'] ?? null) !== ($configuration['map_key'] ?? null)
+            || ($responseMap['version'] ?? null) !== ($configuration['map_version'] ?? null)
+            || $stateBoard !== $boardConfiguration
+            || ! $this->matchesSeatConfiguration($state['seats'] ?? null, $expectedSeats)) {
+            throw new GameEngineProtocolException(
+                'The game engine returned bootstrap data for a different persisted game.',
+            );
+        }
+    }
+
+    /**
+     * @param  list<array{seat_number: int, controller_type: string}>  $expectedSeats
+     */
+    private function matchesSeatConfiguration(mixed $actualSeats, array $expectedSeats): bool
+    {
+        if (! is_array($actualSeats)
+            || ! array_is_list($actualSeats)
+            || count($actualSeats) !== count($expectedSeats)) {
+            return false;
+        }
+
+        foreach ($expectedSeats as $index => $expectedSeat) {
+            $actualSeat = $actualSeats[$index] ?? null;
+
+            if (! is_array($actualSeat)
+                || ($actualSeat['seat_number'] ?? null) !== $expectedSeat['seat_number']
+                || ($actualSeat['controller_type'] ?? null) !== $expectedSeat['controller_type']) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

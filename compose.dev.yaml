@@ -1,0 +1,64 @@
+services:
+  api:
+    volumes:
+      - ./apps/api:/var/www/html
+      - api-vendor:/var/www/html/vendor
+      - api-storage:/var/www/html/storage
+      - api-bootstrap-cache:/var/www/html/bootstrap/cache
+    command:
+      - sh
+      - -c
+      - php artisan migrate --force && cd public && exec php -S 0.0.0:8000 -t . /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php
+
+  worker:
+    volumes:
+      - ./apps/api:/var/www/html
+      - api-vendor:/var/www/html/vendor
+      - api-storage:/var/www/html/storage
+      - api-bootstrap-cache:/var/www/html/bootstrap/cache
+    command:
+      - php
+      - artisan
+      - queue:listen
+      - redis
+      - --queue=default
+      - --sleep=1
+      - --tries=3
+      - --timeout=90
+      - --verbose
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'php artisan queue:listen redis' >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
+
+  engine:
+    image: ${COMPOSE_PROJECT_NAME:-catan}-engine-dev:local
+    build:
+      target: build
+    volumes:
+      - ./services/game-engine:/src
+    command:
+      - go
+      - run
+      - ./cmd/game-engine
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
+
+  web:
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+    environment:
+      VITE_USE_POLLING: "true"
+
+volumes:
+  api-vendor:
+  api-storage:
+  api-bootstrap-cache:
+  web-node-modules:

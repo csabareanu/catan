@@ -46,6 +46,50 @@ class GameRunTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_an_observable_queue_dispatch_failure_is_retryable(): void
+    {
+        $owner = User::factory()->create();
+        $token = $owner->createToken('test-client')->plainTextToken;
+        $game = Game::factory()->for($owner, 'owner')->create();
+        Http::fake();
+        Queue::fake()->beforePushing(function (): never {
+            throw new RuntimeException('queue storage unavailable');
+        });
+
+        $response = $this->withToken($token)->postJson('/api/v1/games/'.$game->id.'/run');
+
+        $response->assertStatus(503)->assertExactJson([
+            'error' => [
+                'code' => 'queue_dispatch_failed',
+                'message' => 'The game could not be queued for execution.',
+            ],
+        ]);
+        $game->refresh();
+        $this->assertSame('failed', $game->lifecycle_status);
+        $this->assertSame('queue_dispatch_failed', $game->failure_code);
+        $this->assertSame(
+            'The game could not be queued for execution.',
+            $game->failure_message,
+        );
+        $this->assertNotNull($game->completed_at);
+        $this->assertDatabaseCount('game_commands', 0);
+        $this->assertDatabaseCount('game_events', 0);
+        $this->assertDatabaseCount('game_snapshots', 0);
+        Queue::assertNothingPushed();
+        Http::assertNothingSent();
+
+        Queue::fake();
+
+        $retryResponse = $this->withToken($token)->postJson('/api/v1/games/'.$game->id.'/run');
+
+        $retryResponse->assertStatus(202)
+            ->assertJsonPath('data.lifecycle_status', 'queued');
+        Queue::assertPushedTimes(BootstrapGameRun::class, 1);
+        Queue::assertPushed(BootstrapGameRun::class, function (BootstrapGameRun $job) use ($game): bool {
+            return $job->gameId === $game->id;
+        });
+    }
+
     public function test_bootstrap_job_persists_the_canonical_state_and_history(): void
     {
         $game = $this->gameWithSeats([
@@ -314,6 +358,37 @@ class GameRunTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_persisted_bootstrap_metadata_mismatch_marks_the_game_failed_without_history(): void
+    {
+        $game = $this->gameWithSeats([
+            'lifecycle_status' => 'queued',
+        ]);
+        $engineResponse = $this->bootstrapResponse($game);
+        $engineResponse['data']['ruleset']['version'] = '9.9.9';
+        $engineResponse['data']['state']['board']['ruleset']['version'] = '9.9.9';
+        Http::fake([
+            '*' => Http::response($engineResponse, 200),
+        ]);
+
+        $job = (new BootstrapGameRun($game->getKey()))->withFakeQueueInteractions();
+        app()->call([$job, 'handle']);
+
+        $job->assertFailedWith(GameEngineProtocolException::class);
+        $this->assertNotNull($job->job->failedWith);
+        $job->failed($job->job->failedWith);
+
+        $game->refresh();
+        $this->assertSame('failed', $game->lifecycle_status);
+        $this->assertSame('game_engine_protocol', $game->failure_code);
+        $this->assertSame(
+            'The game engine returned an invalid response.',
+            $game->failure_message,
+        );
+        $this->assertDatabaseCount('game_commands', 0);
+        $this->assertDatabaseCount('game_events', 0);
+        $this->assertDatabaseCount('game_snapshots', 0);
+    }
+
     public function test_unexpected_failure_marks_the_game_failed_with_sanitized_metadata(): void
     {
         $game = $this->gameWithSeats([
@@ -350,24 +425,31 @@ class GameRunTest extends TestCase
             'lifecycle_status' => 'queued',
         ]);
         $engineResponse = $this->bootstrapResponse($game);
-        $engineResponse['data']['events'][] = $engineResponse['data']['events'][0];
         Http::fake([
             '*' => Http::response($engineResponse, 200),
         ]);
 
-        $job = (new BootstrapGameRun($game->getKey()))->withFakeQueueInteractions();
-        app()->call([$job, 'handle']);
+        GameSnapshot::creating(static function (): never {
+            throw new RuntimeException('snapshot persistence unavailable');
+        });
 
-        $job->assertFailed();
-        $this->assertNotNull($job->job->failedWith);
-        $job->failed($job->job->failedWith);
+        try {
+            $job = (new BootstrapGameRun($game->getKey()))->withFakeQueueInteractions();
+            app()->call([$job, 'handle']);
 
-        $game->refresh();
-        $this->assertSame('failed', $game->lifecycle_status);
-        $this->assertSame('game_execution_failed', $game->failure_code);
-        $this->assertDatabaseCount('game_commands', 0);
-        $this->assertDatabaseCount('game_events', 0);
-        $this->assertDatabaseCount('game_snapshots', 0);
+            $job->assertFailed();
+            $this->assertNotNull($job->job->failedWith);
+            $job->failed($job->job->failedWith);
+
+            $game->refresh();
+            $this->assertSame('failed', $game->lifecycle_status);
+            $this->assertSame('game_execution_failed', $game->failure_code);
+            $this->assertDatabaseCount('game_commands', 0);
+            $this->assertDatabaseCount('game_events', 0);
+            $this->assertDatabaseCount('game_snapshots', 0);
+        } finally {
+            GameSnapshot::flushEventListeners();
+        }
     }
 
     public function test_a_late_failure_callback_does_not_overwrite_a_successful_bootstrap(): void
