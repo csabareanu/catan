@@ -58,24 +58,6 @@
   scaffold assertion `assertTrue(true)`; it provides no application coverage.
   The separate feature ExampleTest checks the scaffold root page.
 
-### F-04 [P2] open - Authentication endpoints have no request throttling
-
-**File:** apps/api/routes/api.php:38
-**Found:** 2026-10-14 by /audit (scope: full)
-**Origin:** Pre-existing identity feature; not introduced by 3e.
-**Why it matters:** Login and registration have no throttle middleware or
-application rate limiter. Resolved route middleware confirms only binding
-substitution on those public routes. An isolated HTTP-kernel probe sent 65
-invalid logins for the same account/address; all returned 401 and none were
-limited. Password checking therefore has no application-level bound against
-automated guessing, and registration has no request bound on account/token
-creation. This is a hardening gap in the existing authentication boundary,
-rather than a claim that an account compromise occurred.
-**Suggested fix:** Add focused Laravel rate limiters for login and registration,
-using suitable account/address keys, a stable JSON 429 response, and tests for
-limits, expiry and independent users. Keep this a separate identity repair.
-**Resolution:** Not repaired during this read-only audit.
-
 ### F-05 [P2] open - TypeScript strict checking is not enabled
 
 **File:** apps/web/tsconfig.app.json:2

@@ -33,9 +33,11 @@ Route::delete('/v1/games/{game}', [GameController::class, 'destroy'])
     ->name('api.v1.games.destroy');
 
 Route::post('/v1/auth/register', RegisterController::class)
+    ->middleware('throttle:auth-register')
     ->name('api.v1.auth.register');
 
 Route::post('/v1/auth/login', LoginController::class)
+    ->middleware('throttle:auth-login')
     ->name('api.v1.auth.login');
 
 Route::post('/v1/auth/logout', LogoutController::class)

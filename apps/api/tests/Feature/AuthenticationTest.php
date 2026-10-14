@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -88,6 +89,38 @@ class AuthenticationTest extends TestCase
             ->assertJsonPath('error.fields.email.0', 'The email has already been taken.');
         $this->assertDatabaseCount('users', 1);
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_registration_is_rate_limited_per_ip(): void
+    {
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $response = $this->postJson('/api/v1/auth/register', [
+                'name' => 'Ada Player',
+                'email' => "ada-{$attempt}@example.test",
+                'password' => 'correct-horse-battery-staple',
+                'password_confirmation' => 'correct-horse-battery-staple',
+            ]);
+
+            $response->assertCreated();
+        }
+
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Grace Player',
+            'email' => 'grace@example.test',
+            'password' => 'correct-horse-battery-staple',
+            'password_confirmation' => 'correct-horse-battery-staple',
+        ]);
+
+        $response->assertStatus(Response::HTTP_TOO_MANY_REQUESTS)
+            ->assertExactJson([
+                'error' => [
+                    'code' => 'rate_limited',
+                    'message' => 'Too many authentication attempts. Please try again later.',
+                ],
+            ])
+            ->assertHeader('Retry-After');
+        $this->assertDatabaseCount('users', 3);
+        $this->assertDatabaseCount('personal_access_tokens', 3);
     }
 
     public function test_login_returns_200_with_a_named_token_that_can_access_the_current_user(): void
@@ -177,6 +210,71 @@ class AuthenticationTest extends TestCase
             ],
         ]);
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_login_is_rate_limited_per_email_and_ip(): void
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $response = $this->postJson('/api/v1/auth/login', [
+                'email' => 'ada@example.test',
+                'password' => 'wrong-password',
+            ]);
+
+            $response->assertUnauthorized();
+        }
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'ada@example.test',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertStatus(Response::HTTP_TOO_MANY_REQUESTS)
+            ->assertExactJson([
+                'error' => [
+                    'code' => 'rate_limited',
+                    'message' => 'Too many authentication attempts. Please try again later.',
+                ],
+            ])
+            ->assertHeader('Retry-After');
+    }
+
+    public function test_login_rate_limit_expires_after_one_minute(): void
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->postJson('/api/v1/auth/login', [
+                'email' => 'ada@example.test',
+                'password' => 'wrong-password',
+            ])->assertUnauthorized();
+        }
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'ada@example.test',
+            'password' => 'wrong-password',
+        ])->assertStatus(Response::HTTP_TOO_MANY_REQUESTS);
+
+        $this->travel(61)->seconds();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'ada@example.test',
+            'password' => 'wrong-password',
+        ])->assertUnauthorized();
+
+        $this->travelBack();
+    }
+
+    public function test_login_rate_limit_is_independent_per_email(): void
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->postJson('/api/v1/auth/login', [
+                'email' => 'ada@example.test',
+                'password' => 'wrong-password',
+            ])->assertUnauthorized();
+        }
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'grace@example.test',
+            'password' => 'wrong-password',
+        ])->assertUnauthorized();
     }
 
     public function test_returns_200_with_the_authenticated_user_for_a_valid_sanctum_token(): void
