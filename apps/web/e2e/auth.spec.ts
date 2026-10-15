@@ -61,6 +61,15 @@ test('registers, restores, signs out, and signs back in', async ({ page }) => {
     })
   })
 
+  await page.route('**/api/v1/games', async (route) => {
+    expect(route.request().method()).toBe('GET')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [], links: {}, meta: {} }),
+    })
+  })
+
   await page.route('**/api/v1/auth/logout', async (route) => {
     expect(route.request().headers().authorization).toBe('Bearer registered-token')
     await route.fulfill({ status: 204 })
@@ -74,14 +83,14 @@ test('registers, restores, signs out, and signs back in', async ({ page }) => {
   await page.getByRole('button', { name: 'Create account' }).click()
 
   await expect(page).toHaveURL(/\/games$/)
-  await expect(page.getByRole('heading', { name: 'Private game area ready.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your games.' })).toBeVisible()
   await expect(page.getByText('Session restored')).toBeVisible()
   await expect(
     page.getByRole('link', { name: 'Signed in as New Player' }),
   ).toHaveAttribute('href', '/games')
 
   await page.reload()
-  await expect(page.getByText('Signed in as New Player.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your games.' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login$/)

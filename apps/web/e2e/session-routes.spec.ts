@@ -41,11 +41,18 @@ test('restores a stored bearer token through the current-user endpoint', async (
       }),
     })
   })
+  await page.route('**/api/v1/games', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [], links: {}, meta: {} }),
+    })
+  })
 
   await page.goto('/games')
 
-  await expect(page.getByRole('heading', { name: 'Private game area ready.' })).toBeVisible()
-  await expect(page.getByText('Signed in as Ada Player.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your games.' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Signed in as Ada Player' })).toBeVisible()
   await expect(page.getByText('Session restored')).toBeVisible()
 })
 

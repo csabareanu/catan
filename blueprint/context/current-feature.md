@@ -138,6 +138,13 @@ one sitting, split the step before continuing.
   lifecycle status, a confirmed delete sends `DELETE /api/v1/games/{id}` and
   removes the game only after HTTP 204, and 404, 422, 503, and network failures
   remain visible without losing the session.
+  - [x] **3a - Owner-scoped game library** - load the authenticated owner's
+    summaries through `GET /api/v1/games`, render lifecycle metadata and the
+    empty state, and keep recoverable list errors visible.
+  - [ ] **3b - New game creation** - add the `/games/new` form and submit the
+    existing seed, ruleset, map, and AI-count contract.
+  - [ ] **3c - Owned game deletion** - add confirmation and remove a game only
+    after the owner-scoped delete request returns HTTP 204.
 - [ ] **Step 4 - Start run and lifecycle status** - add the start action for a
   created game, handle the existing 202, 200, 409, and 503 responses, and poll
   the owner-scoped game detail while the run is queued or running. *Done

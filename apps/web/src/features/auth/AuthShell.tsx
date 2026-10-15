@@ -3,9 +3,16 @@ import type { ReactNode } from 'react'
 type AccessShellProps = {
   children: ReactNode
   topbarContent?: ReactNode
+  contentClassName?: string
+  cardClassName?: string
 }
 
-export function AccessShell({ children, topbarContent }: AccessShellProps) {
+export function AccessShell({
+  children,
+  topbarContent,
+  contentClassName = 'access-content',
+  cardClassName = 'access-card',
+}: AccessShellProps) {
   return (
     <div className="app-shell access-shell">
       <header className="topbar">
@@ -27,8 +34,8 @@ export function AccessShell({ children, topbarContent }: AccessShellProps) {
         )}
       </header>
 
-      <main className="page-content access-content">
-        <section className="access-card panel">{children}</section>
+      <main className={`page-content ${contentClassName}`}>
+        <section className={`${cardClassName} panel`}>{children}</section>
       </main>
     </div>
   )

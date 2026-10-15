@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from './lib/apiClient'
 import {
   isAuthenticationPath,
@@ -14,6 +14,7 @@ import {
 } from './features/auth/authApi'
 import { AccessShell } from './features/auth/AuthShell'
 import { AuthenticationScreen } from './features/auth/AuthScreen'
+import { GameLibrary } from './features/games/GameLibrary'
 import {
   BoardApiError,
   generateBoard,
@@ -151,6 +152,10 @@ function AuthenticationEntry({ message }: { message?: string }) {
 
 function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const handleUnauthorized = useCallback(() => {
+    clearSessionToken()
+    navigateTo('/login')
+  }, [])
 
   const handleLogout = async () => {
     if (isLoggingOut) {
@@ -173,40 +178,13 @@ function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
   }
 
   return (
-    <AccessShell
-      topbarContent={
-        <a className="topbar-status topbar-account-link" href="/games">
-          <span className="status-dot" aria-hidden="true" />
-          <span>
-            Signed in as <strong>{user.name}</strong>
-          </span>
-        </a>
-      }
-    >
-      <p className="eyebrow">Authenticated session</p>
-      <h1>Private game area ready.</h1>
-      <p className="access-description">
-        Signed in as <strong>{user.name}</strong>. The game library arrives in
-        the next browser slice.
-      </p>
-      <div className="access-status" role="status">
-        <span className="status-dot" aria-hidden="true" />
-        Session restored
-      </div>
-      <div className="access-actions">
-        <button
-          className="access-secondary-action"
-          type="button"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-        >
-          {isLoggingOut ? 'Signing out…' : 'Sign out'}
-        </button>
-        <a className="access-secondary-action" href="/">
-          Return to board preview
-        </a>
-      </div>
-    </AccessShell>
+    <GameLibrary
+      isLoggingOut={isLoggingOut}
+      onLogout={handleLogout}
+      onUnauthorized={handleUnauthorized}
+      token={readSessionToken() ?? ''}
+      user={user}
+    />
   )
 }
 
