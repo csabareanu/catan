@@ -1,3 +1,9 @@
+import {
+  ApiError,
+  requestJson,
+  type ApiErrorFields,
+} from '../../lib/apiClient'
+
 const BOARD_GENERATION_PATH = '/api/v1/boards/generate'
 
 const TERRAIN_VALUES = [
@@ -73,123 +79,62 @@ export type BoardPort = {
   trade_ratio: number
 }
 
-export type BoardErrorFields = Record<string, string[]>
+export type BoardErrorFields = ApiErrorFields
 
-export class BoardApiError extends Error {
-  readonly code: string
-  readonly status: number
-  readonly fields?: BoardErrorFields
-
+export class BoardApiError extends ApiError {
   constructor(
     message: string,
     code: string,
     status: number,
     fields?: BoardErrorFields,
   ) {
-    super(message)
+    super(message, code, status, fields)
     this.name = 'BoardApiError'
-    this.code = code
-    this.status = status
-    this.fields = fields
   }
 }
 
 export async function generateBoard(
   payload: GenerateBoardRequest,
 ): Promise<BoardResponse> {
-  let response: Response
-
   try {
-    response = await fetch(BOARD_GENERATION_PATH, {
+    return await requestJson(BOARD_GENERATION_PATH, isBoardResponse, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     })
-  } catch {
-    throw new BoardApiError(
-      'The board generation service is unavailable.',
-      'service_unavailable',
-      0,
-    )
+  } catch (caught: unknown) {
+    if (caught instanceof ApiError) {
+      const message =
+        caught.code === 'network_error'
+          ? 'The board generation service is unavailable.'
+          : caught.code === 'invalid_response'
+            ? 'The board service returned an invalid response.'
+            : caught.message
+
+      throw new BoardApiError(message, caught.code, caught.status, caught.fields)
+    }
+
+    throw caught
   }
-
-  const body = await readJson(response)
-
-  if (!response.ok) {
-    throw toApiError(body, response.status)
-  }
-
-  if (!isBoardResponse(body)) {
-    throw new BoardApiError(
-      'The board service returned an invalid response.',
-      'invalid_response',
-      response.status,
-    )
-  }
-
-  return body
-}
-
-async function readJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json()
-  } catch {
-    return null
-  }
-}
-
-function toApiError(body: unknown, status: number): BoardApiError {
-  if (isApiErrorBody(body)) {
-    return new BoardApiError(
-      body.error.message,
-      body.error.code,
-      status,
-      body.error.fields,
-    )
-  }
-
-  return new BoardApiError(
-    'The board request could not be completed.',
-    'request_failed',
-    status,
-  )
 }
 
 function isBoardResponse(value: unknown): value is BoardResponse {
-  if (!isRecord(value) || !isRecord(value.data)) {
-    return false
-  }
-
-  const data = value.data
-
-  return (
-    isString(data.board_schema_version) &&
-    isString(data.seed) &&
-    isBoardRuleset(data.ruleset) &&
-    isBoardMap(data.map) &&
-    isArrayOf(data.hexes, isBoardHex) &&
-    isArrayOf(data.vertices, isBoardVertex) &&
-    isArrayOf(data.edges, isBoardEdge) &&
-    isArrayOf(data.ports, isBoardPort)
-  )
+  return isRecord(value) && isBoardData(value.data)
 }
 
-function isApiErrorBody(
-  value: unknown,
-): value is { error: { code: string; message: string; fields?: BoardErrorFields } } {
-  if (!isRecord(value) || !isRecord(value.error)) {
+export function isBoardData(value: unknown): value is BoardData {
+  if (!isRecord(value)) {
     return false
   }
 
-  const error = value.error
-
   return (
-    isString(error.code) &&
-    isString(error.message) &&
-    (error.fields === undefined || isBoardErrorFields(error.fields))
+    isString(value.board_schema_version) &&
+    isString(value.seed) &&
+    isBoardRuleset(value.ruleset) &&
+    isBoardMap(value.map) &&
+    isArrayOf(value.hexes, isBoardHex) &&
+    isArrayOf(value.vertices, isBoardVertex) &&
+    isArrayOf(value.edges, isBoardEdge) &&
+    isArrayOf(value.ports, isBoardPort)
   )
 }
 
@@ -245,27 +190,12 @@ function isBoardPort(value: unknown): value is BoardPort {
   )
 }
 
-function isBoardErrorFields(value: unknown): value is BoardErrorFields {
-  return isRecord(value) && isArrayOfRecordValues(value, isStringArray)
-}
-
 function isArrayOf<T>(value: unknown, predicate: (item: unknown) => item is T): value is T[] {
   return Array.isArray(value) && value.every(predicate)
 }
 
-function isArrayOfRecordValues(
-  value: Record<string, unknown>,
-  predicate: (item: unknown) => boolean,
-): boolean {
-  return Object.values(value).every(predicate)
-}
-
 function isStringPair(value: unknown): value is [string, string] {
   return Array.isArray(value) && value.length === 2 && value.every(isString)
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return isArrayOf(value, isString)
 }
 
 function isTerrain(value: unknown): value is Terrain {

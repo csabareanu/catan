@@ -12,6 +12,10 @@ for (const viewport of VIEWPORTS) {
 
     await expect(page).toHaveTitle('Catan · Seeded Board Preview')
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/login',
+    )
 
     const seed = page.getByLabel('Board seed')
     await expect(seed).toHaveValue('894177203164')

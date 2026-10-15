@@ -1,4 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { ApiError } from './lib/apiClient'
+import {
+  isAuthenticationPath,
+  getObservedGameID,
+  isPrivatePath,
+  navigateTo,
+  useBrowserPathname,
+} from './lib/navigation'
+import { clearSessionToken, readSessionToken } from './lib/browserSession'
+import {
+  getCurrentUser,
+  logoutUser,
+  type AuthenticatedUser,
+} from './features/auth/authApi'
+import { AccessShell } from './features/auth/AuthShell'
+import { AuthenticationScreen } from './features/auth/AuthScreen'
+import { GameCreationScreen } from './features/games/GameCreationScreen'
+import { GameLibrary } from './features/games/GameLibrary'
+import { GameObserver } from './features/replay/GameObserver'
 import {
   BoardApiError,
   generateBoard,
@@ -11,7 +30,206 @@ const EXAMPLE_SEED = '894177203164'
 
 type GenerationState = 'idle' | 'loading' | 'success' | 'error'
 
+type SessionState =
+  | { status: 'idle' | 'checking' }
+  | { status: 'anonymous'; message?: string }
+  | { status: 'authenticated'; user: AuthenticatedUser }
+
 function App() {
+  const pathname = useBrowserPathname()
+  const [session, setSession] = useState<SessionState>({ status: 'idle' })
+  const isSessionAwarePath = isPrivatePath(pathname) || pathname === '/'
+  const hasSessionToken = isSessionAwarePath && readSessionToken() !== null
+
+  useEffect(() => {
+    if (!isSessionAwarePath) {
+      return
+    }
+
+    const token = readSessionToken()
+
+    if (token === null) {
+      return
+    }
+
+    let isActive = true
+
+    getCurrentUser(token, clearSessionToken)
+      .then((response) => {
+        if (isActive) {
+          setSession({ status: 'authenticated', user: response.data.user })
+        }
+      })
+      .catch((caught: unknown) => {
+        if (!isActive) {
+          return
+        }
+
+        const message =
+          caught instanceof ApiError && caught.status !== 401
+            ? 'Your session could not be restored. Please sign in again.'
+            : undefined
+
+        setSession({ status: 'anonymous', message })
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [isSessionAwarePath, pathname])
+
+  if (isPrivatePath(pathname)) {
+    return (
+      <PrivateRoute
+        hasSessionToken={hasSessionToken}
+        pathname={pathname}
+        session={session}
+      />
+    )
+  }
+
+  if (isAuthenticationPath(pathname)) {
+    return (
+      <AuthenticationScreen
+        mode={pathname === '/register' ? 'register' : 'login'}
+        onAuthenticated={(user) => setSession({ status: 'authenticated', user })}
+      />
+    )
+  }
+
+  return <BoardPreview hasSessionToken={hasSessionToken} session={session} />
+}
+
+function PrivateRoute({
+  hasSessionToken,
+  pathname,
+  session,
+}: {
+  hasSessionToken: boolean
+  pathname: string
+  session: SessionState
+}) {
+  if (!hasSessionToken) {
+    return <AuthenticationEntry message={session.status === 'anonymous' ? session.message : undefined} />
+  }
+
+  if (session.status === 'authenticated') {
+    const observedGameID = getObservedGameID(pathname)
+
+    if (observedGameID !== null) {
+      return (
+        <GameObserver
+          gameID={observedGameID}
+          onUnauthorized={handleUnauthorizedSession}
+          token={readSessionToken() ?? ''}
+          user={session.user}
+        />
+      )
+    }
+
+    if (pathname === '/games/new') {
+      return (
+        <GameCreationScreen
+          onUnauthorized={handleUnauthorizedSession}
+          token={readSessionToken() ?? ''}
+          user={session.user}
+        />
+      )
+    }
+
+    return <AuthenticatedPlaceholder user={session.user} />
+  }
+
+  if (session.status === 'anonymous') {
+    return <AuthenticationEntry message={session.message} />
+  }
+
+  return <SessionLoading />
+}
+
+function handleUnauthorizedSession(): void {
+  clearSessionToken()
+  navigateTo('/login')
+}
+
+function SessionLoading() {
+  return (
+    <AccessShell>
+      <p className="eyebrow">Private game area</p>
+      <h1>Restoring your session.</h1>
+      <p className="access-description">
+        Checking your browser session before loading private games.
+      </p>
+      <div className="access-status" role="status" aria-live="polite">
+        <span className="status-dot" aria-hidden="true" />
+        Checking authentication
+      </div>
+    </AccessShell>
+  )
+}
+
+function AuthenticationEntry({ message }: { message?: string }) {
+  return (
+    <AccessShell>
+      <p className="eyebrow">Private game area</p>
+      <h1>Sign in to access your games.</h1>
+      <p className="access-description">
+        Your games and replay history are available after authentication.
+      </p>
+      {message && <p className="access-error" role="alert">{message}</p>}
+      <div className="access-actions">
+        <a className="access-primary-action" href="/login">
+          Sign in
+        </a>
+        <a className="access-secondary-action" href="/register">
+          Create an account
+        </a>
+      </div>
+    </AccessShell>
+  )
+}
+
+function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return
+    }
+
+    setIsLoggingOut(true)
+    const token = readSessionToken()
+
+    try {
+      if (token !== null) {
+        await logoutUser(token, clearSessionToken)
+      }
+    } catch {
+      // Clearing the local token still protects this browser when the API is unavailable.
+    } finally {
+      clearSessionToken()
+      navigateTo('/login')
+    }
+  }
+
+  return (
+    <GameLibrary
+      isLoggingOut={isLoggingOut}
+      onLogout={handleLogout}
+      onUnauthorized={handleUnauthorizedSession}
+      token={readSessionToken() ?? ''}
+      user={user}
+    />
+  )
+}
+
+function BoardPreview({
+  hasSessionToken,
+  session,
+}: {
+  hasSessionToken: boolean
+  session: SessionState
+}) {
   const [seed, setSeed] = useState(EXAMPLE_SEED)
   const [generationState, setGenerationState] = useState<GenerationState>('idle')
   const [board, setBoard] = useState<BoardResponse | null>(null)
@@ -70,9 +288,30 @@ function App() {
           </span>
         </a>
 
-        <div className="topbar-status">
-          <span className="status-dot" aria-hidden="true" />
-          <span>Anonymous preview</span>
+        <div className="topbar-actions">
+          {session.status === 'authenticated' && hasSessionToken ? (
+            <a className="topbar-status topbar-account-link" href="/games">
+              <span className="status-dot" aria-hidden="true" />
+              <span>
+                Signed in as <strong>{session.user.name}</strong>
+              </span>
+            </a>
+          ) : hasSessionToken ? (
+            <div className="topbar-status">
+              <span className="status-dot" aria-hidden="true" />
+              <span>Restoring session</span>
+            </div>
+          ) : (
+            <>
+              <a className="topbar-link" href="/login">
+                Sign in
+              </a>
+              <div className="topbar-status">
+                <span className="status-dot" aria-hidden="true" />
+                <span>Anonymous preview</span>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
