@@ -122,7 +122,7 @@ one sitting, split the step before continuing.
   `/games` reaches a clear authentication entry state, a stored bearer token
   can be restored through `/api/v1/auth/me`, a 401 clears the session, and the
   existing preview e2e flow still passes.
-- [ ] **Step 2 - Registration, login, and logout screens** - add accessible
+- [x] **Step 2 - Registration, login, and logout screens** - add accessible
   forms for account creation and sign-in, show field and request errors from
   the API, transition successful authentication to the private library, and
   expose logout from the authenticated shell. *Done when:* Playwright can

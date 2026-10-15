@@ -1,15 +1,19 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError } from './lib/apiClient'
 import {
   isAuthenticationPath,
   isPrivatePath,
+  navigateTo,
   useBrowserPathname,
 } from './lib/navigation'
 import { clearSessionToken, readSessionToken } from './lib/browserSession'
 import {
   getCurrentUser,
+  logoutUser,
   type AuthenticatedUser,
 } from './features/auth/authApi'
+import { AccessShell } from './features/auth/AuthShell'
+import { AuthenticationScreen } from './features/auth/AuthScreen'
 import {
   BoardApiError,
   generateBoard,
@@ -30,10 +34,11 @@ type SessionState =
 function App() {
   const pathname = useBrowserPathname()
   const [session, setSession] = useState<SessionState>({ status: 'idle' })
-  const hasSessionToken = isPrivatePath(pathname) && readSessionToken() !== null
+  const isSessionAwarePath = isPrivatePath(pathname) || pathname === '/'
+  const hasSessionToken = isSessionAwarePath && readSessionToken() !== null
 
   useEffect(() => {
-    if (!isPrivatePath(pathname)) {
+    if (!isSessionAwarePath) {
       return
     }
 
@@ -67,17 +72,22 @@ function App() {
     return () => {
       isActive = false
     }
-  }, [pathname])
+  }, [isSessionAwarePath, pathname])
 
   if (isPrivatePath(pathname)) {
     return <PrivateRoute hasSessionToken={hasSessionToken} session={session} />
   }
 
   if (isAuthenticationPath(pathname)) {
-    return <AuthenticationPlaceholder pathname={pathname} />
+    return (
+      <AuthenticationScreen
+        mode={pathname === '/register' ? 'register' : 'login'}
+        onAuthenticated={(user) => setSession({ status: 'authenticated', user })}
+      />
+    )
   }
 
-  return <BoardPreview />
+  return <BoardPreview hasSessionToken={hasSessionToken} session={session} />
 }
 
 function PrivateRoute({
@@ -140,8 +150,39 @@ function AuthenticationEntry({ message }: { message?: string }) {
 }
 
 function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return
+    }
+
+    setIsLoggingOut(true)
+    const token = readSessionToken()
+
+    try {
+      if (token !== null) {
+        await logoutUser(token, clearSessionToken)
+      }
+    } catch {
+      // Clearing the local token still protects this browser when the API is unavailable.
+    } finally {
+      clearSessionToken()
+      navigateTo('/login')
+    }
+  }
+
   return (
-    <AccessShell>
+    <AccessShell
+      topbarContent={
+        <a className="topbar-status topbar-account-link" href="/games">
+          <span className="status-dot" aria-hidden="true" />
+          <span>
+            Signed in as <strong>{user.name}</strong>
+          </span>
+        </a>
+      }
+    >
       <p className="eyebrow">Authenticated session</p>
       <h1>Private game area ready.</h1>
       <p className="access-description">
@@ -152,58 +193,30 @@ function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
         <span className="status-dot" aria-hidden="true" />
         Session restored
       </div>
-      <a className="access-secondary-action" href="/">
-        Return to board preview
-      </a>
-    </AccessShell>
-  )
-}
-
-function AuthenticationPlaceholder({ pathname }: { pathname: string }) {
-  const isRegisterPath = pathname === '/register'
-
-  return (
-    <AccessShell>
-      <p className="eyebrow">Account access</p>
-      <h1>{isRegisterPath ? 'Create your account.' : 'Sign in to Catan.'}</h1>
-      <p className="access-description">
-        The browser authentication form is the next implementation step.
-      </p>
-      <a className="access-secondary-action" href="/games">
-        Continue to private games
-      </a>
-    </AccessShell>
-  )
-}
-
-function AccessShell({ children }: { children: ReactNode }) {
-  return (
-    <div className="app-shell access-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="Catan board preview home">
-          <span className="brand-mark" aria-hidden="true">
-            <span>C</span>
-          </span>
-          <span className="brand-copy">
-            <strong>Catan</strong>
-            <small>Board lab</small>
-          </span>
+      <div className="access-actions">
+        <button
+          className="access-secondary-action"
+          type="button"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+        >
+          {isLoggingOut ? 'Signing out…' : 'Sign out'}
+        </button>
+        <a className="access-secondary-action" href="/">
+          Return to board preview
         </a>
-
-        <div className="topbar-status">
-          <span className="status-dot" aria-hidden="true" />
-          <span>Browser access</span>
-        </div>
-      </header>
-
-      <main className="page-content access-content">
-        <section className="access-card panel">{children}</section>
-      </main>
-    </div>
+      </div>
+    </AccessShell>
   )
 }
 
-function BoardPreview() {
+function BoardPreview({
+  hasSessionToken,
+  session,
+}: {
+  hasSessionToken: boolean
+  session: SessionState
+}) {
   const [seed, setSeed] = useState(EXAMPLE_SEED)
   const [generationState, setGenerationState] = useState<GenerationState>('idle')
   const [board, setBoard] = useState<BoardResponse | null>(null)
@@ -262,9 +275,30 @@ function BoardPreview() {
           </span>
         </a>
 
-        <div className="topbar-status">
-          <span className="status-dot" aria-hidden="true" />
-          <span>Anonymous preview</span>
+        <div className="topbar-actions">
+          {session.status === 'authenticated' && hasSessionToken ? (
+            <a className="topbar-status topbar-account-link" href="/games">
+              <span className="status-dot" aria-hidden="true" />
+              <span>
+                Signed in as <strong>{session.user.name}</strong>
+              </span>
+            </a>
+          ) : hasSessionToken ? (
+            <div className="topbar-status">
+              <span className="status-dot" aria-hidden="true" />
+              <span>Restoring session</span>
+            </div>
+          ) : (
+            <>
+              <a className="topbar-link" href="/login">
+                Sign in
+              </a>
+              <div className="topbar-status">
+                <span className="status-dot" aria-hidden="true" />
+                <span>Anonymous preview</span>
+              </div>
+            </>
+          )}
         </div>
       </header>
 

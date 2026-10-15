@@ -82,6 +82,48 @@
   padding: var(--space-2) var(--space-3);
 }
 
+.topbar-account-link {
+  color: var(--muted);
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.topbar-account-link strong {
+  color: var(--text);
+}
+
+.topbar-account-link .status-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 0.22rem var(--success-soft);
+}
+
+.topbar-account-link:hover,
+.topbar-account-link:focus-visible {
+  border-color: var(--accent-border);
+  color: var(--accent-bright);
+}
+
+.topbar-account-link:hover strong,
+.topbar-account-link:focus-visible strong {
+  color: inherit;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.topbar-link {
+  color: var(--accent-bright);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.topbar-link:hover,
+.topbar-link:focus-visible {
+  color: var(--text);
+}
+
 .status-dot,
 .availability-dot,
 .board-state-dot,
@@ -145,6 +187,74 @@
   border-color: var(--danger);
   color: var(--text);
   background: var(--danger-soft);
+}
+
+.access-form {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.access-field {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.access-field input {
+  width: 100%;
+  min-height: 2.9rem;
+  padding: var(--space-3) var(--space-4);
+  border: var(--line) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: 0;
+  color: var(--text);
+  background: var(--bg-raised);
+  font-size: var(--text-base);
+  font-weight: 500;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.access-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 var(--space-1) var(--accent-soft);
+}
+
+.access-field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.access-field-error {
+  color: var(--danger);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.access-form .access-primary-action {
+  width: 100%;
+  cursor: pointer;
+}
+
+.access-primary-action:disabled {
+  cursor: wait;
+  filter: saturate(0.55);
+  opacity: 0.65;
+}
+
+.access-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.access-links a:hover,
+.access-links a:focus-visible {
+  color: var(--accent-bright);
 }
 
 .access-actions {
