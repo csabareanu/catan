@@ -195,6 +195,12 @@
   margin-bottom: var(--space-5);
 }
 
+.creation-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
 .access-field {
   display: grid;
   gap: var(--space-2);
@@ -203,7 +209,8 @@
   font-weight: 700;
 }
 
-.access-field input {
+.access-field input,
+.access-field select {
   width: 100%;
   min-height: 2.9rem;
   padding: var(--space-3) var(--space-4);
@@ -217,13 +224,21 @@
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-.access-field input:focus {
+.access-field input:focus,
+.access-field select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 var(--space-1) var(--accent-soft);
 }
 
-.access-field input[aria-invalid='true'] {
+.access-field input[aria-invalid='true'],
+.access-field select[aria-invalid='true'] {
   border-color: var(--danger);
+}
+
+.access-field select:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+  opacity: 0.8;
 }
 
 .access-field-error {
@@ -283,6 +298,12 @@
 .library-header .access-status {
   flex: 0 0 auto;
   margin: 0;
+}
+
+.library-header-actions {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-3);
 }
 
 .library-state {
@@ -1380,6 +1401,10 @@
     align-self: flex-start;
   }
 
+  .library-header-actions {
+    justify-items: start;
+  }
+
   .library-item {
     padding: var(--space-4);
   }
@@ -1387,6 +1412,10 @@
   .library-item-header {
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .creation-option-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .library-metadata {

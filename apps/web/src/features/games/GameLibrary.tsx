@@ -85,9 +85,14 @@ export function GameLibrary({
             current lifecycle status.
           </p>
         </div>
-        <div className="access-status" role="status">
-          <span className="status-dot" aria-hidden="true" />
-          Session restored
+        <div className="library-header-actions">
+          <a className="access-primary-action" href="/games/new">
+            New game
+          </a>
+          <div className="access-status" role="status">
+            <span className="status-dot" aria-hidden="true" />
+            Session restored
+          </div>
         </div>
       </div>
 

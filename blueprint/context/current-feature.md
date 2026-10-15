@@ -141,7 +141,7 @@ one sitting, split the step before continuing.
   - [x] **3a - Owner-scoped game library** - load the authenticated owner's
     summaries through `GET /api/v1/games`, render lifecycle metadata and the
     empty state, and keep recoverable list errors visible.
-  - [ ] **3b - New game creation** - add the `/games/new` form and submit the
+  - [x] **3b - New game creation** - add the `/games/new` form and submit the
     existing seed, ruleset, map, and AI-count contract.
   - [ ] **3c - Owned game deletion** - add confirmation and remove a game only
     after the owner-scoped delete request returns HTTP 204.

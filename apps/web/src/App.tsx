@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError } from './lib/apiClient'
 import {
   isAuthenticationPath,
@@ -14,6 +14,7 @@ import {
 } from './features/auth/authApi'
 import { AccessShell } from './features/auth/AuthShell'
 import { AuthenticationScreen } from './features/auth/AuthScreen'
+import { GameCreationScreen } from './features/games/GameCreationScreen'
 import { GameLibrary } from './features/games/GameLibrary'
 import {
   BoardApiError,
@@ -76,7 +77,13 @@ function App() {
   }, [isSessionAwarePath, pathname])
 
   if (isPrivatePath(pathname)) {
-    return <PrivateRoute hasSessionToken={hasSessionToken} session={session} />
+    return (
+      <PrivateRoute
+        hasSessionToken={hasSessionToken}
+        pathname={pathname}
+        session={session}
+      />
+    )
   }
 
   if (isAuthenticationPath(pathname)) {
@@ -93,9 +100,11 @@ function App() {
 
 function PrivateRoute({
   hasSessionToken,
+  pathname,
   session,
 }: {
   hasSessionToken: boolean
+  pathname: string
   session: SessionState
 }) {
   if (!hasSessionToken) {
@@ -103,6 +112,16 @@ function PrivateRoute({
   }
 
   if (session.status === 'authenticated') {
+    if (pathname === '/games/new') {
+      return (
+        <GameCreationScreen
+          onUnauthorized={handleUnauthorizedSession}
+          token={readSessionToken() ?? ''}
+          user={session.user}
+        />
+      )
+    }
+
     return <AuthenticatedPlaceholder user={session.user} />
   }
 
@@ -111,6 +130,11 @@ function PrivateRoute({
   }
 
   return <SessionLoading />
+}
+
+function handleUnauthorizedSession(): void {
+  clearSessionToken()
+  navigateTo('/login')
 }
 
 function SessionLoading() {
@@ -152,10 +176,6 @@ function AuthenticationEntry({ message }: { message?: string }) {
 
 function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const handleUnauthorized = useCallback(() => {
-    clearSessionToken()
-    navigateTo('/login')
-  }, [])
 
   const handleLogout = async () => {
     if (isLoggingOut) {
@@ -181,7 +201,7 @@ function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
     <GameLibrary
       isLoggingOut={isLoggingOut}
       onLogout={handleLogout}
-      onUnauthorized={handleUnauthorized}
+      onUnauthorized={handleUnauthorizedSession}
       token={readSessionToken() ?? ''}
       user={user}
     />
