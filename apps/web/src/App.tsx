@@ -1,4 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ApiError } from './lib/apiClient'
+import {
+  isAuthenticationPath,
+  isPrivatePath,
+  useBrowserPathname,
+} from './lib/navigation'
+import { clearSessionToken, readSessionToken } from './lib/browserSession'
+import {
+  getCurrentUser,
+  type AuthenticatedUser,
+} from './features/auth/authApi'
 import {
   BoardApiError,
   generateBoard,
@@ -11,7 +22,188 @@ const EXAMPLE_SEED = '894177203164'
 
 type GenerationState = 'idle' | 'loading' | 'success' | 'error'
 
+type SessionState =
+  | { status: 'idle' | 'checking' }
+  | { status: 'anonymous'; message?: string }
+  | { status: 'authenticated'; user: AuthenticatedUser }
+
 function App() {
+  const pathname = useBrowserPathname()
+  const [session, setSession] = useState<SessionState>({ status: 'idle' })
+  const hasSessionToken = isPrivatePath(pathname) && readSessionToken() !== null
+
+  useEffect(() => {
+    if (!isPrivatePath(pathname)) {
+      return
+    }
+
+    const token = readSessionToken()
+
+    if (token === null) {
+      return
+    }
+
+    let isActive = true
+
+    getCurrentUser(token, clearSessionToken)
+      .then((response) => {
+        if (isActive) {
+          setSession({ status: 'authenticated', user: response.data.user })
+        }
+      })
+      .catch((caught: unknown) => {
+        if (!isActive) {
+          return
+        }
+
+        const message =
+          caught instanceof ApiError && caught.status !== 401
+            ? 'Your session could not be restored. Please sign in again.'
+            : undefined
+
+        setSession({ status: 'anonymous', message })
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [pathname])
+
+  if (isPrivatePath(pathname)) {
+    return <PrivateRoute hasSessionToken={hasSessionToken} session={session} />
+  }
+
+  if (isAuthenticationPath(pathname)) {
+    return <AuthenticationPlaceholder pathname={pathname} />
+  }
+
+  return <BoardPreview />
+}
+
+function PrivateRoute({
+  hasSessionToken,
+  session,
+}: {
+  hasSessionToken: boolean
+  session: SessionState
+}) {
+  if (!hasSessionToken) {
+    return <AuthenticationEntry message={session.status === 'anonymous' ? session.message : undefined} />
+  }
+
+  if (session.status === 'authenticated') {
+    return <AuthenticatedPlaceholder user={session.user} />
+  }
+
+  if (session.status === 'anonymous') {
+    return <AuthenticationEntry message={session.message} />
+  }
+
+  return <SessionLoading />
+}
+
+function SessionLoading() {
+  return (
+    <AccessShell>
+      <p className="eyebrow">Private game area</p>
+      <h1>Restoring your session.</h1>
+      <p className="access-description">
+        Checking your browser session before loading private games.
+      </p>
+      <div className="access-status" role="status" aria-live="polite">
+        <span className="status-dot" aria-hidden="true" />
+        Checking authentication
+      </div>
+    </AccessShell>
+  )
+}
+
+function AuthenticationEntry({ message }: { message?: string }) {
+  return (
+    <AccessShell>
+      <p className="eyebrow">Private game area</p>
+      <h1>Sign in to access your games.</h1>
+      <p className="access-description">
+        Your games and replay history are available after authentication.
+      </p>
+      {message && <p className="access-error" role="alert">{message}</p>}
+      <div className="access-actions">
+        <a className="access-primary-action" href="/login">
+          Sign in
+        </a>
+        <a className="access-secondary-action" href="/register">
+          Create an account
+        </a>
+      </div>
+    </AccessShell>
+  )
+}
+
+function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
+  return (
+    <AccessShell>
+      <p className="eyebrow">Authenticated session</p>
+      <h1>Private game area ready.</h1>
+      <p className="access-description">
+        Signed in as <strong>{user.name}</strong>. The game library arrives in
+        the next browser slice.
+      </p>
+      <div className="access-status" role="status">
+        <span className="status-dot" aria-hidden="true" />
+        Session restored
+      </div>
+      <a className="access-secondary-action" href="/">
+        Return to board preview
+      </a>
+    </AccessShell>
+  )
+}
+
+function AuthenticationPlaceholder({ pathname }: { pathname: string }) {
+  const isRegisterPath = pathname === '/register'
+
+  return (
+    <AccessShell>
+      <p className="eyebrow">Account access</p>
+      <h1>{isRegisterPath ? 'Create your account.' : 'Sign in to Catan.'}</h1>
+      <p className="access-description">
+        The browser authentication form is the next implementation step.
+      </p>
+      <a className="access-secondary-action" href="/games">
+        Continue to private games
+      </a>
+    </AccessShell>
+  )
+}
+
+function AccessShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="app-shell access-shell">
+      <header className="topbar">
+        <a className="brand" href="/" aria-label="Catan board preview home">
+          <span className="brand-mark" aria-hidden="true">
+            <span>C</span>
+          </span>
+          <span className="brand-copy">
+            <strong>Catan</strong>
+            <small>Board lab</small>
+          </span>
+        </a>
+
+        <div className="topbar-status">
+          <span className="status-dot" aria-hidden="true" />
+          <span>Browser access</span>
+        </div>
+      </header>
+
+      <main className="page-content access-content">
+        <section className="access-card panel">{children}</section>
+      </main>
+    </div>
+  )
+}
+
+function BoardPreview() {
   const [seed, setSeed] = useState(EXAMPLE_SEED)
   const [generationState, setGenerationState] = useState<GenerationState>('idle')
   const [board, setBoard] = useState<BoardResponse | null>(null)
