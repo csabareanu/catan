@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\CreateGameController;
 use App\Http\Controllers\Api\V1\GameController;
+use App\Http\Controllers\Api\V1\GameReplayController;
 use App\Http\Controllers\Api\V1\GenerateBoardController;
 use App\Http\Controllers\Api\V1\StartGameRunController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,10 @@ Route::post('/v1/games/{game}/run', StartGameRunController::class)
 Route::get('/v1/games', [GameController::class, 'index'])
     ->middleware('auth:sanctum')
     ->name('api.v1.games.index');
+
+Route::get('/v1/games/{game}/replay', GameReplayController::class)
+    ->middleware('auth:sanctum')
+    ->name('api.v1.games.replay');
 
 Route::get('/v1/games/{game}', [GameController::class, 'show'])
     ->middleware('auth:sanctum')

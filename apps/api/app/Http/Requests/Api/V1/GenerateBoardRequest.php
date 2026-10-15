@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
-use Closure;
+use App\Rules\CanonicalNonNegativeInt64String;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -30,20 +30,7 @@ class GenerateBoardRequest extends FormRequest
             'seed' => [
                 'bail',
                 'required',
-                'string',
-                'regex:/^(0|[1-9][0-9]*)$/',
-                function (string $attribute, mixed $value, Closure $fail): void {
-                    $maximum = '9223372036854775807';
-
-                    if (! is_string($value)) {
-                        return;
-                    }
-
-                    if (strlen($value) > strlen($maximum)
-                        || (strlen($value) === strlen($maximum) && strcmp($value, $maximum) > 0)) {
-                        $fail('The seed must fit in a signed 64-bit integer.');
-                    }
-                },
+                ...CanonicalNonNegativeInt64String::rules(),
             ],
             'ruleset_key' => ['bail', 'required', 'string', Rule::in(['base'])],
             'map_key' => ['bail', 'required', 'string', Rule::in(['standard'])],
