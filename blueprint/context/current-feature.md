@@ -129,7 +129,7 @@ one sitting, split the step before continuing.
   register a new user through a mocked API response, reload and restore the
   session, log out, log back in, and see recoverable invalid-credential and
   validation states.
-- [ ] **Step 3 - Private library, creation, and deletion** - add the
+- [x] **Step 3 - Private library, creation, and deletion** - add the
   authenticated game list, empty state, new-game form, owner-safe game summary
   display, and a confirmed delete action; submit the existing seed, ruleset,
   map, and AI-count contract. *Done when:* the library renders only the
@@ -143,7 +143,7 @@ one sitting, split the step before continuing.
     empty state, and keep recoverable list errors visible.
   - [x] **3b - New game creation** - add the `/games/new` form and submit the
     existing seed, ruleset, map, and AI-count contract.
-  - [ ] **3c - Owned game deletion** - add confirmation and remove a game only
+  - [x] **3c - Owned game deletion** - add confirmation and remove a game only
     after the owner-scoped delete request returns HTTP 204.
 - [ ] **Step 4 - Start run and lifecycle status** - add the start action for a
   created game, handle the existing 202, 200, 409, and 503 responses, and poll

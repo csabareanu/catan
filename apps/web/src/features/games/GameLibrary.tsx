@@ -3,6 +3,7 @@ import { ApiError } from '../../lib/apiClient'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
 import {
+  deleteGame,
   listGames,
   type GameLifecycleStatus,
   type GameSummary,
@@ -18,6 +19,11 @@ type GameLibraryProps = {
 
 type LibraryLoadState = 'loading' | 'success' | 'error'
 
+type DeleteError = {
+  gameId: number
+  message: string
+}
+
 export function GameLibrary({
   user,
   token,
@@ -29,6 +35,8 @@ export function GameLibrary({
   const [loadState, setLoadState] = useState<LibraryLoadState>('loading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [deletingGameId, setDeletingGameId] = useState<number | null>(null)
+  const [deleteError, setDeleteError] = useState<DeleteError | null>(null)
 
   useEffect(() => {
     let isActive = true
@@ -61,6 +69,27 @@ export function GameLibrary({
     setErrorMessage(null)
     setLoadState('loading')
     setReloadKey((currentKey) => currentKey + 1)
+  }
+
+  const handleDelete = async (game: GameSummary) => {
+    if (deletingGameId !== null || !window.confirm(`Delete game ${game.id}?`)) {
+      return
+    }
+
+    setDeletingGameId(game.id)
+    setDeleteError(null)
+
+    try {
+      await deleteGame(token, game.id, onUnauthorized)
+      setGames((currentGames) => currentGames.filter(({ id }) => id !== game.id))
+    } catch (caught: unknown) {
+      setDeleteError({
+        gameId: game.id,
+        message: toDeleteErrorMessage(caught),
+      })
+    } finally {
+      setDeletingGameId(null)
+    }
   }
 
   return (
@@ -158,6 +187,35 @@ export function GameLibrary({
                   <dd>{formatGameDate(game.created_at)}</dd>
                 </div>
               </dl>
+
+              <div className="library-item-actions">
+                <div>
+                  {deleteError?.gameId === game.id && (
+                    <p
+                      className="library-delete-error"
+                      id={`delete-error-${game.id}`}
+                      role="alert"
+                    >
+                      {deleteError.message}
+                    </p>
+                  )}
+                </div>
+                <button
+                  aria-describedby={
+                    deleteError?.gameId === game.id
+                      ? `delete-error-${game.id}`
+                      : undefined
+                  }
+                  className="access-secondary-action library-delete-action"
+                  disabled={deletingGameId !== null}
+                  type="button"
+                  onClick={() => void handleDelete(game)}
+                >
+                  {deletingGameId === game.id
+                    ? 'Deleting game'
+                    : `Delete game ${game.id}`}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -199,6 +257,30 @@ function toLibraryErrorMessage(caught: unknown): string {
 
   if (caught.status === 0) {
     return 'The game library could not be reached. Check the connection and try again.'
+  }
+
+  return caught.message
+}
+
+function toDeleteErrorMessage(caught: unknown): string {
+  if (!(caught instanceof ApiError)) {
+    return 'The game could not be deleted. Please try again.'
+  }
+
+  if (caught.status === 404) {
+    return 'This game could not be found. Refresh the library and try again.'
+  }
+
+  if (caught.status === 422) {
+    return caught.message
+  }
+
+  if (caught.status === 503) {
+    return 'The game service is unavailable right now. Please try again.'
+  }
+
+  if (caught.status === 0) {
+    return 'The game could not be deleted. Check the connection and try again.'
   }
 
   return caught.message

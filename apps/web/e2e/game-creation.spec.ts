@@ -82,7 +82,7 @@ test('creates a game with the existing API contract and shows it in the library'
 
   await expect(page).toHaveURL(/\/games$/)
   await expect(page.getByRole('heading', { name: 'Your games.' })).toBeVisible()
-  await expect(page.getByText('Game 44')).toBeVisible()
+  await expect(page.getByText('Game 44', { exact: true })).toBeVisible()
   await expect(page.locator('.library-status-created')).toHaveText('Created')
 })
 
