@@ -27,6 +27,10 @@ export function isPrivatePath(pathname: string): boolean {
   )
 }
 
+export function isBoardPreviewPath(pathname: string): boolean {
+  return pathname === '/' || pathname === '/preview'
+}
+
 export function getObservedGameID(pathname: string): number | null {
   const match = pathname.match(/^\/games\/(\d+)\/observe$/)
 

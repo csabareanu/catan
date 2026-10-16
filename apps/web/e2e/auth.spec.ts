@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { gameListResponse } from './fixtures/gameListResponse'
 
 const user = {
   id: 12,
@@ -66,7 +67,7 @@ test('registers, restores, signs out, and signs back in', async ({ page }) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ data: [], links: {}, meta: {} }),
+      body: JSON.stringify(gameListResponse([])),
     })
   })
 
@@ -83,15 +84,33 @@ test('registers, restores, signs out, and signs back in', async ({ page }) => {
   await page.getByRole('button', { name: 'Create account' }).click()
 
   await expect(page).toHaveURL(/\/games$/)
-  await expect(page.getByRole('heading', { name: 'Your games.' })).toBeVisible()
-  await expect(page.getByText('Session restored')).toBeVisible()
-  await expect(
-    page.getByRole('link', { name: 'Signed in as New Player' }),
-  ).toHaveAttribute('href', '/games')
+  await expect(page.getByRole('heading', { name: 'Your games' })).toBeVisible()
+  await expect(page.locator('.account-trigger')).toHaveAttribute(
+    'aria-label',
+    'Account menu for New Player',
+  )
+  await expect(page.getByRole('link', { name: 'My games' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(page.getByRole('link', { name: 'Board demo' })).not.toHaveAttribute(
+    'aria-current',
+  )
 
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Your games.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your games' })).toBeVisible()
 
+  await page.locator('.account-trigger').click()
+  await expect(page.locator('.menu-panel')).toBeVisible()
+  await page.getByRole('heading', { name: 'Your games' }).click()
+  await expect(page.locator('.menu-panel')).toBeHidden()
+
+  await page.locator('.account-trigger').click()
+  await expect(page.locator('.menu-panel')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.menu-panel')).toBeHidden()
+
+  await page.locator('.account-trigger').click()
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole('heading', { name: 'Sign in to Catan.' })).toBeVisible()
@@ -101,13 +120,21 @@ test('registers, restores, signs out, and signs back in', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign in' }).click()
 
   await expect(page).toHaveURL(/\/games$/)
-  await expect(page.getByText('Session restored')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your games' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Return to board preview' }).click()
-  await expect(page).toHaveURL(/\/$/)
-  await expect(
-    page.getByRole('link', { name: 'Signed in as New Player' }),
-  ).toHaveAttribute('href', '/games')
+  await page.getByRole('link', { name: 'Board demo' }).click()
+  await expect(page).toHaveURL(/\/preview$/)
+  await expect(page.locator('.account-trigger')).toHaveAttribute(
+    'aria-label',
+    'Account menu for New Player',
+  )
+  await expect(page.getByRole('link', { name: 'Board demo' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(page.getByRole('link', { name: 'My games' })).not.toHaveAttribute(
+    'aria-current',
+  )
 })
 
 test('shows an invalid-credential error without leaving the login form', async ({

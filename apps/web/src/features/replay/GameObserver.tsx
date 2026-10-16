@@ -9,15 +9,19 @@ const POLL_INTERVAL_MS = 2000
 const REFRESHABLE_LIFECYCLE_STATUSES = new Set(['queued', 'running'])
 
 type GameObserverProps = {
+  isLoggingOut: boolean
   user: AuthenticatedUser
   token: string
   gameID: number
+  onLogout: () => void | Promise<void>
   onUnauthorized: () => void
 }
 
 type ReplayLoadState = 'loading' | 'success' | 'error'
 
 export function GameObserver({
+  isLoggingOut,
+  onLogout,
   user,
   token,
   gameID,
@@ -93,16 +97,11 @@ export function GameObserver({
 
   return (
     <AccessShell
+      authenticatedUser={user}
       cardClassName="access-card observer-card"
       contentClassName="observer-content"
-      topbarContent={
-        <a className="topbar-status topbar-account-link" href="/games">
-          <span className="status-dot" aria-hidden="true" />
-          <span>
-            Signed in as <strong>{user.name}</strong>
-          </span>
-        </a>
-      }
+      isLoggingOut={isLoggingOut}
+      onLogout={onLogout}
     >
       <header className="observer-header">
         <div>

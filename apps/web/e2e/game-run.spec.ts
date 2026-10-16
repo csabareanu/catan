@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { gameListResponse } from './fixtures/gameListResponse'
 import type { GameLifecycleStatus, GameResponse, GameSummary } from '../src/features/games/gameApi'
 
 const user = {
@@ -55,7 +56,6 @@ test('queues a game once and follows queued, running, and completed status', asy
   await expect(page.locator('.library-status')).toHaveText('Running')
   await page.clock.runFor(2000)
   await expect(page.locator('.library-status')).toHaveText('Completed')
-  await expect(page.getByText('The run has completed.', { exact: true })).toBeVisible()
   await page.clock.runFor(10000)
   expect(detailCount).toBe(2)
   expect(startCount).toBe(1)
@@ -74,7 +74,6 @@ test('stops polling a failed run and lets the owner request a retry', async ({ p
   await showLibrary(page, 'running')
   await page.clock.runFor(2000)
   await expect(page.locator('.library-status')).toHaveText('Failed')
-  await expect(page.getByText('The run failed. You can try starting it again.')).toBeVisible()
   await page.clock.runFor(10000)
   expect(detailCount).toBe(1)
   await page.getByRole('button', { name: 'Retry run', exact: true }).click()
@@ -127,7 +126,10 @@ for (const failure of [
     await expect(page.locator(`.library-status-${failure.nextStatus}`)).toBeVisible()
     await expect(page.getByRole('alert')).toHaveCount(0)
     expect(startCount).toBe(1)
-    await expect(page.getByRole('link', { name: 'Signed in as Ada Player' })).toBeVisible()
+    await expect(page.locator('.account-trigger')).toHaveAttribute(
+      'aria-label',
+      'Account menu for Ada Player',
+    )
   })
 }
 
@@ -216,7 +218,7 @@ test('keeps one poll in flight and aborts it when the view unmounts', async ({ p
 
 async function showLibrary(page: Page, lifecycleStatus: GameLifecycleStatus) {
   await page.route('**/api/v1/games', (route) =>
-    route.fulfill({ status: 200, json: { data: [gameSummary(lifecycleStatus)], links: {}, meta: {} } }),
+    route.fulfill({ status: 200, json: gameListResponse([gameSummary(lifecycleStatus)]) }),
   )
   await page.goto('/games')
   await expect(page.locator(`.library-status-${lifecycleStatus}`)).toBeVisible()

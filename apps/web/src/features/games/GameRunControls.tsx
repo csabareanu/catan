@@ -5,6 +5,7 @@ type GameRunControlsProps = {
   gameId: number
   lifecycleStatus: GameLifecycleStatus
   token: string
+  compact?: boolean
   disabled: boolean
   onStatusChange: (gameId: number, status: GameLifecycleStatus) => void
   onUnauthorized: () => void
@@ -20,13 +21,15 @@ const STATUS_MESSAGES: Record<GameLifecycleStatus, string> = {
 }
 
 export function GameRunControls(props: GameRunControlsProps) {
-  const { lifecycleStatus, disabled } = props
+  const { compact = false, lifecycleStatus, disabled } = props
   const { pendingAction, failure, startRun, refreshStatus } = useGameRun(props)
   const canStart = lifecycleStatus === 'created' || lifecycleStatus === 'failed'
 
   return (
     <div className="game-run-controls">
-      <p className="game-run-message" role="status">{STATUS_MESSAGES[lifecycleStatus]}</p>
+      {!compact && (
+        <p className="game-run-message" role="status">{STATUS_MESSAGES[lifecycleStatus]}</p>
+      )}
 
       {failure ? (
         <div className="game-run-error" role="alert">

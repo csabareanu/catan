@@ -20,6 +20,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('renders the safe replay context, board, and public frame', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/v1/games/42/replay', async (route) => {
     expect(route.request().headers().authorization).toBe('Bearer test-token')
     await route.fulfill({ status: 200, json: replayResponse('completed', true) })
@@ -36,6 +37,10 @@ test('renders the safe replay context, board, and public frame', async ({ page }
   await expect(page.getByText('Roads', { exact: true })).toBeVisible()
   await expect(page.getByText('1 recorded', { exact: true })).toBeVisible()
   await expect(page.getByText('current_state', { exact: true })).toHaveCount(0)
+
+  const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
+  const viewportWidth = await page.evaluate(() => window.innerWidth)
+  expect(pageWidth).toBeLessThanOrEqual(viewportWidth)
 })
 
 test('explains a replay without a persisted frame', async ({ page }) => {

@@ -5,17 +5,19 @@
 
 ## Problem
 
-This project provides a technically substantial implementation of the Catan base
-game while developing practical skill in domain modeling, deterministic state
-transitions, authorization, durable event history, background work, and
-cross-service integration. It must remain fully operable through its API while
-delivering visual feedback early and eventually supporting a complete browser
-match between one human and two or three AI opponents.
+This project builds a technically substantial and enjoyable implementation of the
+Catan base game while developing practical experience with domain modeling,
+deterministic state transitions, API design, authorization, durable persistence,
+replayable history, background jobs, service integration, and a modern frontend.
 
-Success means seeded simulations are reproducible, AI games finish without
-illegal transitions, persisted history can reproduce and visually replay a
-game, private data stays private, and an authenticated human can complete a
-base-game match.
+The application remains operable through its API without the frontend. Visual
+feedback arrives early through a browser observer that grows alongside the engine
+and later becomes the human player interface.
+
+Success means seeded simulations are reproducible, AI games complete without
+illegal transitions, persisted history can reproduce and visually replay a game,
+private data stays private, and an authenticated human can complete a base-game
+match against two or three AI opponents.
 
 ## Users
 
@@ -58,43 +60,62 @@ results, and seat-private views require authentication and are owner-scoped.
 
 ## Features
 
-The roadmap source of truth is `blueprint/build-plan.md`. All items are planned
-and ordered by dependency.
+The ordered roadmap is defined by blueprint/build-plan.md. Completed items are
+marked complete here; unchecked items remain planned.
 
-1. **Seeded board walking skeleton** - prove the Go to Laravel to React path with
-   reproducible board generation and responsive SVG rendering.
-2. **Authenticated private game library** - let users authenticate and manage
-   only their own seeded games and API credentials.
-   - **2a. Identity and API access** - register users, issue Sanctum bearer
-     tokens, inspect the current identity, and revoke the current token.
-   - **2b. Authenticated game creation** - create a seeded game with one human
-     seat and two or three AI seats while persisting configuration and
-     ownership.
-   - **2c. Private game library** - list, inspect, and delete only the owner's
-     games through owner-scoped API resources.
-3. **Durable queued game execution** - run retry-safe engine work asynchronously
-   while PostgreSQL stores lifecycle state and history and Docker Compose runs
-   the local stack.
-4. **Replayable simulation observer** - expose ordered history through the API
-   and let users step through state in the browser.
-5. **Initial placement phase** - enforce legal three- or four-seat setup and let
-   AI seats complete it visibly.
-6. **Core turn economy** - add deterministic dice, private resources, building,
-   and bank and port trades to the replayable turn loop.
-7. **Robber interactions** - add discards, robber movement, blocked production,
-   and resource stealing.
-8. **Development cards** - add purchasing, private hands, timing restrictions,
-   and every base-game development card.
-9. **Player trading** - add offers and responses with simple AI evaluation while
-   preserving hidden holdings.
-10. **Complete headless AI games** - add awards, victory scoring, completion, and
-    baseline AI decisions that finish seeded games reproducibly.
-11. **Human setup and core turns** - let one human complete setup, roll, build,
-    and use bank or port trades while AI opponents act.
-12. **Human special actions and negotiation** - let the human resolve robber
-    choices, use development cards, and negotiate with AI through legal-action
-    guidance.
-13. **Completed match experience** - deliver the headline MVP outcome: a clear,
+1. **Seeded board walking skeleton** - complete. A supplied seed produces a
+   reproducible configurable board in Go, exposes it through the versioned
+   Laravel API, and renders it as a responsive SVG board in React.
+2. **Authenticated private game library** - complete. Users authenticate and
+   manage only their own seeded games and API credentials.
+   - **2a. Identity and API access** - complete. Registration, authentication,
+     Sanctum bearer tokens, identity inspection, and token revocation.
+   - **2b. Authenticated game creation** - complete. A seeded game persists one
+     human seat, two or three AI seats, configuration, and ownership.
+   - **2c. Private game library** - complete. Owners list, inspect, and delete
+     only their own games.
+3. **Durable queued game execution** - complete. Retry-safe engine work runs
+   asynchronously while PostgreSQL stores lifecycle state and history and Docker
+   Compose runs the local stack.
+   - **3a. Execution persistence contract** - complete. Versioned lifecycle
+     state, failure metadata, commands, events, and snapshots are persisted.
+   - **3b. Deterministic engine run contract** - complete. Laravel and Go share a
+     reproducible versioned bootstrap boundary.
+   - **3c. Queued game orchestration** - complete. Laravel dispatches retry-safe
+     jobs that call Go and persist lifecycle, state, events, and failures.
+   - **3d. Local Docker Compose runtime** - complete. API, worker, engine,
+     PostgreSQL, and Redis run together with health checks and smoke verification.
+   - **3e. Fast local development workflow** - complete. Source bind mounts and
+     reload-friendly processes support ordinary edits without image rebuilds.
+4. **Replayable simulation observer** - active. The API and browser expose
+   persisted history and a viewer-safe board frame; timeline stepping remains
+   in 4c.
+   - **4a. Owner-scoped replay API** - complete. An authenticated owner receives
+     safe game context, visible ordered events, snapshot positions, and a
+     viewer-safe replay frame.
+   - **4b. Browser game observer** - complete. The React client provides
+     authentication, game creation, the private library, confirmed deletion,
+     run status, and a persisted replay frame using the existing board renderer.
+   - **4c. Replay timeline and state stepping** - next. Users will move
+     through visible events and available snapshot frames without duplicating game
+     rules in React.
+5. **Initial placement phase** - planned. Three- or four-seat games enforce
+   deterministic legal setup while AI seats complete placement visibly.
+6. **Core turn economy** - planned. Dice, resource production, roads, settlements,
+   cities, and bank or port trading form a legal replayable turn loop.
+7. **Robber interactions** - planned. Discards, robber movement, blocked
+   production, and resource stealing work for AI seats and appear in replay.
+8. **Development cards** - planned. Purchasing, private hands, timing, and every
+   base-game development card are supported.
+9. **Player trading** - planned. Seats propose, reject, accept, and execute legal
+   resource trades while private holdings remain hidden.
+10. **Complete headless AI games** - planned. Awards, victory scoring, completion,
+    and baseline AI decisions allow seeded games to finish reproducibly.
+11. **Human setup and core turns** - planned. One human can complete setup, roll,
+    build, and use bank or port trades while AI opponents act.
+12. **Human special actions and negotiation** - planned. The human resolves robber
+    and discard decisions, uses development cards, and negotiates legal trades.
+13. **Completed match experience** - planned. The browser delivers a clear,
     responsive, animated human-versus-AI match with scoring, victory, privacy,
     and full post-game replay.
 
@@ -103,9 +124,8 @@ and ordered by dependency.
 PostgreSQL is the durable source of truth. Redis contains only disposable queue,
 cache, session, lock, and coordination data.
 
-A generated-board preview is an ephemeral API response, not a stored record. A
-later authenticated game-creation flow persists its board configuration on the
-owning game.
+A generated-board preview is an ephemeral API response, not a stored record.
+Authenticated game creation persists its board configuration on the owning game.
 
 The model below is the logical persistence contract. Feature specifications own
 the exact migrations, indexes, and enum implementation.
@@ -147,7 +167,7 @@ only when issued.
 - `lifecycle_status` (string enum) - created, queued, running, awaiting human
   input, completed, or failed.
 - `current_state` (nullable JSONB) - latest canonical engine state; never
-  returned directly without the Go-owned public or seat-specific projection.
+  returned directly without a viewer-safe public or seat-specific projection.
 - `last_command_sequence`, `last_event_sequence` (big integers) - ordering
   cursors.
 - `run_attempts` (integer) - orchestration attempt count.
@@ -226,6 +246,31 @@ serializing history, and React never receives another seat's private payload.
 Snapshots provide recovery and replay frames without requiring React to apply
 game rules. Snapshot frequency is a feature-level performance decision.
 
+### Replay and snapshot boundary
+
+The completed replay API returns immutable board and seat context once, a
+bounded page of visible ordered events, snapshot positions without raw state,
+and one selected viewer-safe frame. A frame reports the actual persisted
+checkpoint position; Laravel does not apply later events to invent an exact
+state at an unsaved command. Private victory points and another seat's hidden
+state must remain outside the public projection.
+
+Snapshot frequency is an execution policy rather than a replay API promise.
+One snapshot per accepted command can provide simple exact replay initially.
+If snapshots become sparse, reconstruction belongs in Go by replaying accepted
+commands from a checkpoint. Laravel and React must not implement game reducers.
+State, command history, events, selected snapshots, and cursors must be
+persisted atomically; retries must preserve idempotency.
+
+Redis replay caching is deferred until measurements justify it. A later cache
+must remain disposable, separate public and owner-private frames, and fall
+back to PostgreSQL checkpoints and Go reconstruction. Go remains stateless;
+Laravel owns cache coordination. The latest durable current state may support
+a later projected frame without requiring a snapshot at every command.
+
+The detailed consistency and deferred cache decisions are preserved in
+[Feature 4a](../history/features/04a-owner-scoped-replay-api.md).
+
 ### Locked data invariants
 
 - `seed`, ruleset identity, ruleset version, initial configuration, and seat
@@ -242,8 +287,9 @@ game rules. Snapshot frequency is a feature-level performance decision.
 
 - **Laravel 13 on PHP 8.3** - REST control plane for identity, authorization,
   lifecycle, persistence, validation, and engine orchestration.
-- **Laravel Sanctum** - secure cookie authentication for the first-party React
-  client and hashed API tokens for CLI or external clients.
+- **Laravel Sanctum** - hashed bearer tokens for the current browser and API
+  clients. The project plan's first-party cookie-authentication intent remains
+  an alignment question; Feature 4b approved session-scoped bearer access.
 - **Laravel queue workers** - asynchronous simulation orchestration and safe
   retries.
 - **Go 1.26 or newer** - stateless canonical rules engine, deterministic
@@ -273,58 +319,61 @@ project with no payments, subscriptions, advertisements, or premium content.
 ## UI/UX
 
 The interface should feel like a modern strategy game rather than an
-administrative dashboard. It is optimized for desktop and tablet, remains usable
-on smaller screens where practical, provides immediate feedback, and never
-reveals another seat's resources or cards.
+administrative dashboard. It is optimized for desktop and tablet, remains
+usable on smaller screens where practical, provides immediate feedback, and
+never reveals another seat's resources or cards.
 
-The intended route map is:
+Current browser routes:
 
-- `/register` - create an account.
-- `/login` - authenticate.
-- `/games` - browse the private game library and current statuses.
-- `/games/new` - configure a game, seed, and AI seat count.
-- `/games/:gameId` - observe or play the current game with its SVG board,
-  players, turn state, legal actions, and important events.
-- `/games/:gameId/replay` - inspect ordered history and step through snapshots.
+- `/` - compatibility entry for the stateless board preview.
+- `/preview` - secondary seeded-board demo.
+- `/register` and `/login` - account creation and authentication.
+- `/games` - authenticated home, owner-scoped game library, run status, and
+  confirmed deletion. Older games load through the existing paginated API.
+- `/games/new` - seeded game creation with two or three AI opponents.
+- `/games/:gameId/observe` - read-only persisted replay frame and visible
+  history metadata. Timeline controls remain planned in 4c.
 
-Route names express product intent; the React router and server-state libraries
-remain implementation decisions.
+The browser currently uses lightweight routing, native browser controls, and
+Playwright coverage. React renders API state and never applies game rules.
+Current queued execution is a deterministic bootstrap; completed runs do not
+yet represent complete playable matches.
 
-The same data-driven SVG board evolves from the first seeded-board view into the
-simulation observer, replay tool, and interactive match. Live and replayed state
-must remain visually consistent.
+The approved library design reference lives in `prototypes/`, with desktop
+and mobile images in `blueprint/reference/`. Its dark teal, gold, typography,
+and centered frame guide the active UI fix. The full UI audit in
+`blueprint/context/findings.md` records remaining refinements and the agreed
+future board direction: fill the available window, use a desktop side panel
+and phone drawers or bottom sheets, and combine resource symbols with subtle
+terrain art. These board refinements require their own reviewed slices.
 
-The initial anonymous view renders only the generated board and seed/map
-metadata. Player panels, private hands, activity, and game actions wait until
-real game state is available.
+The same data-driven SVG board grows into the replay tool and interactive
+match. Player controls, private hands, and legal actions appear only when
+supported by real API state.
 
 ## Deployment
 
-The MVP target is a reproducible local Docker Compose environment, not a public
-cloud deployment.
+The MVP runs locally through Docker Compose with Laravel API and worker,
+the stateless Go engine, React, PostgreSQL 18, and Redis 8.2. Public hosting,
+managed databases, production domains, high availability, and automatic
+scaling remain outside the MVP.
 
-Compose must eventually run:
+- Development: `docker compose -f compose.yaml -f compose.dev.yaml up -d`.
+  Source bind mounts and container-managed dependencies support ordinary
+  edits without image rebuilds; Go edits require an engine restart.
+- Stable image-based workflow: `docker compose up --build -d`.
+- Default host endpoints: React at `http://127.0.0.1:5173`, Laravel at
+  `http://127.0.0.1:8000` with `/up`, and Go at
+  `http://127.0.0.1:8080` with `/healthz`.
+- Development PostgreSQL is available on `127.0.0.1`, using
+  `POSTGRES_HOST_PORT` or port 5432. The stable configuration keeps it
+  private. Redis remains private in both workflows.
 
-- Laravel API.
-- Laravel queue worker.
-- Stateless Go engine and simulation service.
-- React development server or built web application.
-- PostgreSQL 18.
-- Redis 8.2.
-
-The React production build outputs through Vite to `apps/web/dist`. Laravel,
-React, and Go retain independent build and test commands documented in the root
-`AGENTS.md`; there is no combined root verification command yet.
-
-Expected Laravel environment groups include `APP_*`, `DB_*`, `REDIS_*`,
-`QUEUE_CONNECTION`, `CACHE_STORE`, and `SESSION_DRIVER`. The Go service
-address and health-check contracts will be named when durable queued execution
-is specified.
-
-Docker Desktop is visible from WSL, but WSL integration must be enabled before
-Compose can be verified. No public host, managed database, production domain,
-automatic scaling, high availability, or production operating budget is
-selected.
+Laravel reaches PostgreSQL, Redis, and the engine by Compose service name.
+The React production build outputs to `apps/web/dist`. Independent build,
+test, dependency-refresh, and smoke commands are documented in the root
+`AGENTS.md` and `README.md`; no combined root Verify command or CI exists.
+Docker Desktop with WSL integration provides the current local runtime.
 
 ## Explicit non-goals
 
@@ -339,20 +388,20 @@ selected.
 
 ## Open questions and plan gaps
 
-- **Visual direction** - choose artwork, typography, color, motion, styling,
-  component, routing, server-state, animation, and frontend testing approaches
-  when their requirements become concrete. A dedicated prototype can settle the
-  visual language before polish-heavy feature work.
-- **Commercial distribution** - if pursued later, revisit product naming,
-  visual-asset licensing, operating cost, and monetization before changing the
-  project's non-commercial scope.
-- **Future operations** - choose public hosting, topology, real-time transport,
-  observability, and budget only if deployment or internet multiplayer becomes
-  approved work.
-- **Administrator inspection** - the project plan permits administrator access
-  for debugging, but the build plan defines no admin role, API, or interface.
-  Treat inspection as out-of-band developer access in the MVP; add it to both
-  plans before building product-facing administration.
-- **Local orchestration details** - Compose service definitions, engine service
-  environment names, and health paths are intentionally deferred to durable
-  queued game execution (feature 3).
+- **Authentication alignment** - the project plan describes first-party
+  Sanctum cookies, while completed Feature 4b explicitly approved bearer
+  tokens in `sessionStorage`. Keep the current implementation until a reviewed
+  slice resolves that plan-level intent; do not silently switch mechanisms.
+- **Visual direction** - the library theme is approved, and the UI audit
+  records the future board direction. Detailed artwork, motion, component
+  choices, and any additional frontend libraries remain implementation
+  decisions for reviewed slices. The project plan still carries its broader
+  visual-design open question.
+- **Commercial distribution** - revisit naming, visual-asset licensing,
+  operating costs, and monetization before changing the non-commercial scope.
+- **Future operations** - choose public hosting, topology, real-time
+  transport, observability, and budget only if deployment or internet
+  multiplayer becomes approved work.
+- **Administrator inspection** - the project plan permits debugging access,
+  but the build plan defines no admin role or product interface. Treat it as
+  out-of-band developer access until both plans approve more.

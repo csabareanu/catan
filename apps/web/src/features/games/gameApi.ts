@@ -52,10 +52,17 @@ export type GameResource = GameCore & {
   seats: GameSeat[]
 }
 
+export type GameListPagination = {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+}
+
 export type GameListResponse = {
   data: GameSummary[]
   links: Record<string, unknown>
-  meta: Record<string, unknown>
+  meta: GameListPagination
 }
 
 export type GameResponse = {
@@ -72,10 +79,15 @@ export type CreateGameInput = {
 export async function listGames(
   token: string,
   onUnauthorized?: () => void,
+  page = 1,
+  signal?: AbortSignal,
 ): Promise<GameListResponse> {
-  return requestJson(GAMES_PATH, isGameListResponse, {
+  const path = page === 1 ? GAMES_PATH : `${GAMES_PATH}?page=${page}`
+
+  return requestJson(path, isGameListResponse, {
     token,
     onUnauthorized,
+    signal,
   })
 }
 
@@ -137,7 +149,17 @@ function isGameListResponse(value: unknown): value is GameListResponse {
     Array.isArray(value.data) &&
     value.data.every(isGameSummary) &&
     isRecord(value.links) &&
-    isRecord(value.meta)
+    isGameListPagination(value.meta)
+  )
+}
+
+function isGameListPagination(value: unknown): value is GameListPagination {
+  return (
+    isRecord(value) &&
+    isInteger(value.current_page) && value.current_page >= 1 &&
+    isInteger(value.last_page) && value.last_page >= 1 &&
+    isInteger(value.per_page) && value.per_page >= 1 &&
+    isInteger(value.total) && value.total >= 0
   )
 }
 

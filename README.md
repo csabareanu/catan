@@ -123,9 +123,16 @@ The default service URLs are:
 - API health: <http://localhost:8000/up>
 - Engine health: <http://localhost:8080/healthz>
 
-PostgreSQL and Redis are intentionally available only on the private Compose
-network. The API reaches them at `postgres:5432` and `redis:6379`. The engine
-is available to the API at `engine:8080`.
+In the development workflow, PostgreSQL is also bound to 127.0.0.1 on the host
+port configured by POSTGRES_HOST_PORT, which defaults to 5432. Use 127.0.0.1
+as the database host from DBeaver, pgAdmin, or another local database client.
+The database name, username, and password come from DB_DATABASE, DB_USERNAME,
+and DB_PASSWORD in the root Compose environment file.
+
+Redis remains available only on the private Compose network. PostgreSQL also
+remains private in the stable image-based workflow. The API reaches them at
+`postgres:5432` and `redis:6379`. The engine is available to
+the API at `engine:8080`.
 
 Useful diagnostics:
 

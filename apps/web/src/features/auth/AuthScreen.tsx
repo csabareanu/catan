@@ -199,7 +199,7 @@ export function AuthenticationScreen({
         <a href={isRegisterMode ? '/login' : '/register'}>
           {isRegisterMode ? 'Already have an account? Sign in' : 'Need an account? Create one'}
         </a>
-        <a href="/">Return to board preview</a>
+        <a href="/preview">Return to board preview</a>
       </div>
     </AccessShell>
   )

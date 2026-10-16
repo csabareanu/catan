@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { gameListResponse } from './fixtures/gameListResponse'
 
 const user = {
   id: 7,
@@ -67,7 +68,7 @@ test('creates a game with the existing API contract and shows it in the library'
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ data: [createdGameSummary], links: {}, meta: {} }),
+      body: JSON.stringify(gameListResponse([createdGameSummary])),
     })
   })
 
@@ -81,7 +82,7 @@ test('creates a game with the existing API contract and shows it in the library'
   await page.getByRole('button', { name: 'Create game' }).click()
 
   await expect(page).toHaveURL(/\/games$/)
-  await expect(page.getByRole('heading', { name: 'Your games.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your games' })).toBeVisible()
   await expect(page.getByText('Game 44', { exact: true })).toBeVisible()
   await expect(page.locator('.library-status-created')).toHaveText('Created')
 })

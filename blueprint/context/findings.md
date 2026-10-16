@@ -1,10 +1,257 @@
 # Findings
 
-> **Generated file.** The findings ledger: review findings raised by `/audit`
-> against the work in progress, each with a durable ID, severity (P0-P3), and
-> status. `/implement` marks repaired findings `fixed`, a later `/audit` pass
-> moves them to `closed`, and `/complete` refuses to merge while any P0 or P1
-> finding is `open` or `fixed`, then archives resolved findings with the work
+> **Generated file.** The findings ledger: findings raised by `/audit` against
+> the work in progress, each with a durable ID, severity (P0-P3), and status.
+> `/implement` marks repaired findings `fixed`, a later `/audit` pass moves
+> them to `closed`, and `/complete` archives resolved findings with the work
 > and resets this file.
 
-_No findings recorded. `/audit` appends findings here when it finds them._
+## Full browser UI and usability review - 2026-10-16
+
+Scope: all existing player-facing routes and project-owned source, styles,
+browser tests, and relevant configuration under apps/web, the approved library
+prototypes, the active fix, and the product/build plans. The API pagination
+caller contract was read to confirm F-08. This is a comprehensive review of the
+implemented UI, not a full-project security review or a review of unbuilt game
+mechanics. Dependencies, generated builds, caches, unrelated local changes,
+and backend/engine internals are excluded.
+
+Branch: fix/browser-library-design-and-responsive-ui. Local comparison base:
+main, merge base 1b928d612c9d9998b50898a68f6dcc0898a49839, through
+35bb938. The UI working tree was clean before this ledger update.
+
+Evidence: Chromium inspected the running development Compose UI at
+1440x900, 1366x768, 1024x768, 768x1024, 620x800, 600x800, 390x844,
+844x390, and 320x568, with additional header-boundary checks at 610, 640,
+660, and 680px. The anonymous board used the real stateless endpoint and
+returned 19 hexes, 72 edges, and 9 ports. Private screens used intercepted,
+synthetic owner-scoped responses with this real board geometry. No real
+account, owned game, token, or persisted game history was created or changed.
+Screenshots are local evidence under /tmp/catan-ui-audit-20261016/; these
+temporary artifacts are not durable project assets. The ledger retains the
+measurements and reproduction details.
+
+Signals: npm run lint and npm run build passed; the existing Playwright suite
+passed 44/44 using PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright.
+All six Compose services were healthy. No skipped/focused tests or suppressions
+were found in the reviewed UI sources/tests. Inspected pages raised no
+uncaught JavaScript errors. This does not prove a real authenticated flow
+through Laravel, worker, Go, and PostgreSQL; private browser evidence was mocked.
+
+User-confirmed design direction: the game/history board fills the available
+window, with compact controls and a side panel for players/history on desktop;
+panels become drawers or bottom sheets on phones. Use a polished board-game
+style with resource symbols and subtle terrain art. Game screens should not
+require document scrolling between the board and essential controls. Library
+and account pages may scroll normally. Retain useful safe diagnostics only as
+secondary developer information. These are design requirements for a subsequent
+reviewed slice, not authorization to implement during this audit.
+
+Reference material: the official CATAN Universe screenshot at
+https://www.catan.com/sites/default/files/2021-05/CATAN_Universe_Screen1.png
+shows an illustrative board with player information and resources around it.
+Colonist's first-party trade-design article at
+https://blog.colonist.io/improving-the-colonist-trade-system/ describes resource
+symbols, stable hand placement, and progressive disclosure informed by testing.
+These inform recommendations, not proof that a particular design improves this
+project's retention. No competitor live match was audited.
+
+Original findings closed this pass: F-01, F-02, F-03, F-04, F-06, F-07.
+F-05 reopened. New findings: F-08 through F-18, plus the user-requested
+confirmation-modal refinement F-19. P2 design findings below assess
+the user's expanded professional-player-UI goal; they are not retroactive
+claims that Feature 4b violated its approved technical-observer scope.
+
+### F-09 [P2] open - Game and observer layout requires document scrolling
+
+**File:** apps/web/src/App.css:942
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** The observer inherits the padded form/card shell, a tall
+header, nested board panel, and vertically stacked inspection panels. With a
+full board and representative public state, the document measures 1866px at
+1366x768; the SVG occupies y=461 through y=1115. At 390x844 the document is
+2446px tall, with players/history starting below the board; at 844x390 the SVG
+starts below the initial viewport. This cannot support the requested board and
+history experience without repeated scrolling.
+**Suggested fix:** Give game/observer/replay routes a dedicated viewport-sized
+shell. Fit the board to both available width and height; reserve a compact
+toolbar and future replay transport. Use a bounded side panel on desktop and
+drawers/bottom sheets on phones. Scroll panel contents independently when
+necessary; do not merely hide overflow and clip controls. Keep form/library
+layouts separate. Share the shell with planned 4c and later human gameplay.
+**Resolution:**
+
+### F-10 [P2] open - Technical diagnostics dominate player-facing information
+
+**File:** apps/web/src/features/replay/GameObserver.tsx:223
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** The default observer exposes Persisted topology, Safe
+context, Replay cursor, Snapshot index, Latest checkpoint, Selected frame,
+Projection, command/event sequences, schema versions, Lifecycle, and seats.
+The preview also exposes INT64, canonical response, stateless, pointy-top,
+ruleset versions, and renderer terminology (apps/web/src/App.tsx:390,432,537).
+These consume space while asking ordinary players to interpret implementation
+details. Start run, View run, and Completed also need to distinguish the current
+bootstrap execution from a completed playable match.
+**Suggested fix:** Present Board, Players, Game status, History, and meaningful
+game actions. Put safe schema/seed/cursor diagnostics behind an explicit
+developer/details disclosure. Use actual API turn/phase data for player wording;
+never rename command 75 to turn 75 without a real mapping. Until gameplay ships,
+label simulations and unavailable human actions honestly. Keep server rules
+and private projections intact.
+**Resolution:**
+
+### F-11 [P2] open - Terrain legend has transparent color swatches
+
+**File:** apps/web/src/features/board/BoardSvg.tsx:119
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** Legend swatches are HTML spans using board-hex terrain
+classes. Those classes set SVG fill, while .board-legend-swatch supplies no
+background (apps/web/src/App.css:1978). All six swatch backgrounds compute to
+transparent, despite different fill values, so the legend looks like a bare
+list of terrain names and adds no usable color key. Browser inspection confirms
+the user's observation on both preview and observer.
+**Suggested fix:** Either give the existing swatches real backgrounds or
+replace the persistent legend with optional resource help showing each terrain,
+its resource symbol, and its output. Once tiles are self-explanatory, keep this
+help secondary so it does not consume board space by default.
+**Resolution:**
+
+### F-12 [P2] open - Full-board labels become unreadable on smaller screens
+
+**File:** apps/web/src/features/board/BoardSvg.tsx:180
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** Tiles are flat fills with terrain text and number discs;
+ports rely on text badges. Terrain and port labels use 7 SVG units and numbers
+use 13. On the 390px observer these render at approximately 3.7px and 6.8px;
+at 320px they fall to 2.8px and 5.1px. No board zoom/reset control is provided.
+The existing terrain text means this is not a pure color-only encoding, but
+that alternative becomes impractical to read. Terrain names also do not teach
+which resources the tiles produce.
+**Suggested fix:** Combine the improved shell with distinguishable resource
+symbols, subtle terrain art/patterns, readable number tokens, compact icon-based
+ports, and accessible inspection/zoom controls. Use consistent symbols in
+later cards, costs, trades, and player hands. Preserve number/edge/vertex
+legibility and avoid detailed art over interaction targets. Keep text
+alternatives and resource help; symbols complement rather than remove them.
+**Resolution:**
+
+### F-13 [P2] open - Creating an ordinary game starts with developer configuration
+
+**File:** apps/web/src/features/games/GameCreationScreen.tsx:83
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** The first input is a required numeric seed, every new form
+defaults to the same fixed seed, and two disabled dropdowns occupy the form for
+the only supported ruleset/map. The player must understand reproducibility
+before choosing opponents. This makes a simple new-game task look technical
+and produces the same board repeatedly unless the user changes the number.
+**Suggested fix:** Make opponent count and the primary game action the normal
+path. Offer a new board by default and move an optional repeatable board code
+to Advanced options. Present fixed Base game/Standard map choices as concise
+information rather than unusable controls. Preserve a supplied seed and the
+versioned creation contract; do not imply human gameplay is already available.
+**Resolution:**
+
+### F-14 [P2] open - First visit introduces a board generator rather than the game
+
+**File:** apps/web/src/App.tsx:346
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** Both / and /preview start with Chart a board from a seed,
+an empty map panel, technical metadata, and a Sign in link. The prominent
+action generates a stateless preview; there is no direct Create account action
+or brief path explaining what a new player can do. The generated board begins
+at y=1088 on a 390px phone, so even a successful preview is below the visible
+window. This is a weak introduction for the user's acquisition goal.
+**Suggested fix:** Keep the developer demo reachable, but make the visitor
+entry explain the current game experience, show a board promptly, and provide
+clear account and demo/help actions. Avoid advertising unimplemented play.
+A concise useful entry is sufficient; no elaborate marketing site is required.
+**Resolution:**
+
+### F-15 [P2] open - Disclosure menus have inconsistent dismissal and focus behavior
+
+**File:** apps/web/src/features/games/GameLibrary.tsx:235
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** Game menus are native details without the account menu's
+outside-click/Escape handling. Browser reproduction leaves the delete menu
+open after both actions. Separately, focusing Sign out and pressing Escape
+closes the account details but leaves document.activeElement on that hidden
+button (AuthShell.tsx:76). Multiple destructive menus can remain open, and
+keyboard users lose a visible focus location. The menu is no longer clipped;
+this is an interaction defect rather than a repeat of the old layout finding.
+**Suggested fix:** Apply consistent controlled disclosure behavior: dismiss on
+outside interaction and Escape, close a previous game menu when opening another,
+and restore focus to the trigger when Escape closes a menu from within it.
+Keep deletion confirmation and existing API handling. Test keyboard and pointer
+paths without imposing an unnecessary component dependency.
+**Resolution:**
+
+### F-16 [P2] open - Public game information is displayed as field counts
+
+**File:** apps/web/src/features/replay/GameObserver.tsx:379
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** public_scores becomes "4 visible" instead of actual public
+scores, active_seat_number becomes "Seat 2" instead of the player's identity,
+and roads/buildings become aggregate recorded counts. The observer receives
+useful projected data but presents its structure rather than what is happening
+in the game. BoardSvg receives context.board only, so a public road in a frame
+does not appear on the map. That static-board boundary is explicit in 4b and
+is not a regression; it needs an intentional next-step design before replay.
+**Suggested fix:** Render explicit player cards using available public names,
+public scores, turn/phase, and awards when supported. Keep hidden VP and other
+seats' holdings private. Design piece overlays on stable API edge/vertex IDs
+for the relevant board-state feature, alongside planned 4c stepping. Do not
+infer missing state or reconstruct game rules in React. Keep generic field
+inspection optional for development.
+**Resolution:**
+
+### F-17 [P2] open - Browser evidence misses realistic board and viewport usability
+
+**File:** apps/web/e2e/game-observer.spec.ts:190
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** The observer fixture contains one hex, no edges, and no
+ports. Assertions check SVG presence and horizontal scrollWidth only; a tall,
+unreadable real 19-hex board still passes. Library fixtures use empty links/meta,
+so pagination loss is invisible. The prior Compose visual script also used a
+one-hex private fixture with intercepted responses. All 44 tests pass while
+F-05 and F-08 through F-12 remain reproducible. Mocked private screenshots do
+not prove the active spec's real authentication/create/run/observe/delete flow.
+**Suggested fix:** Add representative full-board fixtures and behavioral
+assertions for the agreed viewport layout, reachable controls, breakpoint
+collisions, pagination, legend meaning, and menu focus. Keep a small real-stack
+smoke flow distinct from API-mocked browser tests and record which evidence was
+actually obtained. Do not equate CSS nowrap or SVG visibility with usability.
+**Resolution:**
+
+### F-18 [P3] open - All routes retain preview-only browser metadata
+
+**File:** apps/web/index.html:9
+**Found:** 2026-10-16 by /audit (scope: full browser UI)
+**Why it matters:** Login, registration, library, creation, and observer all use
+the title Catan · Seeded Board Preview and the description of a stateless board
+preview. Browser inspection confirms unchanged titles across routes. Tabs and
+history do not identify the active task, and the metadata understates the app.
+**Suggested fix:** Set concise route-specific titles, including the game
+identifier in observer/replay views, and a product-appropriate default
+description. This does not require adding a routing or metadata library.
+**Resolution:**
+
+### F-19 [P3] open - Delete confirmation uses a generic browser dialog
+
+**File:** apps/web/src/features/games/GameLibrary.tsx:82
+**Found:** 2026-10-16 by /audit (scope: full browser UI, user follow-up)
+**Why it matters:** The current window.confirm correctly requires confirmation,
+but its browser-controlled appearance differs from the product and the message
+only asks whether to delete a game ID. It does not explain that the saved game
+and its history are permanently removed. The user explicitly requested a
+styled confirmation modal as part of the professional UI direction. This is
+a presentation refinement, not a missing deletion guard.
+**Suggested fix:** Use an accessible modal matching the theme, titled
+"Delete Game {id}?", with a concise permanent-deletion explanation, Cancel,
+and a clearly destructive Delete game button. Focus Cancel initially, contain
+keyboard focus while open, allow Escape/backdrop cancellation before submission,
+and return focus to a sensible library control on dismissal. Show pending
+progress, prevent duplicate submissions, and retain the modal with an inline
+error if deletion fails. Remove the row only after HTTP 204. Use the existing
+platform, such as a styled HTML dialog, without requiring a new UI dependency.
+**Resolution:**

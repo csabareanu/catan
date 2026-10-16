@@ -6,8 +6,10 @@ import type { AuthenticatedUser } from '../auth/authApi'
 import { createGame, type CreateGameInput } from './gameApi'
 
 type GameCreationScreenProps = {
+  isLoggingOut: boolean
   user: AuthenticatedUser
   token: string
+  onLogout: () => void | Promise<void>
   onUnauthorized: () => void
 }
 
@@ -19,6 +21,8 @@ type CreationError = {
 const DEFAULT_SEED = '894177203164'
 
 export function GameCreationScreen({
+  isLoggingOut,
+  onLogout,
   user,
   token,
   onUnauthorized,
@@ -58,14 +62,9 @@ export function GameCreationScreen({
 
   return (
     <AccessShell
-      topbarContent={
-        <a className="topbar-status topbar-account-link" href="/games">
-          <span className="status-dot" aria-hidden="true" />
-          <span>
-            Signed in as <strong>{user.name}</strong>
-          </span>
-        </a>
-      }
+      authenticatedUser={user}
+      isLoggingOut={isLoggingOut}
+      onLogout={onLogout}
     >
       <p className="eyebrow">Game setup</p>
       <h1>Create a game.</h1>

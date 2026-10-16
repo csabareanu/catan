@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ApiError } from './lib/apiClient'
 import {
   isAuthenticationPath,
+  isBoardPreviewPath,
   getObservedGameID,
   isPrivatePath,
   navigateTo,
@@ -13,7 +14,7 @@ import {
   logoutUser,
   type AuthenticatedUser,
 } from './features/auth/authApi'
-import { AccessShell } from './features/auth/AuthShell'
+import { AccessShell, AuthenticatedHeader, PublicHeader } from './features/auth/AuthShell'
 import { AuthenticationScreen } from './features/auth/AuthScreen'
 import { GameCreationScreen } from './features/games/GameCreationScreen'
 import { GameLibrary } from './features/games/GameLibrary'
@@ -38,8 +39,29 @@ type SessionState =
 function App() {
   const pathname = useBrowserPathname()
   const [session, setSession] = useState<SessionState>({ status: 'idle' })
-  const isSessionAwarePath = isPrivatePath(pathname) || pathname === '/'
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const isSessionAwarePath = isPrivatePath(pathname) || isBoardPreviewPath(pathname)
   const hasSessionToken = isSessionAwarePath && readSessionToken() !== null
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return
+    }
+
+    setIsLoggingOut(true)
+    const token = readSessionToken()
+
+    try {
+      if (token !== null) {
+        await logoutUser(token, clearSessionToken)
+      }
+    } catch {
+      // Clearing the local token still protects this browser when the API is unavailable.
+    } finally {
+      clearSessionToken()
+      navigateTo('/login')
+    }
+  }
 
   useEffect(() => {
     if (!isSessionAwarePath) {
@@ -82,6 +104,8 @@ function App() {
     return (
       <PrivateRoute
         hasSessionToken={hasSessionToken}
+        isLoggingOut={isLoggingOut}
+        onLogout={handleLogout}
         pathname={pathname}
         session={session}
       />
@@ -97,15 +121,26 @@ function App() {
     )
   }
 
-  return <BoardPreview hasSessionToken={hasSessionToken} session={session} />
+  return (
+    <BoardPreview
+      hasSessionToken={hasSessionToken}
+      isLoggingOut={isLoggingOut}
+      onLogout={handleLogout}
+      session={session}
+    />
+  )
 }
 
 function PrivateRoute({
   hasSessionToken,
+  isLoggingOut,
+  onLogout,
   pathname,
   session,
 }: {
   hasSessionToken: boolean
+  isLoggingOut: boolean
+  onLogout: () => void | Promise<void>
   pathname: string
   session: SessionState
 }) {
@@ -120,7 +155,9 @@ function PrivateRoute({
       return (
         <GameObserver
           gameID={observedGameID}
+          isLoggingOut={isLoggingOut}
           onUnauthorized={handleUnauthorizedSession}
+          onLogout={onLogout}
           token={readSessionToken() ?? ''}
           user={session.user}
         />
@@ -130,14 +167,22 @@ function PrivateRoute({
     if (pathname === '/games/new') {
       return (
         <GameCreationScreen
+          isLoggingOut={isLoggingOut}
           onUnauthorized={handleUnauthorizedSession}
+          onLogout={onLogout}
           token={readSessionToken() ?? ''}
           user={session.user}
         />
       )
     }
 
-    return <AuthenticatedPlaceholder user={session.user} />
+    return (
+      <AuthenticatedPlaceholder
+        isLoggingOut={isLoggingOut}
+        onLogout={onLogout}
+        user={session.user}
+      />
+    )
   }
 
   if (session.status === 'anonymous') {
@@ -189,33 +234,19 @@ function AuthenticationEntry({ message }: { message?: string }) {
   )
 }
 
-function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-
-  const handleLogout = async () => {
-    if (isLoggingOut) {
-      return
-    }
-
-    setIsLoggingOut(true)
-    const token = readSessionToken()
-
-    try {
-      if (token !== null) {
-        await logoutUser(token, clearSessionToken)
-      }
-    } catch {
-      // Clearing the local token still protects this browser when the API is unavailable.
-    } finally {
-      clearSessionToken()
-      navigateTo('/login')
-    }
-  }
-
+function AuthenticatedPlaceholder({
+  isLoggingOut,
+  onLogout,
+  user,
+}: {
+  isLoggingOut: boolean
+  onLogout: () => void | Promise<void>
+  user: AuthenticatedUser
+}) {
   return (
     <GameLibrary
       isLoggingOut={isLoggingOut}
-      onLogout={handleLogout}
+      onLogout={onLogout}
       onUnauthorized={handleUnauthorizedSession}
       token={readSessionToken() ?? ''}
       user={user}
@@ -225,9 +256,13 @@ function AuthenticatedPlaceholder({ user }: { user: AuthenticatedUser }) {
 
 function BoardPreview({
   hasSessionToken,
+  isLoggingOut,
+  onLogout,
   session,
 }: {
   hasSessionToken: boolean
+  isLoggingOut: boolean
+  onLogout: () => void | Promise<void>
   session: SessionState
 }) {
   const [seed, setSeed] = useState(EXAMPLE_SEED)
@@ -277,43 +312,36 @@ function BoardPreview({
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="Catan board preview home">
-          <span className="brand-mark" aria-hidden="true">
-            <span>C</span>
-          </span>
-          <span className="brand-copy">
-            <strong>Catan</strong>
-            <small>Board lab</small>
-          </span>
-        </a>
-
-        <div className="topbar-actions">
-          {session.status === 'authenticated' && hasSessionToken ? (
-            <a className="topbar-status topbar-account-link" href="/games">
-              <span className="status-dot" aria-hidden="true" />
-              <span>
-                Signed in as <strong>{session.user.name}</strong>
-              </span>
-            </a>
-          ) : hasSessionToken ? (
-            <div className="topbar-status">
-              <span className="status-dot" aria-hidden="true" />
-              <span>Restoring session</span>
+      {session.status === 'authenticated' && hasSessionToken ? (
+        <AuthenticatedHeader
+          isLoggingOut={isLoggingOut}
+          onLogout={onLogout}
+          user={session.user}
+        />
+      ) : (
+        <PublicHeader
+          topbarContent={
+            <div className="topbar-actions">
+              {hasSessionToken ? (
+                <div className="topbar-status">
+                  <span className="status-dot" aria-hidden="true" />
+                  <span>Restoring session</span>
+                </div>
+              ) : (
+                <>
+                  <a className="topbar-link" href="/login">
+                    Sign in
+                  </a>
+                  <div className="topbar-status">
+                    <span className="status-dot" aria-hidden="true" />
+                    <span>Anonymous preview</span>
+                  </div>
+                </>
+              )}
             </div>
-          ) : (
-            <>
-              <a className="topbar-link" href="/login">
-                Sign in
-              </a>
-              <div className="topbar-status">
-                <span className="status-dot" aria-hidden="true" />
-                <span>Anonymous preview</span>
-              </div>
-            </>
-          )}
-        </div>
-      </header>
+          }
+        />
+      )}
 
       <main className="page-content">
         <section className="page-intro" aria-labelledby="page-title">

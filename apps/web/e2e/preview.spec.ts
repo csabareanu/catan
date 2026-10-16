@@ -26,12 +26,31 @@ for (const viewport of VIEWPORTS) {
     await expect(page.getByText('No board data yet', { exact: true })).toBeVisible()
     await expect(page.getByText('base@1.0.0', { exact: true })).toBeVisible()
     await expect(page.getByText('standard@1.0.0', { exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Sign in' })).toHaveCSS(
+      'white-space',
+      'nowrap',
+    )
+
+    if (viewport.name === 'mobile') {
+      await expect(page.locator('.topbar-actions .topbar-status')).toBeHidden()
+      await expect(page.locator('.intro-index')).toBeHidden()
+    }
 
     const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
     const viewportWidth = await page.evaluate(() => window.innerWidth)
     expect(pageWidth).toBeLessThanOrEqual(viewportWidth)
   })
 }
+
+test('renders the board preview at the secondary /preview path', async ({ page }) => {
+  await page.goto('/preview')
+
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+    'href',
+    '/login',
+  )
+})
 
 test('submits the seed to Laravel and displays canonical board metadata', async ({ page }) => {
   const submittedSeeds: string[] = []
