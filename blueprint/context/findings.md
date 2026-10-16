@@ -295,35 +295,9 @@ responsibility, existing versioned replay boundary, feature-scoped changes,
 existing theme, and browser evidence for UI behavior.
 
 Ledger changes: F-09 and F-20 closed; F-10 and F-17 updated with current
-evidence; F-21 revalidated and remains open; F-22 added. No new P0/P1 finding
-was confirmed in this page scope. Passing automated checks do not establish
-visual polish.
-
-### F-21 [P2] open - Phone details overlay leaves keyboard focus behind its backdrop
-
-**File:** apps/web/src/features/replay/GameObserver.tsx:211
-**Found:** 2026-10-16 by /audit (scope: observer page and current F-09 work)
-**Why it matters:** The phone panel visually behaves as a modal sheet but is
-an aside with a full-screen button backdrop and no modal semantics or contained
-focus. Opening it leaves focus on the covered toggle. At 390x844, Tab reaches
-the backdrop, then the scrollable aside, then the document and obscured brand
-link. Escape from the backdrop removes that focused button and leaves focus on
-BODY instead of the Game details trigger. The sheet also has no visible internal
-close button; its Close details toggle is underneath the backdrop. This is a
-new observer interaction defect, distinct from the existing menu finding F-15.
-**Suggested fix:** Give the phone sheet appropriate dialog behavior, an internal
-Close control, initial focus, keyboard containment and focus restoration to
-the trigger on Escape, backdrop or close-button dismissal. A native dialog can
-provide the modal behavior without a new dependency. Alternatively make it a
-true modeless disclosure without a blocking backdrop. Verify the keyboard path,
-not only whether the trigger and panel exist.
-**Resolution:**
-
-**Re-review:** 2026-10-16 confirmed the same defect in the committed
-implementation. Opening the sheet leaves focus on the covered Game details
-trigger; Tab moves to the full-screen backdrop; Escape closes the sheet but
-leaves focus on BODY rather than restoring it to the trigger. The sheet still
-has no internal close control or modal semantics. Keep open.
+evidence; F-21 archived with accessible-phone-game-details-sheet; F-22 remains
+open. No new P0/P1 finding was confirmed in this page scope. Passing automated
+checks do not establish visual polish.
 
 ### F-22 [P3] open - Observer layout is implemented by competing CSS rule sets
 

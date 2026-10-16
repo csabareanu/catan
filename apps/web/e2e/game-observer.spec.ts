@@ -34,8 +34,32 @@ test('renders the board, players, and visible history', async ({ page }) => {
   await expect(page.locator('.observer-board .board-svg')).toBeVisible()
   await expect(page.locator('.observer-header-actions').getByText('Run complete', { exact: true })).toBeVisible()
 
+  const backLinkBox = await page.locator('.observer-back-link').boundingBox()
+  const headingBox = await page.locator('.observer-heading').boundingBox()
+  const boardBox = await page.locator('.observer-board').boundingBox()
+
+  if (!backLinkBox || !headingBox || !boardBox) {
+    throw new Error('The observer header and board must be rendered before measuring spacing.')
+  }
+
+  const gameHeadingBox = await page.getByRole('heading', { name: 'Game 42', exact: true }).boundingBox()
+
+  if (!gameHeadingBox) {
+    throw new Error('The observer game heading must be rendered before measuring its height.')
+  }
+
+  expect(Math.abs(backLinkBox.y + backLinkBox.height / 2 - (headingBox.y + headingBox.height / 2))).toBeLessThanOrEqual(4)
+  expect(gameHeadingBox.height).toBeLessThan(30)
+  expect(boardBox.y - (headingBox.y + headingBox.height)).toBeGreaterThanOrEqual(8)
+
   await page.getByRole('button', { name: 'Game details', exact: true }).click()
-  await expect(page.getByRole('complementary', { name: 'Players and game history' })).toBeVisible()
+  const detailsDialog = page.getByRole('dialog', { name: 'Game details' })
+  const closeDetails = detailsDialog.getByRole('button', { name: 'Close details', exact: true })
+
+  await expect(detailsDialog).toBeVisible()
+  await expect(detailsDialog).toHaveAttribute('aria-modal', 'true')
+  await expect(closeDetails).toBeFocused()
+  await expect(page.locator('.observer-sidebar-backdrop')).toHaveAttribute('tabindex', '-1')
 
   await expect(page.locator('.observer-player').first().getByText('Ada Player', { exact: true })).toBeVisible()
   await expect(page.getByText('Human player', { exact: true })).toBeVisible()
@@ -51,8 +75,29 @@ test('renders the board, players, and visible history', async ({ page }) => {
   const viewportHeight = await page.evaluate(() => window.innerHeight)
   expect(pageHeight).toBeLessThanOrEqual(viewportHeight)
 
+  for (let tabPress = 0; tabPress < 4; tabPress += 1) {
+    await page.keyboard.press('Tab')
+    await expect(detailsDialog.locator(':focus')).toBeVisible()
+  }
+
+  await page.keyboard.press('Shift+Tab')
+  await expect(detailsDialog.locator(':focus')).toBeVisible()
+
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Game details', exact: true })).toBeVisible()
+  const detailsTrigger = page.getByRole('button', { name: 'Game details', exact: true })
+  await expect(detailsDialog).toBeHidden()
+  await expect(detailsTrigger).toBeFocused()
+
+  await detailsTrigger.click()
+  await expect(page.getByRole('dialog', { name: 'Game details' })).toBeVisible()
+  await page.locator('.observer-sidebar-backdrop').click({ position: { x: 2, y: 2 } })
+  await expect(detailsDialog).toBeHidden()
+  await expect(detailsTrigger).toBeFocused()
+
+  await detailsTrigger.click()
+  await closeDetails.click()
+  await expect(detailsDialog).toBeHidden()
+  await expect(detailsTrigger).toBeFocused()
 })
 
 for (const viewport of [

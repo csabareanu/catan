@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../lib/apiClient'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
@@ -172,35 +172,97 @@ export function GameObserver({
 
 function ObserverContent({ replay }: { replay: ReplayResponse }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const sidebarToggleRef = useRef<HTMLButtonElement>(null)
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null)
+  const sidebarRef = useRef<HTMLElement>(null)
   const { context, events, event_cursor: eventCursor, frame } = replay
   const game = context.game
+
+  const closeSidebar = useCallback(() => {
+    setIsSidebarOpen(false)
+    sidebarToggleRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     if (!isSidebarOpen) {
       return
     }
 
-    const closeOnEscape = (event: KeyboardEvent) => {
+    const sidebar = sidebarRef.current
+
+    if (!sidebar) {
+      return
+    }
+
+    const focusableElements = getFocusableElements(sidebar)
+    const closeButton = sidebarCloseRef.current
+
+    if (closeButton && focusableElements.includes(closeButton)) {
+      closeButton.focus()
+    } else {
+      focusableElements[0]?.focus()
+    }
+
+    const closeOnEscapeAndTrapFocus = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsSidebarOpen(false)
+        event.preventDefault()
+        closeSidebar()
+        return
+      }
+
+      if (event.key !== 'Tab') {
+        return
+      }
+
+      const focusableElements = getFocusableElements(sidebar)
+
+      if (focusableElements.length === 0) {
+        event.preventDefault()
+        return
+      }
+
+      const firstFocusableElement = focusableElements[0]
+      const lastFocusableElement = focusableElements[focusableElements.length - 1]
+      const activeElement = document.activeElement
+
+      if (!sidebar.contains(activeElement)) {
+        event.preventDefault()
+        firstFocusableElement.focus()
+        return
+      }
+
+      if (event.shiftKey && activeElement === firstFocusableElement) {
+        event.preventDefault()
+        lastFocusableElement.focus()
+      } else if (!event.shiftKey && activeElement === lastFocusableElement) {
+        event.preventDefault()
+        firstFocusableElement.focus()
       }
     }
 
-    document.addEventListener('keydown', closeOnEscape)
+    document.addEventListener('keydown', closeOnEscapeAndTrapFocus)
 
     return () => {
-      document.removeEventListener('keydown', closeOnEscape)
+      document.removeEventListener('keydown', closeOnEscapeAndTrapFocus)
     }
-  }, [isSidebarOpen])
+  }, [closeSidebar, isSidebarOpen])
 
   return (
     <div className="observer-layout">
       <button
+        ref={sidebarToggleRef}
         className="observer-sidebar-toggle"
         type="button"
         aria-controls="observer-sidebar"
         aria-expanded={isSidebarOpen}
-        onClick={() => setIsSidebarOpen((isOpen) => !isOpen)}
+        onClick={() => {
+          if (isSidebarOpen) {
+            closeSidebar()
+            return
+          }
+
+          setIsSidebarOpen(true)
+        }}
       >
         {isSidebarOpen ? 'Close details' : 'Game details'}
       </button>
@@ -212,16 +274,30 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
         <button
           className="observer-sidebar-backdrop"
           type="button"
+          tabIndex={-1}
           aria-label="Close game details"
-          onClick={() => setIsSidebarOpen(false)}
+          onClick={closeSidebar}
         />
       )}
 
       <aside
+        ref={sidebarRef}
         id="observer-sidebar"
         className={`observer-sidebar${isSidebarOpen ? ' observer-sidebar-open' : ''}`}
-        aria-label="Players and game history"
+        role={isSidebarOpen ? 'dialog' : undefined}
+        aria-modal={isSidebarOpen ? 'true' : undefined}
+        aria-label={isSidebarOpen ? 'Game details' : 'Players and game history'}
       >
+        <div className="observer-sidebar-header">
+          <button
+            ref={sidebarCloseRef}
+            className="observer-sidebar-close"
+            type="button"
+            onClick={closeSidebar}
+          >
+            Close details
+          </button>
+        </div>
         <section className="observer-panel" aria-labelledby="observer-players-title">
           <div className="observer-section-heading">
             <h2 id="observer-players-title">Players</h2>
@@ -311,6 +387,22 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
       </aside>
     </div>
   )
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => {
+    const styles = window.getComputedStyle(element)
+
+    return (
+      styles.display !== 'none' &&
+      styles.visibility !== 'hidden' &&
+      element.getClientRects().length > 0
+    )
+  })
 }
 
 function shouldRefreshReplay(lifecycleStatus: string): boolean {
