@@ -895,13 +895,6 @@
   opacity: 0.55;
 }
 
-.library-delete-error {
-  margin: 0;
-  color: var(--danger);
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
 .delete-modal-backdrop {
   position: fixed;
   z-index: 10;

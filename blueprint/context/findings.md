@@ -243,17 +243,6 @@ identifier in observer/replay views, and a product-appropriate default
 description. This does not require adding a routing or metadata library.
 **Resolution:**
 
-### F-20 [P3] open - Obsolete row delete error style remains
-
-**File:** apps/web/src/App.css:898
-**Found:** 2026-10-16 by /audit (scope: F-19 re-audit)
-**Why it matters:** The `.library-delete-error` selector has no remaining JSX
-consumer after delete errors moved into the modal. Keeping the unused rule
-leaves stale presentation code that can mislead future changes to the library.
-**Suggested fix:** Remove the unused `.library-delete-error` declaration after
-confirming no row-level delete error is intended to return.
-**Resolution:**
-
 ## Observer page composition review - 2026-10-16
 
 Scope: `/games/:gameId/observe`, the active F-09 implementation, its staged,
