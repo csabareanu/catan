@@ -99,23 +99,71 @@ test('keeps the mobile library inside the frame and preserves delete styling whi
   const deleteAction = gameMenu.getByRole('button', { name: 'Delete game 42', exact: true })
   await expect(deleteAction).toHaveCSS('color', 'rgb(201, 109, 98)')
 
-  page.once('dialog', async (dialog) => {
-    await dialog.accept()
-  })
   await deleteAction.click()
+  const deleteModal = page.getByRole('dialog', { name: 'Delete Game 42?' })
+  await expect(deleteModal).toBeVisible()
+  await deleteModal.getByRole('button', { name: 'Delete game', exact: true }).click()
 
-  const pendingDeleteAction = gameMenu.getByRole('button', {
+  const pendingDeleteAction = deleteModal.getByRole('button', {
     name: 'Deleting game',
     exact: true,
   })
   await expect(pendingDeleteAction).toBeDisabled()
-  await expect(pendingDeleteAction).toHaveCSS('color', 'rgb(201, 109, 98)')
+  await expect(pendingDeleteAction).toHaveCSS('background-color', 'rgb(201, 109, 98)')
   const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
   const viewportWidth = await page.evaluate(() => window.innerWidth)
   expect(pageWidth).toBeLessThanOrEqual(viewportWidth)
 
   releaseDelete?.()
   await expect(gameCard).toHaveCount(0)
+})
+
+test('dismisses the game menu and keeps modal focus contained', async ({ page }) => {
+  await authenticatePage(page)
+  await page.route('**/api/v1/games', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(gameListResponse(gameSummaries)),
+    })
+  })
+
+  await page.goto('/games')
+
+  const gameCard = page.locator('.library-item').filter({ hasText: 'Game 42' })
+  const gameMenu = gameCard.locator('.library-game-menu')
+  const moreTrigger = gameMenu.locator('.library-more-trigger')
+  const deleteTrigger = gameCard.getByRole('button', { name: 'Delete game 42', exact: true })
+
+  await moreTrigger.click()
+  await expect(gameMenu).toHaveAttribute('open', '')
+  await page.mouse.click(5, 5)
+  await expect(gameMenu).not.toHaveAttribute('open', '')
+
+  await moreTrigger.click()
+  await page.keyboard.press('Escape')
+  await expect(gameMenu).not.toHaveAttribute('open', '')
+  await expect(moreTrigger).toBeFocused()
+
+  await clickDeleteAction(page, 42)
+
+  const deleteModal = page.getByRole('dialog', { name: 'Delete Game 42?' })
+  const cancelButton = deleteModal.getByRole('button', { name: 'Cancel', exact: true })
+  const confirmButton = deleteModal.getByRole('button', { name: 'Delete game', exact: true })
+  await expect(cancelButton).toBeFocused()
+
+  await page.keyboard.press('Tab')
+  await expect(confirmButton).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(cancelButton).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(deleteModal).toHaveCount(0)
+  await expect(deleteTrigger).toBeFocused()
+
+  await clickDeleteAction(page, 42)
+  await page.locator('.delete-modal-backdrop').click({ position: { x: 5, y: 5 } })
+  await expect(deleteModal).toHaveCount(0)
+  await expect(deleteTrigger).toBeFocused()
 })
 
 test('loads the last saved game without replacing the first page', async ({ page }) => {
@@ -230,8 +278,8 @@ for (const count of [21, 41]) {
       await page.getByRole('button', { name: 'Load more', exact: true }).click()
       await expect(page.locator('.library-item')).toHaveCount(40)
     }
-    page.once('dialog', (dialog) => dialog.accept())
     await clickDeleteAction(page, 100)
+    await confirmDelete(page, 100)
     await expect(page.locator('.library-item')).toHaveCount(count - 2)
     await expect(page.getByRole('heading', { name: `${count - 1} saved games`, exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Load more', exact: true }).click()
@@ -311,19 +359,15 @@ test('keeps a game until confirmed deletion succeeds', async ({ page }) => {
   const gameCard = page.locator('.library-item').filter({ hasText: 'Game 42' })
   await expect(gameCard).toBeVisible()
 
-  page.once('dialog', async (dialog) => {
-    expect(dialog.type()).toBe('confirm')
-    expect(dialog.message()).toBe('Delete game 42?')
-    await dialog.dismiss()
-  })
   await clickDeleteAction(page, 42)
+  const deleteModal = page.getByRole('dialog', { name: 'Delete Game 42?' })
+  await expect(deleteModal.getByText('This will permanently delete the saved game and its history. You cannot undo this action.')).toBeVisible()
+  await deleteModal.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(gameCard).toBeVisible()
   expect(deleteRequestCount).toBe(0)
 
-  page.once('dialog', async (dialog) => {
-    await dialog.accept()
-  })
   await clickDeleteAction(page, 42)
+  await confirmDelete(page, 42)
 
   await expect(gameCard).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '1 saved game', exact: true })).toBeVisible()
@@ -375,12 +419,10 @@ for (const response of [
     })
 
     await page.goto('/games')
-    page.once('dialog', async (dialog) => {
-      await dialog.accept()
-    })
     await clickDeleteAction(page, 42)
+    await confirmDelete(page, 42)
 
-    await expect(page.getByRole('alert')).toHaveText(response.message)
+    await expect(page.getByRole('dialog', { name: 'Delete Game 42?' }).getByRole('alert')).toHaveText(response.message)
     await expect(page.getByRole('heading', { name: '2 saved games', exact: true })).toBeVisible()
     await expect(page.getByText('Game 42', { exact: true })).toBeVisible()
     await expect(page.locator('.account-trigger')).toHaveAttribute(
@@ -404,12 +446,10 @@ test('keeps the game visible after a network delete failure', async ({ page }) =
   })
 
   await page.goto('/games')
-  page.once('dialog', async (dialog) => {
-    await dialog.accept()
-  })
   await clickDeleteAction(page, 42)
+  await confirmDelete(page, 42)
 
-  await expect(page.getByRole('alert')).toHaveText(
+  await expect(page.getByRole('dialog', { name: 'Delete Game 42?' }).getByRole('alert')).toHaveText(
     'The game could not be deleted. Check the connection and try again.',
   )
   await expect(page.getByText('Game 42', { exact: true })).toBeVisible()
@@ -525,4 +565,9 @@ async function clickDeleteAction(page: Page, gameID: number) {
   }
 
   await gameMenu.getByRole('button', { name: `Delete game ${gameID}`, exact: true }).click()
+}
+
+async function confirmDelete(page: Page, gameID: number) {
+  const deleteModal = page.getByRole('dialog', { name: `Delete Game ${gameID}?` })
+  await deleteModal.getByRole('button', { name: 'Delete game', exact: true }).click()
 }

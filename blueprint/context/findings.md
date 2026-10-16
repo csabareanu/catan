@@ -177,7 +177,10 @@ outside interaction and Escape, close a previous game menu when opening another,
 and restore focus to the trigger when Escape closes a menu from within it.
 Keep deletion confirmation and existing API handling. Test keyboard and pointer
 paths without imposing an unnecessary component dependency.
-**Resolution:**
+**Resolution:** Re-examined 2026-10-16 during the F-19 re-audit. The game
+action menu now dismisses on outside pointer interaction and Escape, with
+Escape returning focus to its trigger. The account-menu focus behavior and the
+remaining cross-menu consistency work are still open, so F-15 remains open.
 
 ### F-16 [P2] open - Public game information is displayed as field counts
 
@@ -240,24 +243,15 @@ identifier in observer/replay views, and a product-appropriate default
 description. This does not require adding a routing or metadata library.
 **Resolution:**
 
-### F-19 [P3] open - Delete confirmation uses a generic browser dialog
+### F-20 [P3] open - Obsolete row delete error style remains
 
-**File:** apps/web/src/features/games/GameLibrary.tsx:82
-**Found:** 2026-10-16 by /audit (scope: full browser UI, user follow-up)
-**Why it matters:** The current window.confirm correctly requires confirmation,
-but its browser-controlled appearance differs from the product and the message
-only asks whether to delete a game ID. It does not explain that the saved game
-and its history are permanently removed. The user explicitly requested a
-styled confirmation modal as part of the professional UI direction. This is
-a presentation refinement, not a missing deletion guard.
-**Suggested fix:** Use an accessible modal matching the theme, titled
-"Delete Game {id}?", with a concise permanent-deletion explanation, Cancel,
-and a clearly destructive Delete game button. Focus Cancel initially, contain
-keyboard focus while open, allow Escape/backdrop cancellation before submission,
-and return focus to a sensible library control on dismissal. Show pending
-progress, prevent duplicate submissions, and retain the modal with an inline
-error if deletion fails. Remove the row only after HTTP 204. Use the existing
-platform, such as a styled HTML dialog, without requiring a new UI dependency.
+**File:** apps/web/src/App.css:898
+**Found:** 2026-10-16 by /audit (scope: F-19 re-audit)
+**Why it matters:** The `.library-delete-error` selector has no remaining JSX
+consumer after delete errors moved into the modal. Keeping the unused rule
+leaves stale presentation code that can mislead future changes to the library.
+**Suggested fix:** Remove the unused `.library-delete-error` declaration after
+confirming no row-level delete error is intended to return.
 **Resolution:**
 
 ## Observer page composition review - 2026-10-16

@@ -26,6 +26,14 @@ type DeleteError = {
   message: string
 }
 
+type DeleteGameModalProps = {
+  game: GameSummary
+  isDeleting: boolean
+  errorMessage: string | null
+  onCancel: () => void
+  onConfirm: () => void
+}
+
 export function GameLibrary({
   user,
   token,
@@ -38,12 +46,16 @@ export function GameLibrary({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [deletingGameId, setDeletingGameId] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<GameSummary | null>(null)
   const [deleteError, setDeleteError] = useState<DeleteError | null>(null)
   const [pagination, setPagination] = useState<GameListPagination | null>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [pagesNeedRefresh, setPagesNeedRefresh] = useState(false)
   const moreRequest = useRef<AbortController | null>(null)
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const newGameActionRef = useRef<HTMLAnchorElement | null>(null)
+  const libraryCollectionRef = useRef<HTMLElement>(null)
   const totalGames = pagination?.total ?? 0
   const hasMore = pagination !== null && games.length < totalGames && (
     pagination.current_page < pagination.last_page || pagesNeedRefresh
@@ -80,6 +92,51 @@ export function GameLibrary({
       moreRequest.current?.abort()
     }
   }, [onUnauthorized, reloadKey, token])
+
+  useEffect(() => {
+    const closeMenusOutside = (event: PointerEvent) => {
+      const collection = libraryCollectionRef.current
+
+      if (collection === null) {
+        return
+      }
+
+      const target = event.target
+
+      collection.querySelectorAll<HTMLDetailsElement>('.library-game-menu[open]').forEach((menu) => {
+        if (target instanceof Node && menu.contains(target)) {
+          return
+        }
+
+        menu.open = false
+      })
+    }
+
+    const closeMenusOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      const collection = libraryCollectionRef.current
+
+      if (collection === null) {
+        return
+      }
+
+      collection.querySelectorAll<HTMLDetailsElement>('.library-game-menu[open]').forEach((menu) => {
+        menu.open = false
+        menu.querySelector<HTMLElement>('.library-more-trigger')?.focus()
+      })
+    }
+
+    document.addEventListener('pointerdown', closeMenusOutside)
+    document.addEventListener('keydown', closeMenusOnEscape)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeMenusOutside)
+      document.removeEventListener('keydown', closeMenusOnEscape)
+    }
+  }, [])
 
   const retry = () => {
     setErrorMessage(null)
@@ -149,8 +206,47 @@ export function GameLibrary({
     ))
   }, [])
 
-  const handleDelete = async (game: GameSummary) => {
-    if (deletingGameId !== null || moreRequest.current !== null || !window.confirm(`Delete game ${game.id}?`)) {
+  const restoreDeleteFocus = useCallback(() => {
+    const trigger = deleteTriggerRef.current
+
+    if (trigger?.isConnected) {
+      trigger.closest('details')?.setAttribute('open', '')
+    }
+
+    window.requestAnimationFrame(() => {
+      if (trigger?.isConnected) {
+        trigger.focus()
+      } else {
+        newGameActionRef.current?.focus()
+      }
+
+      if (deleteTriggerRef.current === trigger) {
+        deleteTriggerRef.current = null
+      }
+    })
+  }, [])
+
+  const closeDeleteConfirmation = useCallback(() => {
+    setDeleteTarget(null)
+    setDeleteError(null)
+    restoreDeleteFocus()
+  }, [restoreDeleteFocus])
+
+  const openDeleteConfirmation = (game: GameSummary, trigger: HTMLButtonElement) => {
+    if (deletingGameId !== null || moreRequest.current !== null || isLoggingOut) {
+      return
+    }
+
+    deleteTriggerRef.current = trigger
+    trigger.closest('details')?.removeAttribute('open')
+    setDeleteError(null)
+    setDeleteTarget(game)
+  }
+
+  const handleDelete = async () => {
+    const game = deleteTarget
+
+    if (game === null || deletingGameId !== null || moreRequest.current !== null || isLoggingOut) {
       return
     }
 
@@ -165,6 +261,8 @@ export function GameLibrary({
         ? null
         : { ...current, total: Math.max(0, current.total - 1) },
       )
+      setDeleteTarget(null)
+      restoreDeleteFocus()
     } catch (caught: unknown) {
       setDeleteError({
         gameId: game.id,
@@ -190,7 +288,11 @@ export function GameLibrary({
             Create a game or revisit a saved run.
           </p>
         </div>
-        <a className="access-primary-action library-new-game-action" href="/games/new">
+        <a
+          ref={newGameActionRef}
+          className="access-primary-action library-new-game-action"
+          href="/games/new"
+        >
           <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
             <path d="M12 5v14M5 12h14" />
           </svg>
@@ -215,7 +317,11 @@ export function GameLibrary({
       )}
 
       {loadState === 'success' && (
-        <section className="library-collection" aria-labelledby="saved-games-title">
+        <section
+          ref={libraryCollectionRef}
+          className="library-collection"
+          aria-labelledby="saved-games-title"
+        >
           <div className="library-section-heading">
             <h2 id="saved-games-title">
               {totalGames === 0
@@ -297,15 +403,6 @@ export function GameLibrary({
                           </svg>
                         </a>
                       )}
-                      {deleteError?.gameId === game.id && (
-                        <p
-                          className="library-delete-error"
-                          id={`delete-error-${game.id}`}
-                          role="alert"
-                        >
-                          {deleteError.message}
-                        </p>
-                      )}
                     </div>
 
                     <details className="library-game-menu">
@@ -321,15 +418,10 @@ export function GameLibrary({
                       </summary>
                       <div className="menu-panel library-game-menu-panel">
                         <button
-                          aria-describedby={
-                            deleteError?.gameId === game.id
-                              ? `delete-error-${game.id}`
-                              : undefined
-                          }
                           className="menu-item menu-item-danger"
                           disabled={deletingGameId !== null || isLoadingMore}
                           type="button"
-                          onClick={() => void handleDelete(game)}
+                          onClick={(event) => openDeleteConfirmation(game, event.currentTarget)}
                         >
                           <svg className="menu-item-icon" aria-hidden="true" viewBox="0 0 24 24">
                             <path d="M4 6h16m-13 0 1 15h8l1-15M9 6V3h6v3m-5 4v7m4-7v7" />
@@ -366,8 +458,177 @@ export function GameLibrary({
         </section>
       )}
 
+      {deleteTarget && (
+        <DeleteGameModal
+          errorMessage={deleteError?.gameId === deleteTarget.id ? deleteError.message : null}
+          game={deleteTarget}
+          isDeleting={deletingGameId === deleteTarget.id}
+          onCancel={closeDeleteConfirmation}
+          onConfirm={() => void handleDelete()}
+        />
+      )}
+
     </AccessShell>
   )
+}
+
+function DeleteGameModal({
+  game,
+  isDeleting,
+  errorMessage,
+  onCancel,
+  onConfirm,
+}: DeleteGameModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const errorRef = useRef<HTMLParagraphElement>(null)
+  const hasFocusedInitialControl = useRef(false)
+
+  useEffect(() => {
+    if (!hasFocusedInitialControl.current) {
+      cancelButtonRef.current?.focus()
+      hasFocusedInitialControl.current = true
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+
+        if (!isDeleting) {
+          onCancel()
+        }
+
+        return
+      }
+
+      if (event.key !== 'Tab' || dialogRef.current === null) {
+        return
+      }
+
+      const focusableElements = getModalFocusableElements(dialogRef.current)
+
+      if (focusableElements.length === 0) {
+        event.preventDefault()
+        dialogRef.current.focus()
+        return
+      }
+
+      const firstFocusableElement = focusableElements[0]
+      const lastFocusableElement = focusableElements[focusableElements.length - 1]
+      const activeElement = document.activeElement
+
+      if (!dialogRef.current.contains(activeElement)) {
+        event.preventDefault()
+        firstFocusableElement.focus()
+      } else if (event.shiftKey && activeElement === firstFocusableElement) {
+        event.preventDefault()
+        lastFocusableElement.focus()
+      } else if (!event.shiftKey && activeElement === lastFocusableElement) {
+        event.preventDefault()
+        firstFocusableElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isDeleting, onCancel])
+
+  useEffect(() => {
+    if (isDeleting) {
+      dialogRef.current?.focus()
+    }
+  }, [isDeleting])
+
+  useEffect(() => {
+    if (errorMessage) {
+      errorRef.current?.focus()
+    }
+  }, [errorMessage])
+
+  return (
+    <div
+      className="delete-modal-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !isDeleting) {
+          onCancel()
+        }
+      }}
+    >
+      <div
+        ref={dialogRef}
+        aria-busy={isDeleting}
+        aria-describedby="delete-game-description"
+        aria-labelledby="delete-game-title"
+        aria-modal="true"
+        className="delete-modal"
+        role="dialog"
+        tabIndex={-1}
+      >
+        <div className="delete-modal-heading">
+          <span className="delete-modal-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 6h16m-13 0 1 15h8l1-15M9 6V3h6v3m-5 4v7m4-7v7" />
+            </svg>
+          </span>
+          <div>
+            <p className="delete-modal-eyebrow">Permanent action</p>
+            <h2 id="delete-game-title">Delete Game {game.id}?</h2>
+          </div>
+        </div>
+        <p id="delete-game-description" className="delete-modal-description">
+          This will permanently delete the saved game and its history. You cannot undo this action.
+        </p>
+        {errorMessage && (
+          <p
+            ref={errorRef}
+            className="delete-modal-error"
+            role="alert"
+            tabIndex={-1}
+          >
+            {errorMessage}
+          </p>
+        )}
+        <div className="delete-modal-actions">
+          <button
+            ref={cancelButtonRef}
+            className="access-secondary-action"
+            disabled={isDeleting}
+            type="button"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            className="delete-modal-confirm"
+            disabled={isDeleting}
+            type="button"
+            onClick={onConfirm}
+          >
+            {isDeleting ? 'Deleting game' : 'Delete game'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function getModalFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => {
+    const styles = window.getComputedStyle(element)
+
+    return (
+      styles.display !== 'none' &&
+      styles.visibility !== 'hidden' &&
+      element.getClientRects().length > 0
+    )
+  })
 }
 
 function toLibraryErrorMessage(caught: unknown): string {
