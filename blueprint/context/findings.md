@@ -295,24 +295,6 @@ responsibility, existing versioned replay boundary, feature-scoped changes,
 existing theme, and browser evidence for UI behavior.
 
 Ledger changes: F-09 and F-20 closed; F-10 and F-17 updated with current
-evidence; F-21 archived with accessible-phone-game-details-sheet; F-22 remains
-open. No new P0/P1 finding was confirmed in this page scope. Passing automated
-checks do not establish visual polish.
-
-### F-22 [P3] open - Observer layout is implemented by competing CSS rule sets
-
-**File:** apps/web/src/App.css:905-1376, 2283-2490, 2601-3199
-**Found:** 2026-10-16 by /audit (scope: F-09 implementation)
-**Why it matters:** The viewport repair appends a second, full observer layout
-stylesheet after the original observer rules. Selectors such as
-`.observer-shell`, `.observer-content`, `.observer-card`, `.observer-layout`,
-`.observer-board`, `.observer-sidebar`, and the mobile drawer rules now occur
-in both generations. The later block correctly wins for the checked viewports,
-but future edits must understand cascade order and can easily update the
-superseded block, creating a silent layout regression. This is a maintainability
-risk; no current viewport failure was attributed to it in this audit.
-**Suggested fix:** Consolidate the observer rules into one owned section or a
-dedicated stylesheet, remove superseded declarations, and keep the desktop and
-mobile layout variables beside the selectors they control. Retain the current
-browser geometry checks while simplifying the cascade.
-**Resolution:**
+evidence; F-21 archived with accessible-phone-game-details-sheet; F-22 archived
+with consolidate-observer-layout-styles. No new P0/P1 finding was confirmed in
+this page scope. Passing automated checks do not establish visual polish.
