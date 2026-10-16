@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { isBoardData } from '../src/features/board/boardApi'
 import type { ReplayResponse } from '../src/features/replay/replayApi'
+import standardBoard from './fixtures/standard-board.json' with { type: 'json' }
 
 const user = {
   id: 7,
@@ -19,7 +21,7 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
-test('renders the safe replay context, board, and public frame', async ({ page }) => {
+test('renders the board, players, and visible history', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/v1/games/42/replay', async (route) => {
     expect(route.request().headers().authorization).toBe('Bearer test-token')
@@ -28,19 +30,124 @@ test('renders the safe replay context, board, and public frame', async ({ page }
 
   await page.goto('/games/42/observe')
 
-  await expect(page.getByRole('heading', { name: 'Game 42 observer.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Game 42', exact: true })).toBeVisible()
   await expect(page.locator('.observer-board .board-svg')).toBeVisible()
-  await expect(page.locator('.observer-header-actions').getByText('Completed', { exact: true })).toBeVisible()
-  await expect(page.getByText('Playing', { exact: true })).toBeVisible()
-  await expect(page.locator('.observer-seat').first().getByText('Ada Player', { exact: true })).toBeVisible()
-  await expect(page.getByText('Public frame available', { exact: true })).toBeVisible()
-  await expect(page.getByText('Roads', { exact: true })).toBeVisible()
-  await expect(page.getByText('1 recorded', { exact: true })).toBeVisible()
+  await expect(page.locator('.observer-header-actions').getByText('Run complete', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Game details', exact: true }).click()
+  await expect(page.getByRole('complementary', { name: 'Players and game history' })).toBeVisible()
+
+  await expect(page.locator('.observer-player').first().getByText('Ada Player', { exact: true })).toBeVisible()
+  await expect(page.getByText('Human player', { exact: true })).toBeVisible()
+  await expect(page.getByText('Game initialized', { exact: true })).toBeVisible()
+  await expect(page.getByText('The current board view is ready for replay.', { exact: true })).toBeVisible()
   await expect(page.getByText('current_state', { exact: true })).toHaveCount(0)
 
   const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
   const viewportWidth = await page.evaluate(() => window.innerWidth)
   expect(pageWidth).toBeLessThanOrEqual(viewportWidth)
+
+  const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight)
+  const viewportHeight = await page.evaluate(() => window.innerHeight)
+  expect(pageHeight).toBeLessThanOrEqual(viewportHeight)
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Game details', exact: true })).toBeVisible()
+})
+
+for (const viewport of [
+  { width: 1024, height: 768 },
+  { width: 1366, height: 680 },
+  { width: 1366, height: 768 },
+  { width: 1920, height: 912 },
+]) {
+  test(`maximizes the visible map at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport)
+    await page.route('**/api/v1/games/42/replay', (route) =>
+      route.fulfill({ status: 200, json: replayResponse('completed', true) }),
+    )
+
+    await page.goto('/games/42/observe')
+
+    await expect(page.locator('.observer-board .board-svg')).toBeVisible()
+    await expect(page.locator('.observer-sidebar')).toBeVisible()
+    await expect(page.locator('.board-hex')).toHaveCount(19)
+    await expect(page.locator('.board-port')).toHaveCount(9)
+
+    const metrics = await page.evaluate(() => {
+      const board = document.querySelector<HTMLElement>('.observer-board')
+      const card = document.querySelector<HTMLElement>('.observer-card')
+      const sidebar = document.querySelector<HTMLElement>('.observer-sidebar')
+      const map = document.querySelector<SVGGElement>('.board-hex-layer')
+      const ocean = document.querySelector<SVGRectElement>('.board-svg-background')
+      const token = document.querySelector<SVGCircleElement>('.number-token-disc')
+      const svgBounds = document.querySelector<SVGSVGElement>('.board-svg')?.getBoundingClientRect()
+      const headerBounds = document.querySelector<HTMLElement>('.observer-header')?.getBoundingClientRect()
+      const boardBounds = board?.getBoundingClientRect()
+      const cardBounds = card?.getBoundingClientRect()
+      const portBounds = [...document.querySelectorAll<SVGRectElement>('.board-port-badge')]
+        .map((port) => port.getBoundingClientRect())
+
+      return {
+        documentHeight: document.documentElement.scrollHeight,
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        headerBottom: headerBounds?.bottom ?? Number.POSITIVE_INFINITY,
+        boardBottom: boardBounds?.bottom ?? Number.POSITIVE_INFINITY,
+        cardBottom: cardBounds?.bottom ?? Number.POSITIVE_INFINITY,
+        sidebarOverflow: sidebar ? getComputedStyle(sidebar).overflowY : null,
+        mapHeight: map?.getBoundingClientRect().height ?? 0,
+        oceanWidth: ocean?.getBoundingClientRect().width ?? 0,
+        oceanHeight: ocean?.getBoundingClientRect().height ?? 0,
+        tokenWidth: token?.getBoundingClientRect().width ?? 0,
+        tokenHeight: token?.getBoundingClientRect().height ?? 0,
+        portsInsideCanvas: svgBounds !== undefined && portBounds.every((port) =>
+          port.left >= svgBounds.left && port.right <= svgBounds.right &&
+          port.top >= svgBounds.top && port.bottom <= svgBounds.bottom),
+      }
+    })
+
+    expect(metrics.documentHeight).toBeLessThanOrEqual(metrics.viewportHeight)
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+    expect(metrics.headerBottom).toBeLessThan(120)
+    expect(metrics.boardBottom).toBeLessThanOrEqual(metrics.viewportHeight)
+    expect(metrics.cardBottom).toBeLessThanOrEqual(metrics.viewportHeight)
+    expect(metrics.sidebarOverflow).toBe('auto')
+    expect(metrics.mapHeight).toBeGreaterThan(metrics.viewportHeight * 0.55)
+    expect(metrics.oceanWidth / metrics.oceanHeight).toBeLessThan(1.2)
+    expect(metrics.tokenWidth).toBeCloseTo(metrics.tokenHeight, 1)
+    expect(metrics.portsInsideCanvas).toBe(true)
+
+    await page.screenshot({ path: testInfo.outputPath('observer-desktop.png') })
+    await page.getByText('Board guide', { exact: true }).click()
+    await expect(page.locator('.observer-board-help').getByLabel('Terrain legend')).toBeVisible()
+    await expect(page.locator('.observer-sidebar')).toHaveCSS('overflow-y', 'auto')
+    await expect(page.locator('.board-hex-layer')).toBeInViewport({ ratio: 1 })
+  })
+}
+
+test('keeps the observer usable in a landscape phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 })
+  await page.route('**/api/v1/games/42/replay', (route) =>
+    route.fulfill({ status: 200, json: replayResponse('completed', true) }),
+  )
+
+  await page.goto('/games/42/observe')
+
+  await expect(page.locator('.observer-board .board-svg')).toBeVisible()
+
+  const metrics = await page.evaluate(() => ({
+    boardBottom: document.querySelector<HTMLElement>('.observer-board')?.getBoundingClientRect().bottom ?? Number.POSITIVE_INFINITY,
+    documentHeight: document.documentElement.scrollHeight,
+    viewportHeight: window.innerHeight,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }))
+
+  expect(metrics.boardBottom).toBeLessThanOrEqual(metrics.viewportHeight)
+  expect(metrics.documentHeight).toBeLessThanOrEqual(metrics.viewportHeight)
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
 })
 
 test('explains a replay without a persisted frame', async ({ page }) => {
@@ -50,10 +157,9 @@ test('explains a replay without a persisted frame', async ({ page }) => {
 
   await page.goto('/games/43/observe')
 
-  await expect(page.getByRole('heading', { name: 'Game 43 observer.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Game 43', exact: true })).toBeVisible()
   await expect(page.locator('.observer-board .board-svg')).toBeVisible()
-  await expect(page.getByText('No persisted public frame yet.', { exact: true })).toBeVisible()
-  await expect(page.getByText('The replay has context, but no checkpoint is available to display yet.', { exact: true })).toBeVisible()
+  await expect(page.getByText('No visible history is available yet.', { exact: true })).toBeVisible()
 })
 
 test('refreshes a queued replay until it reaches a stable status', async ({ page }) => {
@@ -67,13 +173,12 @@ test('refreshes a queued replay until it reaches a stable status', async ({ page
   })
 
   await page.goto('/games/44/observe')
-  await expect(page.locator('.observer-header-actions').getByText('Queued', { exact: true })).toBeVisible()
+  await expect(page.locator('.observer-header-actions').getByText('Run queued', { exact: true })).toBeVisible()
   expect(replayRequestCount).toBeGreaterThan(0)
 
   await page.clock.runFor(4000)
 
-  await expect(page.locator('.observer-header-actions').getByText('Completed', { exact: true })).toBeVisible()
-  await expect(page.getByText('Public frame available', { exact: true })).toBeVisible()
+  await expect(page.locator('.observer-header-actions').getByText('Run complete', { exact: true })).toBeVisible()
   expect(replayRequestCount).toBe(3)
 
   await page.clock.runFor(10000)
@@ -138,7 +243,7 @@ function replayResponse(
         ruleset_key: 'base',
         ruleset_version: '1.0.0',
         state_schema_version: 'state-v1',
-        seed: '42',
+        seed: standardBoard.seed,
         seat_count: 3,
         human_seat_number: 1,
         started_at: '2026-10-15T09:01:00.000000Z',
@@ -178,7 +283,7 @@ function replayResponse(
           public_state: {
             phase: 'playing',
             active_seat_number: 1,
-            roads: { 'edge-1': { owner_seat_number: 1 } },
+            roads: { [standardBoard.edges[0].id]: { owner_seat_number: 1 } },
             public_scores: { '1': 2 },
           },
           viewer_state: null,
@@ -188,30 +293,9 @@ function replayResponse(
 }
 
 function boardData() {
-  const vertices = [
-    { id: 'v0', x: 0, y: -2 },
-    { id: 'v1', x: 1, y: -1 },
-    { id: 'v2', x: 1, y: 1 },
-    { id: 'v3', x: 0, y: 2 },
-    { id: 'v4', x: -1, y: 1 },
-    { id: 'v5', x: -1, y: -1 },
-  ]
-
-  return {
-    board_schema_version: '1',
-    seed: '42',
-    ruleset: { key: 'base', version: '1.0.0' },
-    map: { key: 'standard', version: '1.0.0', orientation: 'pointy_top' },
-    hexes: [{
-      id: 'hex:0:0',
-      q: 0,
-      r: 0,
-      terrain: 'forest' as const,
-      number_token: 6,
-      vertex_ids: vertices.map(({ id }) => id),
-    }],
-    vertices,
-    edges: [],
-    ports: [],
+  if (!isBoardData(standardBoard)) {
+    throw new Error('The standard board fixture must match the board API contract.')
   }
+
+  return standardBoard
 }

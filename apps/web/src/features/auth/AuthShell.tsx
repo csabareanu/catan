@@ -8,6 +8,7 @@ import type { AuthenticatedUser } from './authApi'
 
 type AccessShellProps = {
   children: ReactNode
+  shellClassName?: string
   topbarContent?: ReactNode
   contentClassName?: string
   cardClassName?: string
@@ -18,6 +19,7 @@ type AccessShellProps = {
 
 export function AccessShell({
   children,
+  shellClassName,
   topbarContent,
   contentClassName = 'access-content',
   cardClassName = 'access-card',
@@ -25,8 +27,12 @@ export function AccessShell({
   isLoggingOut = false,
   onLogout,
 }: AccessShellProps) {
+  const shellClasses = ['app-shell', 'access-shell', shellClassName]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <div className="app-shell access-shell">
+    <div className={shellClasses}>
       {authenticatedUser && onLogout ? (
         <AuthenticatedHeader
           isLoggingOut={isLoggingOut}

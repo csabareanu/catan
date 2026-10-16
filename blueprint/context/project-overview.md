@@ -339,8 +339,8 @@ Playwright coverage. React renders API state and never applies game rules.
 Current queued execution is a deterministic bootstrap; completed runs do not
 yet represent complete playable matches.
 
-The approved library design reference lives in `prototypes/`, with desktop
-and mobile images in `blueprint/reference/`. Its dark teal, gold, typography,
+The approved library design reference lives in `blueprint/reference/`, with
+desktop and mobile images there. Its dark teal, gold, typography,
 and centered frame guide the active UI fix. The full UI audit in
 `blueprint/context/findings.md` records remaining refinements and the agreed
 future board direction: fill the available window, use a desktop side panel

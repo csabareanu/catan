@@ -116,6 +116,14 @@ export function BoardSvg({ board }: { board: BoardData }) {
         </svg>
       </div>
 
+      <BoardHelp />
+    </div>
+  )
+}
+
+export function BoardHelp() {
+  return (
+    <>
       <div className="board-legend" aria-label="Terrain legend">
         {TERRAIN_LEGEND.map((terrain) => (
           <span className="board-legend-item" key={terrain}>
@@ -129,9 +137,9 @@ export function BoardSvg({ board }: { board: BoardData }) {
       </div>
 
       <p className="board-renderer-note">
-        Ports use the perimeter edges supplied by the canonical topology.
+        Number tokens show production rolls. Coastal markers show trade rates.
       </p>
-    </div>
+    </>
   )
 }
 

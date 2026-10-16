@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ApiError, isRecord } from '../../lib/apiClient'
+import { ApiError } from '../../lib/apiClient'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
-import { BoardSvg } from '../board/BoardSvg'
-import { getGameReplay, type ReplayFrame, type ReplayResponse } from './replayApi'
+import { BoardHelp, BoardSvg } from '../board/BoardSvg'
+import { getGameReplay, type ReplayResponse } from './replayApi'
 
 const POLL_INTERVAL_MS = 2000
 const REFRESHABLE_LIFECYCLE_STATUSES = new Set(['queued', 'running'])
@@ -100,27 +100,40 @@ export function GameObserver({
       authenticatedUser={user}
       cardClassName="access-card observer-card"
       contentClassName="observer-content"
+      shellClassName="observer-shell"
       isLoggingOut={isLoggingOut}
       onLogout={onLogout}
     >
       <header className="observer-header">
-        <div>
-          <p className="eyebrow">Read-only observer</p>
-          <h1>Game {replay?.context.game.id ?? gameID} observer.</h1>
-          <p className="access-description">
-            Inspect the latest safe replay frame for this owned game. The board
-            and history are supplied by the server.
-          </p>
+        <a className="observer-back-link" href="/games" aria-label="Back to your games">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m15 5-7 7 7 7" />
+          </svg>
+        </a>
+        <div className="observer-heading">
+          <h1>Game {replay?.context.game.id ?? gameID}</h1>
+          {replay && (
+            <>
+              <span className="observer-heading-divider" aria-hidden="true" />
+              <span className="observer-mode">{gameModeLabel(replay.context.game.mode)}</span>
+            </>
+          )}
         </div>
         <div className="observer-header-actions">
           {replay && (
-            <span className={`library-status observer-status-${statusClass(replay.context.game.lifecycle_status)}`}>
-              {lifecycleStatusLabel(replay.context.game.lifecycle_status)}
-            </span>
+            <>
+              <span className="observer-readonly">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z" />
+                  <circle cx="12" cy="12" r="2.5" />
+                </svg>
+                Read-only
+              </span>
+              <span className={`library-status observer-status-${statusClass(replay.context.game.lifecycle_status)}`}>
+                {observerStatusLabel(replay.context.game.lifecycle_status)}
+              </span>
+            </>
           )}
-          <a className="access-secondary-action" href="/games">
-            Return to your games
-          </a>
         </div>
       </header>
 
@@ -158,154 +171,145 @@ export function GameObserver({
 }
 
 function ObserverContent({ replay }: { replay: ReplayResponse }) {
-  const { context, events, event_cursor: eventCursor, snapshot_index: snapshotIndex, frame } = replay
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { context, events, event_cursor: eventCursor, frame } = replay
   const game = context.game
+
+  useEffect(() => {
+    if (!isSidebarOpen) {
+      return
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSidebarOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isSidebarOpen])
 
   return (
     <div className="observer-layout">
-      <section className="board-panel observer-board" aria-labelledby="observer-board-title">
-        <div className="board-panel-header">
-          <div>
-            <p className="eyebrow">Persisted topology</p>
-            <h2 id="observer-board-title">Public board</h2>
-          </div>
-          <span className="board-state observer-board-state">
-            <span className="board-state-dot" aria-hidden="true" />
-            {frame ? 'Frame loaded' : 'Context loaded'}
-          </span>
-        </div>
+      <button
+        className="observer-sidebar-toggle"
+        type="button"
+        aria-controls="observer-sidebar"
+        aria-expanded={isSidebarOpen}
+        onClick={() => setIsSidebarOpen((isOpen) => !isOpen)}
+      >
+        {isSidebarOpen ? 'Close details' : 'Game details'}
+      </button>
+      <section className="observer-board" aria-label="Game board">
         <BoardSvg board={context.board} />
       </section>
 
-      <aside className="observer-sidebar">
-        <section className="observer-panel" aria-labelledby="observer-context-title">
-          <div className="observer-panel-heading">
-            <p className="eyebrow">Safe context</p>
-            <h2 id="observer-context-title">Game details</h2>
-          </div>
-          <dl className="observer-detail-list">
-            <div>
-              <dt>Mode</dt>
-              <dd>{gameModeLabel(game.mode)}</dd>
-            </div>
-            <div>
-              <dt>Lifecycle</dt>
-              <dd>{lifecycleStatusLabel(game.lifecycle_status)}</dd>
-            </div>
-            <div>
-              <dt>Seed</dt>
-              <dd><code>{game.seed}</code></dd>
-            </div>
-            <div>
-              <dt>Ruleset</dt>
-              <dd>{game.ruleset_key}@{game.ruleset_version}</dd>
-            </div>
-            <div>
-              <dt>Your seat</dt>
-              <dd>{game.human_seat_number === null ? 'Spectator' : `Seat ${game.human_seat_number}`}</dd>
-            </div>
-          </dl>
+      {isSidebarOpen && (
+        <button
+          className="observer-sidebar-backdrop"
+          type="button"
+          aria-label="Close game details"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
-          <h3 className="observer-subheading">Seats</h3>
-          <ul className="observer-seat-list" aria-label="Game seats">
+      <aside
+        id="observer-sidebar"
+        className={`observer-sidebar${isSidebarOpen ? ' observer-sidebar-open' : ''}`}
+        aria-label="Players and game history"
+      >
+        <section className="observer-panel" aria-labelledby="observer-players-title">
+          <div className="observer-section-heading">
+            <h2 id="observer-players-title">Players</h2>
+            <span>{context.seats.length} players</span>
+          </div>
+          <ul className="observer-player-list" aria-label="Game players">
             {context.seats.map((seat) => (
-              <li className="observer-seat" key={seat.seat_number}>
-                <span className="observer-seat-number">{seat.seat_number}</span>
-                <span>
+              <li className="observer-player" key={seat.seat_number}>
+                <span
+                  className={`observer-player-avatar observer-player-${playerColorClass(seat.seat_number, seat.controller_type)}`}
+                  aria-hidden="true"
+                >
+                  {playerInitial(seat.label, seat.seat_number)}
+                </span>
+                <span className="observer-player-copy">
                   <strong>{seat.label ?? `Seat ${seat.seat_number}`}</strong>
                   <small>{controllerTypeLabel(seat.controller_type)}</small>
                 </span>
+                {seat.seat_number === game.human_seat_number && (
+                  <span className="observer-you">You</span>
+                )}
               </li>
             ))}
           </ul>
         </section>
 
         <section className="observer-panel" aria-labelledby="observer-history-title">
-          <div className="observer-panel-heading">
-            <p className="eyebrow">Visible history</p>
-            <h2 id="observer-history-title">Replay cursor</h2>
+          <div className="observer-section-heading">
+            <h2 id="observer-history-title">History</h2>
+            <span>{eventCountLabel(events.length)}</span>
           </div>
-          <dl className="observer-stat-grid">
-            <div>
-              <dt>Events returned</dt>
-              <dd>{events.length}</dd>
-            </div>
-            <div>
-              <dt>Through event</dt>
-              <dd>{eventCursor.returned_through_sequence ?? 'None'}</dd>
-            </div>
-            <div>
-              <dt>Snapshot index</dt>
-              <dd>{snapshotIndex.length}</dd>
-            </div>
-            <div>
-              <dt>More history</dt>
-              <dd>{eventCursor.has_more ? 'Available' : 'Complete'}</dd>
-            </div>
-          </dl>
-          <p className="observer-note">
-            {eventCursor.has_more
-              ? 'Additional visible events are available for the future replay timeline.'
-              : 'The current response contains the complete visible event page.'}
-          </p>
+          {events.length > 0 ? (
+            <ol className="observer-history-list">
+              {events.map((event) => (
+                <li className="observer-history-event" key={event.sequence}>
+                  <span className="observer-history-marker" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="m5 12 4 4L19 6" />
+                    </svg>
+                  </span>
+                  <div>
+                    <strong>{eventLabel(event.event_type)}</strong>
+                    <p>{eventDescription(event.event_type)}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="observer-note">No visible history is available yet.</p>
+          )}
+          {eventCursor.has_more && (
+            <p className="observer-note">More history is available for replay.</p>
+          )}
+          {frame && (
+            <p className="observer-note">The current board view is ready for replay.</p>
+          )}
         </section>
 
-        <FramePanel frame={frame} />
-      </aside>
-    </div>
-  )
-}
-
-function FramePanel({ frame }: { frame: ReplayFrame | null }) {
-  return (
-    <section className="observer-panel" aria-labelledby="observer-frame-title">
-      <div className="observer-panel-heading">
-        <p className="eyebrow">Latest checkpoint</p>
-        <h2 id="observer-frame-title">Selected frame</h2>
-      </div>
-
-      {frame === null ? (
-        <div className="observer-frame-empty" role="status">
-          <strong>No persisted public frame yet.</strong>
-          <p>The replay has context, but no checkpoint is available to display yet.</p>
-        </div>
-      ) : (
-        <div className="observer-frame-content">
-          <p className="observer-frame-banner" role="status">
-            <span className="status-dot" aria-hidden="true" />
-            Public frame available
-          </p>
-          <dl className="observer-detail-list observer-frame-details">
+        <details className="observer-panel observer-disclosure">
+          <summary>Game details</summary>
+          <dl className="observer-detail-list">
             <div>
-              <dt>Command</dt>
-              <dd><code>{frame.command_sequence}</code></dd>
+              <dt>Mode</dt>
+              <dd>{gameModeLabel(game.mode)}</dd>
             </div>
             <div>
-              <dt>Event</dt>
-              <dd><code>{frame.event_sequence}</code></dd>
+              <dt>Board code</dt>
+              <dd><code>{game.seed}</code></dd>
             </div>
             <div>
-              <dt>Projection</dt>
-              <dd>{frame.public_projection_schema_version}</dd>
+              <dt>Rules</dt>
+              <dd>Base game · Standard map</dd>
+            </div>
+            <div>
+              <dt>Your seat</dt>
+              <dd>{game.human_seat_number === null ? 'Spectator' : game.human_seat_number}</dd>
             </div>
           </dl>
+        </details>
 
-          <h3 className="observer-subheading">Public state</h3>
-          {Object.keys(frame.public_state).length === 0 ? (
-            <p className="observer-note">This checkpoint contains no public state fields.</p>
-          ) : (
-            <dl className="observer-state-list">
-              {Object.entries(frame.public_state).map(([field, value]) => (
-                <div key={field}>
-                  <dt>{publicFieldLabel(field)}</dt>
-                  <dd>{publicFieldValue(field, value)}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
-      )}
-    </section>
+        <details className="observer-panel observer-disclosure observer-board-help">
+          <summary>Board guide</summary>
+          <BoardHelp />
+        </details>
+
+        <p className="observer-sidebar-footer">History and board data are supplied by the server.</p>
+      </aside>
+    </div>
   )
 }
 
@@ -348,6 +352,17 @@ function lifecycleStatusLabel(status: string): string {
     .join(' ')
 }
 
+function observerStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    completed: 'Run complete',
+    failed: 'Run failed',
+    queued: 'Run queued',
+    running: 'Run in progress',
+  }
+
+  return labels[status] ?? lifecycleStatusLabel(status)
+}
+
 function statusClass(status: string): string {
   return status.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
 }
@@ -366,59 +381,52 @@ function gameModeLabel(mode: string): string {
 
 function controllerTypeLabel(controllerType: string): string {
   if (controllerType === 'human') {
-    return 'Human seat'
+    return 'Human player'
   }
 
   if (controllerType === 'ai') {
-    return 'AI seat'
+    return 'AI player'
   }
 
   return lifecycleStatusLabel(controllerType)
 }
 
-function publicFieldLabel(field: string): string {
-  return field
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
+function playerInitial(label: string | null, seatNumber: number): string {
+  const initial = label?.trim().charAt(0).toUpperCase()
+
+  return initial || String(seatNumber)
 }
 
-function publicFieldValue(field: string, value: unknown): string {
-  if (field === 'active_seat_number' && typeof value === 'number') {
-    return `Seat ${value}`
+function playerColorClass(seatNumber: number, controllerType: string): string {
+  if (controllerType === 'human') {
+    return 'human'
   }
 
-  if ((field === 'phase' || field === 'turn_phase') && typeof value === 'string') {
-    return lifecycleStatusLabel(value)
-  }
+  const colors = ['sable', 'moss', 'clay']
 
-  if (field === 'roads' || field === 'buildings') {
-    return `${countStateEntries(value)} recorded`
-  }
-
-  if (field === 'public_scores') {
-    return `${countStateEntries(value)} visible`
-  }
-
-  if (field === 'public_awards') {
-    return `${countStateEntries(value)} assigned`
-  }
-
-  if (value === null) {
-    return 'None'
-  }
-
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  return 'Available'
+  return colors[(seatNumber - 2) % colors.length] ?? 'sable'
 }
 
-function countStateEntries(value: unknown): number {
-  if (Array.isArray(value)) {
-    return value.length
+function eventCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'event' : 'events'}`
+}
+
+function eventLabel(eventType: string): string {
+  const labels: Record<string, string> = {
+    'game_initialized.v1': 'Game initialized',
   }
 
-  return isRecord(value) ? Object.keys(value).length : 0
+  if (labels[eventType]) {
+    return labels[eventType]
+  }
+
+  return lifecycleStatusLabel(eventType.replace(/\.v\d+$/, ''))
+}
+
+function eventDescription(eventType: string): string {
+  if (eventType === 'game_initialized.v1') {
+    return 'The board and players are ready.'
+  }
+
+  return 'This event is available in the saved history.'
 }

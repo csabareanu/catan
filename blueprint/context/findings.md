@@ -62,28 +62,9 @@ confirmation-modal refinement F-19. P2 design findings below assess
 the user's expanded professional-player-UI goal; they are not retroactive
 claims that Feature 4b violated its approved technical-observer scope.
 
-### F-09 [P2] open - Game and observer layout requires document scrolling
-
-**File:** apps/web/src/App.css:942
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** The observer inherits the padded form/card shell, a tall
-header, nested board panel, and vertically stacked inspection panels. With a
-full board and representative public state, the document measures 1866px at
-1366x768; the SVG occupies y=461 through y=1115. At 390x844 the document is
-2446px tall, with players/history starting below the board; at 844x390 the SVG
-starts below the initial viewport. This cannot support the requested board and
-history experience without repeated scrolling.
-**Suggested fix:** Give game/observer/replay routes a dedicated viewport-sized
-shell. Fit the board to both available width and height; reserve a compact
-toolbar and future replay transport. Use a bounded side panel on desktop and
-drawers/bottom sheets on phones. Scroll panel contents independently when
-necessary; do not merely hide overflow and clip controls. Keep form/library
-layouts separate. Share the shell with planned 4c and later human gameplay.
-**Resolution:**
-
 ### F-10 [P2] open - Technical diagnostics dominate player-facing information
 
-**File:** apps/web/src/features/replay/GameObserver.tsx:223
+**File:** apps/web/src/features/replay/GameObserver.tsx:225
 **Found:** 2026-10-16 by /audit (scope: full browser UI)
 **Why it matters:** The default observer exposes Persisted topology, Safe
 context, Replay cursor, Snapshot index, Latest checkpoint, Selected frame,
@@ -99,11 +80,16 @@ developer/details disclosure. Use actual API turn/phase data for player wording;
 never rename command 75 to turn 75 without a real mapping. Until gameplay ships,
 label simulations and unavailable human actions honestly. Keep server rules
 and private projections intact.
-**Resolution:**
+**Resolution:** Re-examined 2026-10-16. The current observer defaults to player
+and history information; raw frame, cursor, checkpoint, projection, and schema
+fields are no longer rendered in the default layout and technical game details
+are collapsed. The preview portion of the original finding was outside this
+F-09 audit scope, so F-10 remains open for a separate preview/player-facing
+review.
 
 ### F-11 [P2] open - Terrain legend has transparent color swatches
 
-**File:** apps/web/src/features/board/BoardSvg.tsx:119
+**File:** apps/web/src/features/board/BoardSvg.tsx:127
 **Found:** 2026-10-16 by /audit (scope: full browser UI)
 **Why it matters:** Legend swatches are HTML spans using board-hex terrain
 classes. Those classes set SVG fill, while .board-legend-swatch supplies no
@@ -115,11 +101,14 @@ the user's observation on both preview and observer.
 replace the persistent legend with optional resource help showing each terrain,
 its resource symbol, and its output. Once tiles are self-explanatory, keep this
 help secondary so it does not consume board space by default.
-**Resolution:**
+**Resolution:** Reconfirmed 2026-10-16. Moving the existing guide into a desktop
+sidebar disclosure reduces clutter but does not repair the key: all six HTML
+swatches still have a transparent computed background. BoardHelp also retains
+the canonical-topology explanation rather than explaining resource production.
 
 ### F-12 [P2] open - Full-board labels become unreadable on smaller screens
 
-**File:** apps/web/src/features/board/BoardSvg.tsx:180
+**File:** apps/web/src/features/board/BoardSvg.tsx:188
 **Found:** 2026-10-16 by /audit (scope: full browser UI)
 **Why it matters:** Tiles are flat fills with terrain text and number discs;
 ports rely on text badges. Terrain and port labels use 7 SVG units and numbers
@@ -134,7 +123,11 @@ ports, and accessible inspection/zoom controls. Use consistent symbols in
 later cards, costs, trades, and player hands. Preserve number/edge/vertex
 legibility and avoid detailed art over interaction targets. Keep text
 alternatives and resource help; symbols complement rather than remove them.
-**Resolution:**
+**Resolution:** Re-examined 2026-10-16. Desktop terrain is substantially larger,
+but at 390x844 terrain labels render at about 2.0px and number labels at 3.7px.
+At 844x390 those labels fall to about 0.33px and 0.60px. Correct the available
+board height in F-09 first; symbols alone cannot repair this layout failure.
+Resource symbols, legible ports, and inspection controls remain useful follow-ups.
 
 ### F-13 [P2] open - Creating an ordinary game starts with developer configuration
 
@@ -188,7 +181,7 @@ paths without imposing an unnecessary component dependency.
 
 ### F-16 [P2] open - Public game information is displayed as field counts
 
-**File:** apps/web/src/features/replay/GameObserver.tsx:379
+**File:** apps/web/src/features/replay/GameObserver.tsx:435
 **Found:** 2026-10-16 by /audit (scope: full browser UI)
 **Why it matters:** public_scores becomes "4 visible" instead of actual public
 scores, active_seat_number becomes "Seat 2" instead of the player's identity,
@@ -203,11 +196,16 @@ seats' holdings private. Design piece overlays on stable API edge/vertex IDs
 for the relevant board-state feature, alongside planned 4c stepping. Do not
 infer missing state or reconstruct game rules in React. Keep generic field
 inspection optional for development.
-**Resolution:**
+**Resolution:** Reconfirmed 2026-10-16 against a synthetic four-seat public
+frame using the real board fixture. Public scores remain a count of entries,
+the active player remains a seat number, and a projected road remains a count
+without a board overlay. Keep basic player-facing presentation distinct from
+the deferred authoritative replay and piece-overlay work; never invent turns,
+scores, hidden VP, or game rules to fill the sidebar.
 
 ### F-17 [P2] open - Browser evidence misses realistic board and viewport usability
 
-**File:** apps/web/e2e/game-observer.spec.ts:190
+**File:** apps/web/e2e/game-observer.spec.ts:65
 **Found:** 2026-10-16 by /audit (scope: full browser UI)
 **Why it matters:** The observer fixture contains one hex, no edges, and no
 ports. Assertions check SVG presence and horizontal scrollWidth only; a tall,
@@ -221,7 +219,13 @@ assertions for the agreed viewport layout, reachable controls, breakpoint
 collisions, pagination, legend meaning, and menu focus. Keep a small real-stack
 smoke flow distinct from API-mocked browser tests and record which evidence was
 actually obtained. Do not equate CSS nowrap or SVG visibility with usability.
-**Resolution:**
+**Resolution:** Re-examined 2026-10-16. The observer now uses an actual
+engine-generated 19-hex, 72-edge, 9-port fixture and checks desktop terrain
+height, port bounds, token proportions, sidebar scrolling, and the corrected
+desktop composition. The focused observer suite passes 10/10 and the serial
+full frontend suite passes 55/55. The mocked tests still do not establish the
+real-stack flow, do not test 320x568, and do not verify focus restoration for
+the phone sheet. Keep open for that broader evidence.
 
 ### F-18 [P3] open - All routes retain preview-only browser metadata
 
@@ -254,4 +258,87 @@ and return focus to a sensible library control on dismissal. Show pending
 progress, prevent duplicate submissions, and retain the modal with an inline
 error if deletion fails. Remove the row only after HTTP 204. Use the existing
 platform, such as a styled HTML dialog, without requiring a new UI dependency.
+**Resolution:**
+
+## Observer page composition review - 2026-10-16
+
+Scope: `/games/:gameId/observe`, the active F-09 implementation, its staged,
+unstaged and untracked frontend work, and nearby authentication shell, board
+renderer, replay client, styles and browser tests. Reviewed the local library
+reference for theme consistency. This is a focused page audit, not a full-project
+audit. Backend/engine internals, other player-facing routes, dependencies,
+generated builds, caches and unrelated files are excluded.
+
+Branch: fix/viewport-sized-game-observer-shell. Comparison base: local main,
+merge base 22ab7e96eae37f1cad2b6edadf891dc33a2b0077. Reviewed committed range
+22ab7e96eae37f1cad2b6edadf891dc33a2b0077..c4c065b975ecd0cf6f18a107b9dfb8032d6d6df5. No fetch or pull was performed.
+
+Evidence: Chromium inspected the running development frontend at 1366x680,
+1920x912, 2560x1080, 1024x768, 768x1024, 390x844, 844x390, and 320x568.
+Private identity and replay responses were mocked with an engine-generated
+standard board fixture and representative three/four-seat public data. No real
+account, token, saved game or history was changed. Screenshots are temporary
+evidence at /tmp/catan-observer-audit-*.png. No uncaught page errors appeared;
+the observed startup ERR_ABORTED replay request corresponds to StrictMode
+effect cleanup and was followed by the successful response.
+
+Signals this pass: npm run lint and npm run build passed.
+PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright npm run test:e2e --
+e2e/game-observer.spec.ts passed 10/10. A serial full frontend run with
+PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright npm run test:e2e --
+--workers=1 passed 55/55. An earlier parallel run had four session-route
+failures while the preview web server was unavailable; the serial rerun passed
+those tests and no product failure was reproduced. No skipped/focused tests,
+unsafe suppressions or TODO/FIXME markers were found in the searched frontend
+sources and browser tests. Standards checked: React presentation-only
+responsibility, existing versioned replay boundary, feature-scoped changes,
+existing theme, and browser evidence for UI behavior.
+
+Ledger changes: F-09 and F-20 closed; F-10 and F-17 updated with current
+evidence; F-21 revalidated and remains open; F-22 added. No new P0/P1 finding
+was confirmed in this page scope. Passing automated checks do not establish
+visual polish.
+
+### F-21 [P2] open - Phone details overlay leaves keyboard focus behind its backdrop
+
+**File:** apps/web/src/features/replay/GameObserver.tsx:211
+**Found:** 2026-10-16 by /audit (scope: observer page and current F-09 work)
+**Why it matters:** The phone panel visually behaves as a modal sheet but is
+an aside with a full-screen button backdrop and no modal semantics or contained
+focus. Opening it leaves focus on the covered toggle. At 390x844, Tab reaches
+the backdrop, then the scrollable aside, then the document and obscured brand
+link. Escape from the backdrop removes that focused button and leaves focus on
+BODY instead of the Game details trigger. The sheet also has no visible internal
+close button; its Close details toggle is underneath the backdrop. This is a
+new observer interaction defect, distinct from the existing menu finding F-15.
+**Suggested fix:** Give the phone sheet appropriate dialog behavior, an internal
+Close control, initial focus, keyboard containment and focus restoration to
+the trigger on Escape, backdrop or close-button dismissal. A native dialog can
+provide the modal behavior without a new dependency. Alternatively make it a
+true modeless disclosure without a blocking backdrop. Verify the keyboard path,
+not only whether the trigger and panel exist.
+**Resolution:**
+
+**Re-review:** 2026-10-16 confirmed the same defect in the committed
+implementation. Opening the sheet leaves focus on the covered Game details
+trigger; Tab moves to the full-screen backdrop; Escape closes the sheet but
+leaves focus on BODY rather than restoring it to the trigger. The sheet still
+has no internal close control or modal semantics. Keep open.
+
+### F-22 [P3] open - Observer layout is implemented by competing CSS rule sets
+
+**File:** apps/web/src/App.css:905-1376, 2283-2490, 2601-3199
+**Found:** 2026-10-16 by /audit (scope: F-09 implementation)
+**Why it matters:** The viewport repair appends a second, full observer layout
+stylesheet after the original observer rules. Selectors such as
+`.observer-shell`, `.observer-content`, `.observer-card`, `.observer-layout`,
+`.observer-board`, `.observer-sidebar`, and the mobile drawer rules now occur
+in both generations. The later block correctly wins for the checked viewports,
+but future edits must understand cascade order and can easily update the
+superseded block, creating a silent layout regression. This is a maintainability
+risk; no current viewport failure was attributed to it in this audit.
+**Suggested fix:** Consolidate the observer rules into one owned section or a
+dedicated stylesheet, remove superseded declarations, and keep the desktop and
+mobile layout variables beside the selectors they control. Retain the current
+browser geometry checks while simplifying the cascade.
 **Resolution:**
