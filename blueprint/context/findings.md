@@ -80,20 +80,24 @@ pointer or pinch assertions around the extracted behavior before 4c grows the
 interaction surface.
 **Resolution:**
 
-### F-14 [P2] open - First visit introduces a board generator rather than the game
+### F-24 [P2] open - Public header keeps restoring a session after the account check fails
 
-**File:** apps/web/src/App.tsx:346
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** Both / and /preview start with Chart a board from a seed,
-an empty map panel, technical metadata, and a Sign in link. The prominent
-action generates a stateless preview; there is no direct Create account action
-or brief path explaining what a new player can do. The generated board begins
-at y=1088 on a 390px phone, so even a successful preview is below the visible
-window. This is a weak introduction for the user's acquisition goal.
-**Suggested fix:** Keep the developer demo reachable, but make the visitor
-entry explain the current game experience, show a board promptly, and provide
-clear account and demo/help actions. Avoid advertising unimplemented play.
-A concise useful entry is sufficient; no elaborate marketing site is required.
+**File:** apps/web/src/features/board/BoardLandingScreen.tsx:32
+**Found:** 2026-10-17 by /audit (scope: F-14 current change and shared header)
+**Why it matters:** The landing passes token presence as `isRestoringSession`.
+After `/api/v1/auth/me` returns 503, App sets the session to anonymous with a
+recovery message but retains the token, so the header still says Restoring
+session and hides Sign in and Create account. The landing never displays the
+failure message. Reproduced after the request had completed, with a synthetic
+stored token and an intercepted 503 response. `/preview` has the same behavior
+through App.tsx:350; that path predates this repair, and the new landing repeats
+it. Existing browser tests cover successful restoration and expired credentials
+but miss this completed-failure state.
+**Suggested fix:** Derive restoration progress from the actual session state
+rather than token presence. When restoration fails, stop the progress status
+and offer account or retry recovery without discarding a token merely because
+of a temporary outage. Cover pending, successful, 401, 503, and network-failure
+states on the landing and shared preview header with focused browser tests.
 **Resolution:**
 
 ### F-16 [P2] open - Public game information is displayed as field counts
@@ -195,3 +199,59 @@ Ledger changes: F-09 and F-20 closed; F-10 and F-17 updated with current
 evidence; F-21 archived with accessible-phone-game-details-sheet; F-22 archived
 with consolidate-observer-layout-styles. No new P0/P1 finding was confirmed in
 this page scope. Passing automated checks do not establish visual polish.
+
+## Welcoming entry and shared header review - 2026-10-17
+
+Scope: the complete active F-14 change, including every committed branch change,
+the new landing component and asset prompt, shared authentication header,
+route/session integration, theme and responsive styles, changed browser tests,
+and nearby session/API helpers and observer layout affected by the header.
+The working tree was clean before this ledger update. This is a focused
+frontend review, not a full-project audit.
+
+Branch: fix/welcoming-anonymous-entry. No local remote-default ref was present;
+used local main without fetch or pull. Merge base:
+394ca2d60d49cd9f876db38abfe2f096b71300cc. Reviewed range:
+394ca2d60d49cd9f876db38abfe2f096b71300cc..58f3e555ed16a067769710013db9430d5d6325fd.
+
+Signals: `npm run lint` and `npm run build` passed from apps/web.
+`PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright npm run test:e2e -- --workers=4`
+passed 66/66. `git diff --check` passed. Searches found no skipped, focused,
+or placeholder tests, unsafe TypeScript/lint suppressions, or TODO/FIXME markers
+in the reviewed frontend sources and browser tests.
+
+Browser evidence: the running development UI was inspected in Chromium at
+1440x900, 768x1024, 390x844, and 320x568. The landing artwork loaded at its
+1536px natural width, account actions were within the first screen, and no
+horizontal overflow or uncaught JavaScript errors appeared. An authenticated
+header sweep from 320 through 1024px in 4px increments found no overlapping
+or out-of-bounds logo, navigation, or account controls. Outside-click menu
+dismissal and Escape focus restoration passed. Private account checks used
+synthetic identity responses; the browser suite also uses mocked owned game
+and replay data. These checks do not establish a real authenticated backend
+lifecycle. The real anonymous preview endpoint returned HTTP 200 and rendered
+19 hexes and 9 ports for seed 42 without creating a stored game.
+
+Recovery checks with a synthetic stored token reproduced F-24 on both `/`
+and `/preview` after an intercepted 503 response. A network failure on `/`
+also left the progress status visible; a 401 correctly cleared the token and
+restored both header account links. Screenshots inspected for
+desktop and phone landing views and the failed-restoration state are temporary
+evidence at `/tmp/catan-f14-audit-*.png` and are not durable project assets.
+
+Standards checked: feature scope, strict TypeScript, shared components and
+styles, explicit API/session boundaries, no client-side game rules or private
+state inference, responsive usability, and behavior coverage. Excluded:
+dependencies, generated build/test artifacts, unrelated application features,
+and backend/engine internals. Backend and engine suites were not run because
+their code and contracts did not change. No tools were installed and no
+network-backed security scan was run.
+
+Ledger changes: F-14 closed; F-24 added as open P2. Existing F-16, F-17, F-18,
+and F-23 remain unchanged. No P0/P1 finding was confirmed. Suggested repair
+order: address F-24 with a small reviewed session-recovery slice before
+wrapping up the current branch.
+
+Completion note: F-14 is archived as `welcoming-anonymous-entry/F-14` in
+`blueprint/history/fixes/welcoming-anonymous-entry.md`. All unresolved entries
+remain in this ledger at their existing IDs and statuses.

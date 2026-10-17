@@ -92,7 +92,8 @@
   --shadow-lg: 0 1.5rem 4rem #050b0f75;
   --shadow-paper: 0 1.2rem 3rem #050b0f52;
   --content-max: 100rem;
-  --header-height: 4.75rem;
+  --header-content-max: 88rem;
+  --header-height: 3.75rem;
 
   font-family: var(--font-sans);
   font-size: var(--text-base);

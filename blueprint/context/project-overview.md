@@ -325,7 +325,7 @@ never reveals another seat's resources or cards.
 
 Current browser routes:
 
-- `/` - compatibility entry for the stateless board preview.
+- `/` - player-facing welcome page with account actions and a board-demo link.
 - `/preview` - secondary seeded-board demo.
 - `/register` and `/login` - account creation and authentication.
 - `/games` - authenticated home, owner-scoped game library, run status, and
@@ -338,6 +338,10 @@ The browser currently uses lightweight routing, native browser controls, and
 Playwright coverage. React renders API state and never applies game rules.
 Current queued execution is a deterministic bootstrap; completed runs do not
 yet represent complete playable matches.
+
+All screens share a dark header with consistent height, content width, and
+brand alignment. Public headers expose Sign in and Create account; authenticated
+headers expose My games, Board demo, and the account menu.
 
 The approved library design reference lives in `blueprint/reference/`, with
 desktop and mobile images there. Its dark teal, gold, typography,

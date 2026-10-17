@@ -9,11 +9,11 @@ test('gates private game paths when no browser session exists', async ({ page })
   await expect(
     page.getByRole('heading', { name: 'Sign in to access your games.' }),
   ).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+  await expect(page.getByRole('main').getByRole('link', { name: 'Sign in' })).toHaveAttribute(
     'href',
     '/login',
   )
-  await expect(page.getByRole('link', { name: 'Create an account' })).toHaveAttribute(
+  await expect(page.getByRole('main').getByRole('link', { name: 'Create an account' })).toHaveAttribute(
     'href',
     '/register',
   )
@@ -155,12 +155,12 @@ test('keeps authenticated navigation separated at intermediate widths', async ({
     expect(metrics.account?.left, `account left bound at ${width}px`).toBeGreaterThanOrEqual(0)
     expect(metrics.account?.right, `account right bound at ${width}px`).toBeLessThanOrEqual(width)
 
-    if (width <= 660) {
-      expect(
-        Math.min(...metrics.navLinks.map((link) => link?.top ?? Number.POSITIVE_INFINITY)),
-        `compact navigation row at ${width}px`,
-      ).toBeGreaterThanOrEqual((metrics.account?.bottom ?? 0) - 1)
-    }
+    expect(
+      metrics.navLinks.every((link) => link !== null &&
+        link.top <= (metrics.account?.top ?? -1) &&
+        link.bottom >= (metrics.account?.bottom ?? Number.POSITIVE_INFINITY)),
+      `navigation and account share one row at ${width}px`,
+    ).toBe(true)
   }
 })
 

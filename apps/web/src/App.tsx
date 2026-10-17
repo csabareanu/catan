@@ -4,6 +4,7 @@ import {
   isAuthenticationPath,
   isBoardPreviewPath,
   getObservedGameID,
+  isLandingPath,
   isPrivatePath,
   navigateTo,
   useBrowserPathname,
@@ -19,6 +20,7 @@ import { AuthenticationScreen } from './features/auth/AuthScreen'
 import { GameCreationScreen } from './features/games/GameCreationScreen'
 import { GameLibrary } from './features/games/GameLibrary'
 import { GameObserver } from './features/replay/GameObserver'
+import { BoardLandingScreen } from './features/board/BoardLandingScreen'
 import {
   BoardApiError,
   generateBoard,
@@ -40,7 +42,8 @@ function App() {
   const pathname = useBrowserPathname()
   const [session, setSession] = useState<SessionState>({ status: 'idle' })
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const isSessionAwarePath = isPrivatePath(pathname) || isBoardPreviewPath(pathname)
+  const isSessionAwarePath =
+    isPrivatePath(pathname) || isLandingPath(pathname) || isBoardPreviewPath(pathname)
   const hasSessionToken = isSessionAwarePath && readSessionToken() !== null
 
   const handleLogout = async () => {
@@ -117,6 +120,21 @@ function App() {
       <AuthenticationScreen
         mode={pathname === '/register' ? 'register' : 'login'}
         onAuthenticated={(user) => setSession({ status: 'authenticated', user })}
+      />
+    )
+  }
+
+  if (isLandingPath(pathname)) {
+    return (
+      <BoardLandingScreen
+        authenticatedUser={
+          session.status === 'authenticated' && hasSessionToken
+            ? session.user
+            : undefined
+        }
+        hasSessionToken={hasSessionToken}
+        isLoggingOut={isLoggingOut}
+        onLogout={handleLogout}
       />
     )
   }
@@ -329,28 +347,7 @@ function BoardPreview({
           user={session.user}
         />
       ) : (
-        <PublicHeader
-          topbarContent={
-            <div className="topbar-actions">
-              {hasSessionToken ? (
-                <div className="topbar-status">
-                  <span className="status-dot" aria-hidden="true" />
-                  <span>Restoring session</span>
-                </div>
-              ) : (
-                <>
-                  <a className="topbar-link" href="/login">
-                    Sign in
-                  </a>
-                  <div className="topbar-status">
-                    <span className="status-dot" aria-hidden="true" />
-                    <span>Anonymous preview</span>
-                  </div>
-                </>
-              )}
-            </div>
-          }
-        />
+        <PublicHeader isRestoringSession={hasSessionToken} />
       )}
 
       <main className="page-content">

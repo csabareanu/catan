@@ -3,49 +3,79 @@ import { expect, test } from '@playwright/test'
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 1000 },
   { name: 'mobile', width: 390, height: 844 },
+  { name: 'small mobile', width: 320, height: 568 },
 ] as const
 
 for (const viewport of VIEWPORTS) {
-  test(`shows the truthful board preview shell at ${viewport.name} width`, async ({ page }) => {
+  test(`welcomes visitors at ${viewport.name} width`, async ({ page }) => {
+    const consoleErrors: string[] = []
+    const boardRequests: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') {
+        consoleErrors.push(message.text())
+      }
+    })
+
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/boards/generate')) {
+        boardRequests.push(request.url())
+      }
+    })
+
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.goto('/')
 
     await expect(page).toHaveTitle('Catan · Seeded Board Preview')
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+    await expect(page.getByRole('heading', { name: 'Welcome to Catan.' })).toBeVisible()
+    await expect(
+      page.locator('.landing-copy').getByRole('link', { name: 'Create account' }),
+    ).toHaveAttribute(
+      'href',
+      '/register',
+    )
+    await expect(
+      page.locator('.landing-copy').getByRole('link', { name: 'Sign in' }),
+    ).toHaveAttribute(
       'href',
       '/login',
     )
-
-    const seed = page.getByLabel('Board seed')
-    await expect(seed).toHaveValue('894177203164')
-    await seed.fill('42')
-    await expect(seed).toHaveValue('42')
-
-    await expect(page.getByRole('button', { name: 'Generate preview' })).toBeEnabled()
-    await expect(page.getByText('No board data yet', { exact: true })).toBeVisible()
-    await expect(page.locator('.empty-state')).toContainText(
-      'Generate a board to see terrain, number tokens, and ports.',
+    await expect(
+      page.getByText('Create an account to create games and follow their history.'),
+    ).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Take a look at the board' })).toHaveAttribute(
+      'href',
+      '/preview',
     )
-    await expect(page.locator('.empty-state')).not.toContainText(
-      /canonical|service|response/i,
-    )
-    await expect(page.getByText('base@1.0.0', { exact: true })).toBeHidden()
-    await expect(page.getByText('standard@1.0.0', { exact: true })).toBeHidden()
-    await expect(page.getByText('Developer details', { exact: true })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Sign in' })).toHaveCSS(
-      'white-space',
-      'nowrap',
-    )
+    await expect(
+      page.getByRole('img', {
+        name: 'A coastal settlement, golden fields, and distant mountains in the evening sun',
+      }),
+    ).toBeVisible()
+    await expect(page.locator('.landing-visual img')).toHaveJSProperty('naturalWidth', 1536)
+    await expect(page.locator('.board-hex')).toHaveCount(0)
+    await expect(page.getByText('Developer details', { exact: true })).toHaveCount(0)
 
-    if (viewport.name === 'mobile') {
-      await expect(page.locator('.topbar-actions .topbar-status')).toBeHidden()
-      await expect(page.locator('.intro-index')).toBeHidden()
+    if (viewport.width <= 390) {
+      const artwork = await page.locator('.landing-visual').boundingBox()
+      const heading = await page.getByRole('heading', { level: 1 }).boundingBox()
+      const actions = await page.locator('.landing-actions').boundingBox()
+      const footer = await page.locator('.landing-footer').boundingBox()
+
+      if (!artwork || !heading || !actions || !footer) {
+        throw new Error('The artwork, heading, account actions, and footer must be displayed.')
+      }
+
+      expect(artwork.y).toBeLessThanOrEqual(heading.y)
+      expect(artwork.y + artwork.height).toBeGreaterThan(heading.y + heading.height)
+      expect(actions.y + actions.height).toBeLessThanOrEqual(viewport.height)
+      expect(footer.y - (artwork.y + artwork.height)).toBeLessThanOrEqual(24)
     }
 
     const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
     const viewportWidth = await page.evaluate(() => window.innerWidth)
     expect(pageWidth).toBeLessThanOrEqual(viewportWidth)
+    expect(boardRequests).toEqual([])
+    expect(consoleErrors).toEqual([])
   })
 }
 
@@ -59,7 +89,7 @@ test('renders the board preview at the secondary /preview path', async ({ page }
   )
 })
 
-test('submits the seed on both preview paths and keeps developer metadata available on demand', async ({ page }) => {
+test('submits a manual seed on the preview path and keeps developer metadata available on demand', async ({ page }) => {
   const submittedSeeds: string[] = []
 
   await page.route('**/api/v1/boards/generate', async (route) => {
@@ -71,57 +101,55 @@ test('submits the seed on both preview paths and keeps developer metadata availa
     })
   })
 
-  for (const path of ['/', '/preview']) {
-    await page.goto(path)
-    await page.getByLabel('Board seed').fill('42')
-    await page.getByRole('button', { name: 'Generate preview' }).click()
+  await page.goto('/preview')
+  await page.getByLabel('Board seed').fill('42')
+  await page.getByRole('button', { name: 'Generate preview' }).click()
 
-    await expect(page.getByRole('heading', { name: 'Your board is ready.' })).toBeVisible()
-    await expect(page.getByText(/Seed 42 created a Catan board with/)).toBeVisible()
-    await expect(page.getByText('Board generated', { exact: true })).toBeVisible()
-    await expect(
-      page.getByRole('img', { name: 'Standard Catan board generated from seed 42' }),
-    ).toBeVisible()
-    await expect(page.locator('.board-hex')).toHaveCount(19)
-    await expect(page.locator('.board-port')).toHaveCount(9)
-    const boardGuide = page.locator('.board-renderer .board-legend')
-    await expect(boardGuide).toHaveAttribute('aria-label', 'Terrain and resource guide')
-    await expect(boardGuide.locator('.board-legend-item')).toHaveCount(6)
-    await expect(boardGuide.locator('.board-legend-swatch-forest')).not.toHaveCSS(
-      'background-color',
-      'rgba(0, 0, 0, 0)',
-    )
-    await expect(boardGuide).toContainText('Lumber')
-    await expect(boardGuide).toContainText('No production')
-    await expect(page.locator('.board-resource-symbol')).toHaveCount(19)
-    const boardShell = page.locator('.board-svg-shell')
-    const boardSVG = page.locator('.board-svg')
-    const fittedViewBox = await boardSVG.getAttribute('viewBox')
+  await expect(page.getByRole('heading', { name: 'Your board is ready.' })).toBeVisible()
+  await expect(page.getByText(/Seed 42 created a Catan board with/)).toBeVisible()
+  await expect(page.getByText('Board generated', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('img', { name: 'Standard Catan board generated from seed 42' }),
+  ).toBeVisible()
+  await expect(page.locator('.board-hex')).toHaveCount(19)
+  await expect(page.locator('.board-port')).toHaveCount(9)
+  const boardGuide = page.locator('.board-renderer .board-legend')
+  await expect(boardGuide).toHaveAttribute('aria-label', 'Terrain and resource guide')
+  await expect(boardGuide.locator('.board-legend-item')).toHaveCount(6)
+  await expect(boardGuide.locator('.board-legend-swatch-forest')).not.toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)',
+  )
+  await expect(boardGuide).toContainText('Lumber')
+  await expect(boardGuide).toContainText('No production')
+  await expect(page.locator('.board-resource-symbol')).toHaveCount(19)
+  const boardShell = page.locator('.board-svg-shell')
+  const boardSVG = page.locator('.board-svg')
+  const fittedViewBox = await boardSVG.getAttribute('viewBox')
 
-    if (!fittedViewBox) {
-      throw new Error('The board must expose a fitted SVG viewBox before zooming.')
-    }
-
-    await expect(page.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
-    await page.getByRole('button', { name: 'Zoom in' }).click()
-    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
-    await expect(boardSVG).not.toHaveAttribute('viewBox', fittedViewBox)
-    await page.getByRole('button', { name: 'Fit board' }).click()
-    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
-    await expect(boardSVG).toHaveAttribute('viewBox', fittedViewBox)
-    await boardShell.hover({ position: { x: 120, y: 120 } })
-    await page.mouse.wheel(0, -120)
-    await expect(page.locator('.board-svg-zoom-status')).not.toContainText('Board zoom 100%')
-    await expect(boardSVG).not.toHaveAttribute('viewBox', fittedViewBox)
-    await page.getByRole('button', { name: 'Fit board' }).click()
-    await expect(page.getByText('base@1.0.0', { exact: true })).toBeHidden()
-
-    await page.getByText('Developer details', { exact: true }).click()
-    await expect(page.getByText('base@1.0.0', { exact: true })).toBeVisible()
-    await expect(page.getByText('standard@1.0.0 · pointy-top', { exact: true })).toBeVisible()
+  if (!fittedViewBox) {
+    throw new Error('The board must expose a fitted SVG viewBox before zooming.')
   }
 
-  expect(submittedSeeds).toEqual(['42', '42'])
+  await expect(page.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
+  await expect(boardSVG).not.toHaveAttribute('viewBox', fittedViewBox)
+  await page.getByRole('button', { name: 'Fit board' }).click()
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
+  await expect(boardSVG).toHaveAttribute('viewBox', fittedViewBox)
+  await boardShell.hover({ position: { x: 120, y: 120 } })
+  await page.mouse.wheel(0, -120)
+  await expect(page.locator('.board-svg-zoom-status')).not.toContainText('Board zoom 100%')
+  await expect(boardSVG).not.toHaveAttribute('viewBox', fittedViewBox)
+  await page.getByRole('button', { name: 'Fit board' }).click()
+  await expect(page.getByText('base@1.0.0', { exact: true })).toBeHidden()
+
+  await page.getByText('Developer details', { exact: true }).click()
+  await expect(page.getByText('base@1.0.0', { exact: true })).toBeVisible()
+  await expect(page.getByText('standard@1.0.0 · pointy-top', { exact: true })).toBeVisible()
+
+  expect(submittedSeeds).toEqual(['42'])
 })
 
 test('handles board wheel zoom without a passive-listener warning', async ({ page }) => {
@@ -152,7 +180,7 @@ test('uses player-facing copy while the board is being generated', async ({ page
     await route.abort()
   })
 
-  await page.goto('/')
+  await page.goto('/preview')
   await page.getByRole('button', { name: 'Generate preview' }).click()
 
   const boardFeedback = page.locator('.board-feedback')
@@ -173,7 +201,7 @@ test('keeps the generated SVG board within a narrow viewport', async ({ page }) 
     })
   })
 
-  await page.goto('/')
+  await page.goto('/preview')
   await page.getByRole('button', { name: 'Generate preview' }).click()
 
   await expect(page.locator('.board-svg')).toBeVisible()
@@ -210,7 +238,7 @@ test('shows a rejected Laravel response without a blank screen', async ({ page }
     })
   })
 
-  await page.goto('/')
+  await page.goto('/preview')
   await page.getByLabel('Board seed').fill('01')
   await page.getByRole('button', { name: 'Generate preview' }).click()
 
@@ -235,7 +263,7 @@ test('shows an unavailable Laravel response with a recovery message', async ({ p
     })
   })
 
-  await page.goto('/')
+  await page.goto('/preview')
   await page.getByRole('button', { name: 'Generate preview' }).click()
 
   await expect(page.getByRole('alert')).toContainText(

@@ -9,7 +9,6 @@ import type { AuthenticatedUser } from './authApi'
 type AccessShellProps = {
   children: ReactNode
   shellClassName?: string
-  topbarContent?: ReactNode
   contentClassName?: string
   cardClassName?: string
   authenticatedUser?: AuthenticatedUser
@@ -20,7 +19,6 @@ type AccessShellProps = {
 export function AccessShell({
   children,
   shellClassName,
-  topbarContent,
   contentClassName = 'access-content',
   cardClassName = 'access-card',
   authenticatedUser,
@@ -40,7 +38,7 @@ export function AccessShell({
           user={authenticatedUser}
         />
       ) : (
-        <PublicHeader topbarContent={topbarContent} />
+        <PublicHeader />
       )}
 
       <main className={`page-content ${contentClassName}`}>
@@ -99,17 +97,7 @@ export function AuthenticatedHeader({
   }, [])
 
   return (
-    <header className="topbar authenticated-topbar">
-      <a className="brand" href="/games" aria-label="Catan, your games">
-        <span className="brand-mark" aria-hidden="true">
-          <span>C</span>
-        </span>
-        <span className="brand-copy">
-          <strong>Catan</strong>
-          <small>Board lab</small>
-        </span>
-      </a>
-
+    <SiteHeader authenticated>
       <nav className="primary-nav" aria-label="Main navigation">
         <a
           className="nav-link"
@@ -159,29 +147,70 @@ export function AuthenticatedHeader({
           </button>
         </div>
       </details>
-    </header>
+    </SiteHeader>
   )
 }
 
-export function PublicHeader({ topbarContent }: { topbarContent?: ReactNode }) {
+export function PublicHeader({
+  isRestoringSession = false,
+}: {
+  isRestoringSession?: boolean
+}) {
+  const pathname = useBrowserPathname()
+
+  return (
+    <SiteHeader>
+      {isRestoringSession ? (
+        <div className="header-session-status" role="status">
+          <span className="status-dot" aria-hidden="true" />
+          <span>Restoring session</span>
+        </div>
+      ) : (
+        <nav className="header-actions" aria-label="Account access">
+          <a
+            className="header-sign-in-link"
+            href="/login"
+            aria-current={pathname === '/login' ? 'page' : undefined}
+          >
+            Sign in
+          </a>
+          <a
+            className="header-register-link"
+            href="/register"
+            aria-current={pathname === '/register' ? 'page' : undefined}
+          >
+            Create account
+          </a>
+        </nav>
+      )}
+    </SiteHeader>
+  )
+}
+
+function SiteHeader({
+  authenticated = false,
+  children,
+}: {
+  authenticated?: boolean
+  children: ReactNode
+}) {
   return (
     <header className="topbar">
-      <a className="brand" href="/preview" aria-label="Catan board preview home">
-        <span className="brand-mark" aria-hidden="true">
-          <span>C</span>
-        </span>
-        <span className="brand-copy">
-          <strong>Catan</strong>
-          <small>Board lab</small>
-        </span>
-      </a>
-
-      {topbarContent ?? (
-        <div className="topbar-status">
-          <span className="status-dot" aria-hidden="true" />
-          <span>Browser access</span>
-        </div>
-      )}
+      <div className={`topbar-inner${authenticated ? ' authenticated-topbar' : ''}`}>
+        <a
+          className="brand"
+          href={authenticated ? '/games' : '/'}
+          aria-label={authenticated ? 'Catan, your games' : 'Catan home'}
+        >
+          <span className="brand-mark" aria-hidden="true">
+            <span>C</span>
+          </span>
+          <span className="brand-copy">
+            <strong>Catan</strong>
+          </span>
+        </a>
+        {children}
+      </div>
     </header>
   )
 }

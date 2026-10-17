@@ -28,7 +28,11 @@ export function isPrivatePath(pathname: string): boolean {
 }
 
 export function isBoardPreviewPath(pathname: string): boolean {
-  return pathname === '/' || pathname === '/preview'
+  return pathname === '/preview'
+}
+
+export function isLandingPath(pathname: string): boolean {
+  return pathname === '/'
 }
 
 export function getObservedGameID(pathname: string): number | null {
