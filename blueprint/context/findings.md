@@ -80,26 +80,6 @@ pointer or pinch assertions around the extracted behavior before 4c grows the
 interaction surface.
 **Resolution:**
 
-### F-24 [P2] open - Public header keeps restoring a session after the account check fails
-
-**File:** apps/web/src/features/board/BoardLandingScreen.tsx:32
-**Found:** 2026-10-17 by /audit (scope: F-14 current change and shared header)
-**Why it matters:** The landing passes token presence as `isRestoringSession`.
-After `/api/v1/auth/me` returns 503, App sets the session to anonymous with a
-recovery message but retains the token, so the header still says Restoring
-session and hides Sign in and Create account. The landing never displays the
-failure message. Reproduced after the request had completed, with a synthetic
-stored token and an intercepted 503 response. `/preview` has the same behavior
-through App.tsx:350; that path predates this repair, and the new landing repeats
-it. Existing browser tests cover successful restoration and expired credentials
-but miss this completed-failure state.
-**Suggested fix:** Derive restoration progress from the actual session state
-rather than token presence. When restoration fails, stop the progress status
-and offer account or retry recovery without discarding a token merely because
-of a temporary outage. Cover pending, successful, 401, 503, and network-failure
-states on the landing and shared preview header with focused browser tests.
-**Resolution:**
-
 ### F-16 [P2] open - Public game information is displayed as field counts
 
 **File:** apps/web/src/features/replay/GameObserver.tsx:435
@@ -322,3 +302,56 @@ F-18, F-23, and F-24 remain open. No P0/P1 finding blocks completion.
 Next action: `/complete` for this approved header fix. Existing findings remain
 separate follow-up work, including F-24 session recovery; none was accepted or
 silently resolved by this audit.
+
+## Session restoration failure recovery review - 2026-10-18
+
+Scope: the complete committed F-24 repair, including the active fix spec,
+session bootstrap in `apps/web/src/App.tsx`, the public landing and preview
+surfaces, recovery styles, focused browser coverage, and nearby shared-header
+and browser-session helpers. The working tree was clean before this ledger
+update. This was a focused frontend audit, not a full-project audit.
+
+Base: local `main`, used without fetch or pull. Merge base:
+`fd7e88d54132f59db461a042b12234d6f3b953f0`. Reviewed commit range:
+`fd7e88d54132f59db461a042b12234d6f3b953f0..51f7002`.
+
+Files reviewed: `apps/web/src/App.tsx`,
+`apps/web/src/features/board/BoardLandingScreen.tsx`, the recovery styles in
+`apps/web/src/App.css`, `apps/web/e2e/session-routes.spec.ts`,
+`apps/web/src/features/auth/AuthShell.tsx`,
+`apps/web/src/lib/browserSession.ts`, `apps/web/src/lib/apiClient.ts`, the
+active fix spec, and the changed findings entry. The public header now receives
+the request state rather than token presence. Temporary failures retain the
+token while exposing public account actions and an accessible recovery message;
+401 responses clear the token; successful responses restore the authenticated
+header. No API contract, authorization boundary, game rule, or private data
+path changed.
+
+Automated signals: `npm run lint`, `npm run build`, focused session and shared
+header browser tests (11/11), and `git diff --check` all passed. No tools were
+installed. The reviewed frontend sources and tests contain no skipped or
+focused tests, unsafe TypeScript or lint suppressions, or TODO/FIXME markers.
+
+Fresh Chromium evidence against the running development frontend covered both
+`/` and `/preview` for pending, successful, 401, 503, and network-failure
+responses. Pending requests showed the restoration status until released;
+successful responses showed the authenticated header; 401 removed the stored
+token and restored public links; 503 and network failures removed the progress
+status, showed the recovery message and public links, and retained the token.
+The checks used 390px and 1440px viewports, found no horizontal overflow or
+uncaught page errors, and used synthetic tokens and identities only.
+
+Standards checked: strict TypeScript, session and API boundary ownership,
+accessible status and alert semantics, preservation of transient credentials,
+shared header reuse, responsive rendering, and focused browser evidence.
+Backend and engine suites, real account lifecycle coverage, generated output,
+dependencies, and network-backed security scans were excluded because this
+repair changes only frontend session presentation.
+
+Ledger changes: F-24 moved from `fixed` to `closed` after re-review. No new
+finding or unverified risk was added. Remaining open findings are F-16, F-17,
+F-18, and F-23; none is a P0 or P1 blocker.
+
+Suggested repair order: continue with the remaining user-facing UI findings,
+starting with F-16 if player-facing observer information is the next priority,
+then reassess F-23 before replay timeline work in 4c.

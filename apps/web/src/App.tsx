@@ -40,7 +40,9 @@ type SessionState =
 
 function App() {
   const pathname = useBrowserPathname()
-  const [session, setSession] = useState<SessionState>({ status: 'idle' })
+  const [session, setSession] = useState<SessionState>(() => ({
+    status: readSessionToken() === null ? 'idle' : 'checking',
+  }))
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const isSessionAwarePath =
     isPrivatePath(pathname) || isLandingPath(pathname) || isBoardPreviewPath(pathname)
@@ -132,9 +134,10 @@ function App() {
             ? session.user
             : undefined
         }
-        hasSessionToken={hasSessionToken}
+        isRestoringSession={hasSessionToken && session.status === 'checking'}
         isLoggingOut={isLoggingOut}
         onLogout={handleLogout}
+        sessionMessage={session.status === 'anonymous' ? session.message : undefined}
       />
     )
   }
@@ -142,9 +145,11 @@ function App() {
   return (
     <BoardPreview
       hasSessionToken={hasSessionToken}
+      isRestoringSession={hasSessionToken && session.status === 'checking'}
       isLoggingOut={isLoggingOut}
       onLogout={handleLogout}
       session={session}
+      sessionMessage={session.status === 'anonymous' ? session.message : undefined}
     />
   )
 }
@@ -274,14 +279,18 @@ function AuthenticatedPlaceholder({
 
 function BoardPreview({
   hasSessionToken,
+  isRestoringSession,
   isLoggingOut,
   onLogout,
   session,
+  sessionMessage,
 }: {
   hasSessionToken: boolean
+  isRestoringSession: boolean
   isLoggingOut: boolean
   onLogout: () => void | Promise<void>
   session: SessionState
+  sessionMessage?: string
 }) {
   const [seed, setSeed] = useState(EXAMPLE_SEED)
   const [generationState, setGenerationState] = useState<GenerationState>('idle')
@@ -347,10 +356,16 @@ function BoardPreview({
           user={session.user}
         />
       ) : (
-        <PublicHeader isRestoringSession={hasSessionToken} />
+        <PublicHeader isRestoringSession={isRestoringSession} />
       )}
 
       <main className="page-content">
+        {sessionMessage && (
+          <p className="session-recovery-message" role="alert">
+            {sessionMessage}
+          </p>
+        )}
+
         <section className="page-intro" aria-labelledby="page-title">
           <div className="intro-copy-group">
             <p className="eyebrow">Board preview</p>

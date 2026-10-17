@@ -409,6 +409,22 @@
   background: var(--danger-soft);
 }
 
+.session-recovery-message {
+  max-width: 39rem;
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: var(--line) solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--danger-soft);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.landing-copy .session-recovery-message {
+  max-width: 27rem;
+}
+
 .access-form {
   display: grid;
   gap: var(--space-4);

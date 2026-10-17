@@ -190,3 +190,132 @@ test('clears an expired bearer token and returns to the authentication entry', a
   ).toBeVisible()
   await expect(page.evaluate((key) => window.sessionStorage.getItem(key), SESSION_TOKEN_KEY)).resolves.toBeNull()
 })
+
+test('shows restoration progress while a public session request is pending', async ({
+  page,
+}) => {
+  await page.addInitScript((token) => {
+    window.sessionStorage.setItem('catan.api-token', token)
+  }, 'pending-token')
+
+  let releaseRequest: (() => void) | undefined
+  const requestReleased = new Promise<void>((resolve) => {
+    releaseRequest = resolve
+  })
+
+  await page.route('**/api/v1/auth/me', async (route) => {
+    await requestReleased
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          user: {
+            id: 7,
+            name: 'Ada Player',
+            email: 'ada@example.test',
+            created_at: '2026-10-15T09:00:00.000000Z',
+          },
+        },
+      }),
+    })
+  })
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+  await expect(page.locator('.header-session-status')).toBeVisible()
+  releaseRequest?.()
+  await expect(page.getByRole('link', { name: 'Catan, your games' })).toBeVisible()
+})
+
+test('shows public recovery actions after a temporary session failure', async ({
+  page,
+}) => {
+  await page.addInitScript((token) => {
+    window.sessionStorage.setItem('catan.api-token', token)
+  }, 'temporary-token')
+  await page.route('**/api/v1/auth/me', async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'service_unavailable',
+          message: 'Service temporarily unavailable.',
+        },
+      }),
+    })
+  })
+
+  for (const path of ['/', '/preview']) {
+    await page.goto(path)
+
+    const header = page.locator('.topbar')
+    await expect(header.getByRole('link', { name: 'Sign in' })).toBeVisible()
+    await expect(header.getByRole('link', { name: 'Create account' })).toBeVisible()
+    await expect(page.locator('.header-session-status')).toHaveCount(0)
+    await expect(page.getByRole('alert')).toContainText(
+      'Your session could not be restored. Please sign in again.',
+    )
+    await expect(
+      page.evaluate((key) => window.sessionStorage.getItem(key), SESSION_TOKEN_KEY),
+    ).resolves.toBe('temporary-token')
+  }
+})
+
+test('shows public recovery actions after a network session failure', async ({
+  page,
+}) => {
+  await page.addInitScript((token) => {
+    window.sessionStorage.setItem('catan.api-token', token)
+  }, 'network-token')
+  await page.route('**/api/v1/auth/me', async (route) => {
+    await route.abort('failed')
+  })
+
+  for (const path of ['/', '/preview']) {
+    await page.goto(path)
+
+    const header = page.locator('.topbar')
+    await expect(header.getByRole('link', { name: 'Sign in' })).toBeVisible()
+    await expect(header.getByRole('link', { name: 'Create account' })).toBeVisible()
+    await expect(page.locator('.header-session-status')).toHaveCount(0)
+    await expect(page.getByRole('alert')).toContainText(
+      'Your session could not be restored. Please sign in again.',
+    )
+    await expect(
+      page.evaluate((key) => window.sessionStorage.getItem(key), SESSION_TOKEN_KEY),
+    ).resolves.toBe('network-token')
+  }
+})
+
+test('clears an expired public session and keeps the account actions available', async ({
+  page,
+}) => {
+  await page.addInitScript((token) => {
+    window.sessionStorage.setItem('catan.api-token', token)
+  }, 'expired-public-token')
+  await page.route('**/api/v1/auth/me', async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'unauthenticated',
+          message: 'Authentication is required.',
+        },
+      }),
+    })
+  })
+
+  for (const path of ['/', '/preview']) {
+    await page.goto(path)
+
+    const header = page.locator('.topbar')
+    await expect(header.getByRole('link', { name: 'Sign in' })).toBeVisible()
+    await expect(header.getByRole('link', { name: 'Create account' })).toBeVisible()
+    await expect(
+      page.evaluate((key) => window.sessionStorage.getItem(key), SESSION_TOKEN_KEY),
+    ).resolves.toBeNull()
+  }
+})

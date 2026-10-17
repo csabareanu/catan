@@ -7,16 +7,18 @@ import landscape from '../../assets/catan-landscape.webp'
 
 type BoardLandingScreenProps = {
   authenticatedUser?: AuthenticatedUser
-  hasSessionToken: boolean
+  isRestoringSession: boolean
   isLoggingOut: boolean
   onLogout: () => void | Promise<void>
+  sessionMessage?: string
 }
 
 export function BoardLandingScreen({
   authenticatedUser,
-  hasSessionToken,
+  isRestoringSession,
   isLoggingOut,
   onLogout,
+  sessionMessage,
 }: BoardLandingScreenProps) {
   const isAuthenticated = authenticatedUser !== undefined
 
@@ -29,7 +31,7 @@ export function BoardLandingScreen({
           user={authenticatedUser}
         />
       ) : (
-        <PublicHeader isRestoringSession={hasSessionToken} />
+        <PublicHeader isRestoringSession={isRestoringSession} />
       )}
 
       <main className="page-content landing-content">
@@ -45,6 +47,11 @@ export function BoardLandingScreen({
               An island to explore, resources to trade, and a place to make
               your own. Discover the world of Catan.
             </p>
+            {sessionMessage && (
+              <p className="session-recovery-message" role="alert">
+                {sessionMessage}
+              </p>
+            )}
 
             <div className="landing-actions">
               {isAuthenticated ? (
