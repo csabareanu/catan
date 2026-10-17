@@ -60,6 +60,7 @@ export function AuthenticatedHeader({
   user: AuthenticatedUser
 }) {
   const accountMenuRef = useRef<HTMLDetailsElement>(null)
+  const accountTriggerRef = useRef<HTMLElement>(null)
   const pathname = useBrowserPathname()
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export function AuthenticatedHeader({
 
       if (event.key === 'Escape' && accountMenu?.open) {
         accountMenu.open = false
+        accountTriggerRef.current?.focus()
       }
     }
 
@@ -126,7 +128,11 @@ export function AuthenticatedHeader({
       </nav>
 
       <details ref={accountMenuRef} className="account-menu">
-        <summary className="account-trigger" aria-label={`Account menu for ${user.name}`}>
+        <summary
+          ref={accountTriggerRef}
+          className="account-trigger"
+          aria-label={`Account menu for ${user.name}`}
+        >
           <span className="avatar" aria-hidden="true">
             {getUserInitials(user.name)}
           </span>

@@ -161,27 +161,6 @@ clear account and demo/help actions. Avoid advertising unimplemented play.
 A concise useful entry is sufficient; no elaborate marketing site is required.
 **Resolution:**
 
-### F-15 [P2] open - Disclosure menus have inconsistent dismissal and focus behavior
-
-**File:** apps/web/src/features/games/GameLibrary.tsx:235
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** Game menus are native details without the account menu's
-outside-click/Escape handling. Browser reproduction leaves the delete menu
-open after both actions. Separately, focusing Sign out and pressing Escape
-closes the account details but leaves document.activeElement on that hidden
-button (AuthShell.tsx:76). Multiple destructive menus can remain open, and
-keyboard users lose a visible focus location. The menu is no longer clipped;
-this is an interaction defect rather than a repeat of the old layout finding.
-**Suggested fix:** Apply consistent controlled disclosure behavior: dismiss on
-outside interaction and Escape, close a previous game menu when opening another,
-and restore focus to the trigger when Escape closes a menu from within it.
-Keep deletion confirmation and existing API handling. Test keyboard and pointer
-paths without imposing an unnecessary component dependency.
-**Resolution:** Re-examined 2026-10-16 during the F-19 re-audit. The game
-action menu now dismisses on outside pointer interaction and Escape, with
-Escape returning focus to its trigger. The account-menu focus behavior and the
-remaining cross-menu consistency work are still open, so F-15 remains open.
-
 ### F-16 [P2] open - Public game information is displayed as field counts
 
 **File:** apps/web/src/features/replay/GameObserver.tsx:435

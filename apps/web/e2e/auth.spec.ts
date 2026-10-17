@@ -99,9 +99,17 @@ test('registers, restores, signs out, and signs back in', async ({ page }) => {
 
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Your games' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'My games' })).toHaveCSS('cursor', 'pointer')
+  await expect(page.locator('.account-trigger')).toHaveCSS('cursor', 'pointer')
+  await page.locator('.account-trigger').hover()
+  await expect(page.locator('.account-chevron')).toHaveCSS(
+    'color',
+    'rgb(242, 207, 124)',
+  )
 
   await page.locator('.account-trigger').click()
   await expect(page.locator('.menu-panel')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCSS('cursor', 'pointer')
   await page.getByRole('heading', { name: 'Your games' }).click()
   await expect(page.locator('.menu-panel')).toBeHidden()
 
@@ -109,6 +117,7 @@ test('registers, restores, signs out, and signs back in', async ({ page }) => {
   await expect(page.locator('.menu-panel')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.locator('.menu-panel')).toBeHidden()
+  await expect(page.locator('.account-trigger')).toBeFocused()
 
   await page.locator('.account-trigger').click()
   await page.getByRole('button', { name: 'Sign out' }).click()
