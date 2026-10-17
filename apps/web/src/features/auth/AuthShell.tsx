@@ -203,7 +203,14 @@ function SiteHeader({
           aria-label={authenticated ? 'Catan, your games' : 'Catan home'}
         >
           <span className="brand-mark" aria-hidden="true">
-            <span>C</span>
+            <svg className="brand-emblem" viewBox="0 0 48 48" fill="none" focusable="false">
+              <path className="brand-island" d="m5 31 19-10 19 10-19 10Z" />
+              <path className="brand-island-edge" d="m5 36 19 10 19-10" />
+              <path className="brand-keep-side" d="m36 12 5 4v15l-5 3Z" />
+              <path className="brand-keep" d="M12 12h6v5h3v-5h6v5h3v-5h6v22H12Z" />
+              <path className="brand-window" d="M23 19h2v4h-2Z" />
+              <path className="brand-door" d="M20 34v-7a4 4 0 0 1 8 0v7Z" />
+            </svg>
           </span>
           <span className="brand-copy">
             <strong>Catan</strong>

@@ -339,9 +339,11 @@ Playwright coverage. React renders API state and never applies game rules.
 Current queued execution is a deterministic bootstrap; completed runs do not
 yet represent complete playable matches.
 
-All screens share a dark header with consistent height, content width, and
-brand alignment. Public headers expose Sign in and Create account; authenticated
-headers expose My games, Board demo, and the account menu.
+All screens share a dark header with a gold medieval keep emblem, cream
+wordmark, and consistent height, content width, and brand alignment. Public
+headers expose Sign in and Create account; authenticated headers expose
+My games, Board demo, and the account menu. A gold underline near the navigation
+label identifies the active page.
 
 The approved library design reference lives in `blueprint/reference/`, with
 desktop and mobile images there. Its dark teal, gold, typography,

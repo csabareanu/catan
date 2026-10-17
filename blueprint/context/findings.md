@@ -255,3 +255,70 @@ wrapping up the current branch.
 Completion note: F-14 is archived as `welcoming-anonymous-entry/F-14` in
 `blueprint/history/fixes/welcoming-anonymous-entry.md`. All unresolved entries
 remain in this ledger at their existing IDs and statuses.
+
+## Site brand and header spacing review - 2026-10-17
+
+Scope: the complete current fix on fix/site-brand-and-header-spacing,
+including every committed change from the merge base through HEAD, the active
+spec, and nearby shared header, navigation, responsive layout, and browser
+coverage. The working tree was clean before this review. This is a focused
+frontend audit, not a full-project audit.
+
+Base: local main, used because no locally recorded remote-default ref was
+available. No fetch or pull was performed. Merge base:
+78ee2c6e9b222ce78a188584e85a7ab52665ca01. Reviewed commit range:
+78ee2c6e9b222ce78a188584e85a7ab52665ca01..354aff7d326fd2e8e840d9bfbc7952e706478bb2.
+There were no staged, unstaged, or untracked source changes to add to the review.
+
+Files reviewed: apps/web/src/features/auth/AuthShell.tsx, the changed brand and
+navigation styles and affected observer layout in apps/web/src/App.css,
+apps/web/src/index.css, apps/web/e2e/game-observer.spec.ts, the active spec,
+and nearby site-header/session browser coverage and test/build configuration.
+The emblem remains in the shared header, decorative SVG content stays out of
+the accessibility tree, and the brand link retains an accessible destination
+label when the phone wordmark is hidden. Removed badge styles have no remaining
+callers. No new dependencies, auth logic, API contracts, or game rules were added.
+
+Automated signals inspected: the recent `npm run lint` and `npm run build`
+results and the 66/66 passing browser run against the final approved product
+code, before its commit as 354aff7. The command was
+`PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright npm run test:e2e -- --workers=4`
+from apps/web; test-results/.last-run.json also records passed with no failed
+tests. These unchanged suites were not rerun during this review. A fresh
+`git diff --check` passed. Searches found no skipped, focused, or placeholder
+tests, unsafe TypeScript/lint suppressions, or TODO/FIXME markers in the
+reviewed frontend sources and browser tests.
+
+Fresh browser evidence: Chromium checked the running development UI at 19
+widths from 320 to 1440px, including 383/384/385/386/387/388px and
+671/672/673px. No header controls overlapped, extended beyond the viewport,
+or caused horizontal document overflow. Header height was 72.95px, the wordmark
+hid at 384px and returned at 385px, and the active underline used the approved
+0.9em offset. Public and authenticated keyboard tab order passed. Enter opened
+the account menu; Escape closed it and restored focus; outside-click dismissal
+also passed. No uncaught JavaScript errors appeared.
+
+The observer rendered the representative 19-hex, 9-port board without document
+scrolling at 1366x680, 844x390, and 390x844. On the compact laptop viewport,
+the combined site header and game toolbar ended at 126.70px and terrain height
+was 374.88px, above the existing 55-percent minimum. Increasing the compact
+header assertion from 120 to 136px matches the approved taller header; board
+size, port visibility, and viewport-bound assertions remain intact. Inspected
+screenshots are temporary evidence at /tmp/catan-current-header-audit-*.png.
+
+Authenticated identity and replay responses in the browser review were mocked.
+This does not prove a real backend account/game lifecycle. Backend and engine
+internals, unrelated product features, dependencies, generated builds, caches,
+and test output were excluded from code review. Unchanged backend/engine suites
+and network-backed security scans were not run. No tools were installed.
+
+Standards checked: feature scope, strict React/TypeScript presentation
+boundaries, reuse of the shared header and theme, responsive geometry,
+accessible branding and keyboard controls, removal of unused styles, and
+meaningful observer coverage. No new confirmed finding or unverified risk
+was identified in this slice. No finding IDs or statuses changed; F-16, F-17,
+F-18, F-23, and F-24 remain open. No P0/P1 finding blocks completion.
+
+Next action: `/complete` for this approved header fix. Existing findings remain
+separate follow-up work, including F-24 session recovery; none was accepted or
+silently resolved by this audit.

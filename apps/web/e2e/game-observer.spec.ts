@@ -158,7 +158,7 @@ for (const viewport of [
 
     expect(metrics.documentHeight).toBeLessThanOrEqual(metrics.viewportHeight)
     expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
-    expect(metrics.headerBottom).toBeLessThan(120)
+    expect(metrics.headerBottom).toBeLessThan(136)
     expect(metrics.boardBottom).toBeLessThanOrEqual(metrics.viewportHeight)
     expect(metrics.cardBottom).toBeLessThanOrEqual(metrics.viewportHeight)
     expect(metrics.sidebarOverflow).toBe('auto')
