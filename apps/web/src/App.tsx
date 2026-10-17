@@ -15,6 +15,7 @@ import {
   logoutUser,
   type AuthenticatedUser,
 } from './features/auth/authApi'
+import { getPageMetadata } from './lib/pageMetadata'
 import { AccessShell, AuthenticatedHeader, PublicHeader } from './features/auth/AuthShell'
 import { AuthenticationScreen } from './features/auth/AuthScreen'
 import { GameCreationScreen } from './features/games/GameCreationScreen'
@@ -47,6 +48,17 @@ function App() {
   const isSessionAwarePath =
     isPrivatePath(pathname) || isLandingPath(pathname) || isBoardPreviewPath(pathname)
   const hasSessionToken = isSessionAwarePath && readSessionToken() !== null
+
+  useEffect(() => {
+    const metadata = getPageMetadata(pathname)
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+
+    document.title = metadata.title
+
+    if (description !== null) {
+      description.content = metadata.description
+    }
+  }, [pathname])
 
   const handleLogout = async () => {
     if (isLoggingOut) {

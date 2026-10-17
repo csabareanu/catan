@@ -128,19 +128,6 @@ full frontend suite passes 55/55. The mocked tests still do not establish the
 real-stack flow, do not test 320x568, and do not verify focus restoration for
 the phone sheet. Keep open for that broader evidence.
 
-### F-18 [P3] open - All routes retain preview-only browser metadata
-
-**File:** apps/web/index.html:9
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** Login, registration, library, creation, and observer all use
-the title Catan · Seeded Board Preview and the description of a stateless board
-preview. Browser inspection confirms unchanged titles across routes. Tabs and
-history do not identify the active task, and the metadata understates the app.
-**Suggested fix:** Set concise route-specific titles, including the game
-identifier in observer/replay views, and a product-appropriate default
-description. This does not require adding a routing or metadata library.
-**Resolution:**
-
 ## Observer page composition review - 2026-10-16
 
 Scope: `/games/:gameId/observe`, the active F-09 implementation, its staged,
