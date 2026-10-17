@@ -309,6 +309,16 @@ function BoardPreview({
           ? 'Unavailable'
           : 'Not generated'
   const requestWasRejected = error?.status === 422
+  const developerResponseStatus =
+    generationState === 'success'
+      ? '200 · board data received'
+      : generationState === 'error'
+        ? error !== null && error.status > 0
+          ? `${error.status} · request failed`
+          : 'request failed'
+        : generationState === 'loading'
+          ? 'pending'
+          : 'not requested'
 
   return (
     <div className="app-shell">
@@ -346,15 +356,15 @@ function BoardPreview({
       <main className="page-content">
         <section className="page-intro" aria-labelledby="page-title">
           <div className="intro-copy-group">
-            <p className="eyebrow">Seeded board preview</p>
+            <p className="eyebrow">Board preview</p>
             <h1 id="page-title">
               Chart a board
               <br />
               from a seed.
             </h1>
             <p className="page-description">
-              Set a number and get a reproducible Catan map. This preview is
-              stateless: no game or history is saved.
+              Set a number to explore a reproducible Catan board. Preview
+              boards are temporary: no game or history is saved.
             </p>
           </div>
 
@@ -405,10 +415,9 @@ function BoardPreview({
                   aria-describedby="seed-help generation-note"
                   onChange={(event) => setSeed(event.target.value)}
                 />
-                <span className="seed-format">INT64</span>
               </div>
               <p className="field-help" id="seed-help">
-                A non-negative whole number, up to 19 digits.
+                Use a non-negative whole number, up to 19 digits.
               </p>
             </div>
 
@@ -431,43 +440,65 @@ function BoardPreview({
             </button>
             <p className="generation-note" id="generation-note">
               {generationState === 'loading'
-                ? 'Asking the board service for a canonical response.'
+                ? 'Preparing a reproducible board.'
                 : generationState === 'error'
                   ? error?.message
                   : generationState === 'success'
-                    ? 'The response is ready for the board renderer.'
-                    : 'Generate a stateless preview. Nothing is saved.'}
+                    ? 'Your board is ready to explore.'
+                    : 'Generate a board preview. Nothing is saved.'}
             </p>
-
-            <div className="metadata-list">
-              <div className="metadata-row">
-                <div className="metadata-copy">
-                  <span className="metadata-label">Ruleset</span>
-                  <strong>Base game</strong>
-                </div>
-                <code className="version-chip">
-                  {boardData
-                    ? `${boardData.ruleset.key}@${boardData.ruleset.version}`
-                    : 'base@1.0.0'}
-                </code>
-              </div>
-              <div className="metadata-row">
-                <div className="metadata-copy">
-                  <span className="metadata-label">Map</span>
-                  <strong>Standard · pointy-top</strong>
-                </div>
-                <code className="version-chip">
-                  {boardData
-                    ? `${boardData.map.key}@${boardData.map.version}`
-                    : 'standard@1.0.0'}
-                </code>
-              </div>
-            </div>
 
             <div className="privacy-note">
               <span className="privacy-mark" aria-hidden="true" />
-              <p>Anonymous preview. No game record or history is created.</p>
+              <p>Preview only. No game or history is saved.</p>
             </div>
+
+            <details className="preview-developer-details">
+              <summary>Developer details</summary>
+              <div className="preview-developer-details-body">
+                <p>
+                  Technical values for reproducing and inspecting this preview.
+                </p>
+                <dl className="preview-developer-list">
+                  <div>
+                    <dt>Seed</dt>
+                    <dd><code>{boardData?.seed ?? seed}</code></dd>
+                  </div>
+                  <div>
+                    <dt>Seed format</dt>
+                    <dd><code>INT64</code></dd>
+                  </div>
+                  <div>
+                    <dt>Response</dt>
+                    <dd><code>{developerResponseStatus}</code></dd>
+                  </div>
+                  <div>
+                    <dt>Board schema</dt>
+                    <dd><code>{boardData?.board_schema_version ?? '1'}</code></dd>
+                  </div>
+                  <div>
+                    <dt>Ruleset</dt>
+                    <dd>
+                      <code>
+                        {boardData
+                          ? `${boardData.ruleset.key}@${boardData.ruleset.version}`
+                          : 'base@1.0.0'}
+                      </code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Map</dt>
+                    <dd>
+                      <code>
+                        {boardData
+                          ? `${boardData.map.key}@${boardData.map.version} · ${boardData.map.orientation}-top`
+                          : 'standard@1.0.0 · pointy-top'}
+                      </code>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </details>
           </section>
 
           <section className="board-panel" aria-labelledby="board-title">
@@ -498,8 +529,7 @@ function BoardPreview({
                 <p className="empty-kicker">Waiting for a seed</p>
                 <h3 id="empty-title">Nothing charted yet.</h3>
                 <p className="empty-copy">
-                  Generate a board to receive terrain, number tokens, and ports
-                  from the canonical service.
+                  Generate a board to see terrain, number tokens, and ports.
                 </p>
                 <span className="empty-state-note">
                   <span className="empty-state-dot" aria-hidden="true" />
@@ -511,10 +541,10 @@ function BoardPreview({
             {generationState === 'loading' && (
               <div className="board-feedback" role="status" aria-live="polite">
                 <span className="feedback-mark feedback-mark-loading" aria-hidden="true" />
-                <p className="empty-kicker">Contacting board service</p>
+                <p className="empty-kicker">Preparing your board</p>
                 <h3>Generating your board.</h3>
                 <p className="empty-copy">
-                  The same seed will always produce the same response.
+                  The same seed will always create the same board.
                 </p>
               </div>
             )}
@@ -541,26 +571,15 @@ function BoardPreview({
                     ✓
                   </span>
                   <div>
-                    <p className="empty-kicker">Canonical response received</p>
-                    <h3>Board ready to render.</h3>
+                    <p className="empty-kicker">Board generated</p>
+                    <h3>Your board is ready.</h3>
                     <p className="empty-copy">
-                      Seed <strong>{boardData.seed}</strong> produced a{' '}
-                      {boardData.map.key} map with {boardData.hexes.length} hexes.
+                      Seed <strong>{boardData.seed}</strong> created a Catan board
+                      with {boardData.hexes.length} terrain tiles.
                     </p>
                   </div>
                 </div>
                 <BoardSvg board={boardData} />
-                <div className="board-result-metadata">
-                  <span>
-                    Schema <strong>{boardData.board_schema_version}</strong>
-                  </span>
-                  <span>
-                    Ruleset <strong>{boardData.ruleset.version}</strong>
-                  </span>
-                  <span>
-                    Map <strong>{boardData.map.version}</strong>
-                  </span>
-                </div>
               </div>
             )}
           </section>
@@ -568,7 +587,7 @@ function BoardPreview({
 
         <footer className="page-footer">
           <span className="footer-brand">CATAN · BOARD LAB</span>
-          <span>Base rules <i /> Standard map <i /> Stateless preview</span>
+          <span>Catan board preview <i /> Nothing is saved</span>
         </footer>
       </main>
     </div>

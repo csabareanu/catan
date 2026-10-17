@@ -62,31 +62,6 @@ confirmation-modal refinement F-19. P2 design findings below assess
 the user's expanded professional-player-UI goal; they are not retroactive
 claims that Feature 4b violated its approved technical-observer scope.
 
-### F-10 [P2] open - Technical diagnostics dominate player-facing information
-
-**File:** apps/web/src/features/replay/GameObserver.tsx:225
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** The default observer exposes Persisted topology, Safe
-context, Replay cursor, Snapshot index, Latest checkpoint, Selected frame,
-Projection, command/event sequences, schema versions, Lifecycle, and seats.
-The preview also exposes INT64, canonical response, stateless, pointy-top,
-ruleset versions, and renderer terminology (apps/web/src/App.tsx:390,432,537).
-These consume space while asking ordinary players to interpret implementation
-details. Start run, View run, and Completed also need to distinguish the current
-bootstrap execution from a completed playable match.
-**Suggested fix:** Present Board, Players, Game status, History, and meaningful
-game actions. Put safe schema/seed/cursor diagnostics behind an explicit
-developer/details disclosure. Use actual API turn/phase data for player wording;
-never rename command 75 to turn 75 without a real mapping. Until gameplay ships,
-label simulations and unavailable human actions honestly. Keep server rules
-and private projections intact.
-**Resolution:** Re-examined 2026-10-16. The current observer defaults to player
-and history information; raw frame, cursor, checkpoint, projection, and schema
-fields are no longer rendered in the default layout and technical game details
-are collapsed. The preview portion of the original finding was outside this
-F-09 audit scope, so F-10 remains open for a separate preview/player-facing
-review.
-
 ### F-11 [P2] open - Terrain legend has transparent color swatches
 
 **File:** apps/web/src/features/board/BoardSvg.tsx:127

@@ -24,8 +24,15 @@ for (const viewport of VIEWPORTS) {
 
     await expect(page.getByRole('button', { name: 'Generate preview' })).toBeEnabled()
     await expect(page.getByText('No board data yet', { exact: true })).toBeVisible()
-    await expect(page.getByText('base@1.0.0', { exact: true })).toBeVisible()
-    await expect(page.getByText('standard@1.0.0', { exact: true })).toBeVisible()
+    await expect(page.locator('.empty-state')).toContainText(
+      'Generate a board to see terrain, number tokens, and ports.',
+    )
+    await expect(page.locator('.empty-state')).not.toContainText(
+      /canonical|service|response/i,
+    )
+    await expect(page.getByText('base@1.0.0', { exact: true })).toBeHidden()
+    await expect(page.getByText('standard@1.0.0', { exact: true })).toBeHidden()
+    await expect(page.getByText('Developer details', { exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Sign in' })).toHaveCSS(
       'white-space',
       'nowrap',
@@ -52,7 +59,7 @@ test('renders the board preview at the secondary /preview path', async ({ page }
   )
 })
 
-test('submits the seed to Laravel and displays canonical board metadata', async ({ page }) => {
+test('submits the seed on both preview paths and keeps developer metadata available on demand', async ({ page }) => {
   const submittedSeeds: string[] = []
 
   await page.route('**/api/v1/boards/generate', async (route) => {
@@ -64,22 +71,44 @@ test('submits the seed to Laravel and displays canonical board metadata', async 
     })
   })
 
-  await page.goto('/')
-  await page.getByLabel('Board seed').fill('42')
-  await page.getByRole('button', { name: 'Generate preview' }).click()
+  for (const path of ['/', '/preview']) {
+    await page.goto(path)
+    await page.getByLabel('Board seed').fill('42')
+    await page.getByRole('button', { name: 'Generate preview' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Board ready to render.' })).toBeVisible()
-  await expect(page.getByText(/Seed 42 produced a standard map with/)).toBeVisible()
-  await expect(page.getByText('Canonical response received')).toBeVisible()
-  await expect(
-    page.getByRole('img', { name: 'Standard Catan board generated from seed 42' }),
-  ).toBeVisible()
-  await expect(page.locator('.board-hex')).toHaveCount(19)
-  await expect(page.locator('.board-port')).toHaveCount(9)
+    await expect(page.getByRole('heading', { name: 'Your board is ready.' })).toBeVisible()
+    await expect(page.getByText(/Seed 42 created a Catan board with/)).toBeVisible()
+    await expect(page.getByText('Board generated', { exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('img', { name: 'Standard Catan board generated from seed 42' }),
+    ).toBeVisible()
+    await expect(page.locator('.board-hex')).toHaveCount(19)
+    await expect(page.locator('.board-port')).toHaveCount(9)
+    await expect(page.getByText('base@1.0.0', { exact: true })).toBeHidden()
 
-  await page.getByRole('button', { name: 'Generate preview' }).click()
-  await expect(page.getByText(/Seed 42 produced a standard map with/)).toBeVisible()
+    await page.getByText('Developer details', { exact: true }).click()
+    await expect(page.getByText('base@1.0.0', { exact: true })).toBeVisible()
+    await expect(page.getByText('standard@1.0.0 · pointy-top', { exact: true })).toBeVisible()
+  }
+
   expect(submittedSeeds).toEqual(['42', '42'])
+})
+
+test('uses player-facing copy while the board is being generated', async ({ page }) => {
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await route.abort()
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+
+  const boardFeedback = page.locator('.board-feedback')
+  await expect(boardFeedback).toContainText('Preparing your board')
+  await expect(boardFeedback).toContainText(
+    'The same seed will always create the same board.',
+  )
+  await expect(boardFeedback).not.toContainText(/canonical|service|response/i)
 })
 
 test('keeps the generated SVG board within a narrow viewport', async ({ page }) => {

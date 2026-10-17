@@ -65,8 +65,8 @@ export function BoardSvg({ board }: { board: BoardData }) {
   if (board.hexes.length === 0) {
     return (
       <div className="board-renderer board-renderer-empty" role="status">
-        <p className="board-renderer-empty-title">No board geometry returned.</p>
-        <p>The canonical response did not contain any hexes to draw.</p>
+        <p className="board-renderer-empty-title">No board tiles to display.</p>
+        <p>The preview did not include any terrain tiles.</p>
       </div>
     )
   }
@@ -89,8 +89,7 @@ export function BoardSvg({ board }: { board: BoardData }) {
             Standard Catan board generated from seed {board.seed}
           </title>
           <desc id={descriptionID}>
-            A responsive pointy-top board with 19 terrain hexes, number tokens,
-            logical edges, and nine trade ports.
+            A Catan board with terrain hexes, number tokens, and trade ports.
           </desc>
 
           <rect

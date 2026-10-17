@@ -1250,16 +1250,6 @@
   letter-spacing: 0.06em;
 }
 
-.seed-format {
-  padding: var(--space-1) var(--space-2);
-  border: var(--line) solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--faint);
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.06em;
-}
-
 .field-help {
   margin: var(--space-2) 0 0;
   color: var(--muted);
@@ -1305,50 +1295,6 @@
   text-align: center;
 }
 
-.metadata-list {
-  margin-top: var(--space-6);
-  border-top: var(--line) solid var(--border);
-}
-
-.metadata-row {
-  display: flex;
-  min-height: 4.25rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-bottom: var(--line) solid var(--border);
-}
-
-.metadata-copy strong,
-.metadata-label {
-  display: block;
-}
-
-.metadata-copy strong {
-  color: var(--text);
-  font-size: var(--text-sm);
-}
-
-.metadata-label {
-  margin-bottom: var(--space-1);
-  color: var(--muted);
-  font-size: 0.76rem;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.version-chip {
-  flex: 0 0 auto;
-  padding: var(--space-1) var(--space-2);
-  border: var(--line) solid var(--border);
-  border-radius: var(--radius-pill);
-  color: var(--muted);
-  background: var(--bg-raised);
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-}
-
 .privacy-note {
   display: flex;
   align-items: center;
@@ -1382,6 +1328,90 @@
   border-width: 0 1.5px 1.5px 0;
   content: '';
   transform: rotate(45deg);
+}
+
+.preview-developer-details {
+  margin-top: var(--space-5);
+  border-top: var(--line) solid var(--border);
+}
+
+.preview-developer-details summary {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  list-style: none;
+}
+
+.preview-developer-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.preview-developer-details summary::after {
+  color: var(--muted);
+  content: '+';
+  font-size: var(--text-lg);
+  font-weight: 400;
+}
+
+.preview-developer-details[open] summary::after {
+  content: '−';
+}
+
+.preview-developer-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.preview-developer-details-body {
+  padding: 0 0 var(--space-2);
+}
+
+.preview-developer-details-body > p {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.preview-developer-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.preview-developer-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-bottom: var(--space-3);
+  border-bottom: var(--line) solid var(--border);
+}
+
+.preview-developer-list dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+
+.preview-developer-list dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  text-align: right;
+}
+
+.preview-developer-list code {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  overflow-wrap: anywhere;
 }
 
 .board-panel {
@@ -1622,35 +1652,6 @@
 
 .board-feedback-error .empty-copy {
   color: var(--paper-muted);
-}
-
-.board-result-metadata {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  width: min(100%, 28rem);
-  margin-top: var(--space-5);
-  border: var(--line) solid var(--paper-border);
-  border-radius: var(--radius-sm);
-  background: rgb(255 255 255 / 22%);
-}
-
-.board-result-metadata span {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  color: var(--paper-muted);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-}
-
-.board-result-metadata span + span {
-  border-left: var(--line) solid var(--paper-border);
-}
-
-.board-result-metadata strong {
-  color: var(--paper-ink);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
 }
 
 .board-result-ready {
@@ -2071,14 +2072,6 @@
 
   .availability-badge {
     font-size: 0.62rem;
-  }
-
-  .metadata-row {
-    gap: var(--space-2);
-  }
-
-  .version-chip {
-    font-size: 0.59rem;
   }
 
   .board-panel {
