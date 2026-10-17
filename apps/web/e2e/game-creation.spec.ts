@@ -45,6 +45,28 @@ const createdGameResponse = {
   },
 }
 
+test('generates a fresh seed outside the primary setup path', async ({ page }) => {
+  await authenticatePage(page)
+
+  await page.goto('/games/new')
+  await expect(page.getByLabel('Reproducible board seed')).toBeHidden()
+  await expect(page.getByLabel('AI opponents')).toBeVisible()
+  await expect(page.getByText('Base game · Standard map')).toBeVisible()
+
+  await page.getByText('Advanced options', { exact: true }).click()
+  const firstSeed = await page.getByLabel('Reproducible board seed').inputValue()
+
+  await page.goto('/games/new')
+  await page.getByText('Advanced options', { exact: true }).click()
+  const secondSeed = await page.getByLabel('Reproducible board seed').inputValue()
+
+  expect(firstSeed).toMatch(/^\d+$/)
+  expect(secondSeed).toMatch(/^\d+$/)
+  expect(BigInt(firstSeed)).toBeLessThanOrEqual(9223372036854775807n)
+  expect(BigInt(secondSeed)).toBeLessThanOrEqual(9223372036854775807n)
+  expect(secondSeed).not.toBe(firstSeed)
+})
+
 test('creates a game with the existing API contract and shows it in the library', async ({
   page,
 }) => {
@@ -77,7 +99,8 @@ test('creates a game with the existing API contract and shows it in the library'
   await expect(page).toHaveURL(/\/games\/new$/)
   await expect(page.getByRole('heading', { name: 'Create a game.' })).toBeVisible()
 
-  await page.getByLabel('Game seed').fill('42')
+  await page.getByText('Advanced options', { exact: true }).click()
+  await page.getByLabel('Reproducible board seed').fill('42')
   await page.getByLabel('AI opponents').selectOption('3')
   await page.getByRole('button', { name: 'Create game' }).click()
 
@@ -107,7 +130,8 @@ test('shows creation validation errors without leaving the form', async ({ page 
   })
 
   await page.goto('/games/new')
-  await page.getByLabel('Game seed').fill('01')
+  await page.getByText('Advanced options', { exact: true }).click()
+  await page.getByLabel('Reproducible board seed').fill('01')
   await page.getByLabel('AI opponents').selectOption('3')
   await page.getByRole('button', { name: 'Create game' }).click()
 

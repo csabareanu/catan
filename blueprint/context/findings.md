@@ -62,22 +62,6 @@ confirmation-modal refinement F-19. P2 design findings below assess
 the user's expanded professional-player-UI goal; they are not retroactive
 claims that Feature 4b violated its approved technical-observer scope.
 
-### F-13 [P2] open - Creating an ordinary game starts with developer configuration
-
-**File:** apps/web/src/features/games/GameCreationScreen.tsx:83
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** The first input is a required numeric seed, every new form
-defaults to the same fixed seed, and two disabled dropdowns occupy the form for
-the only supported ruleset/map. The player must understand reproducibility
-before choosing opponents. This makes a simple new-game task look technical
-and produces the same board repeatedly unless the user changes the number.
-**Suggested fix:** Make opponent count and the primary game action the normal
-path. Offer a new board by default and move an optional repeatable board code
-to Advanced options. Present fixed Base game/Standard map choices as concise
-information rather than unusable controls. Preserve a supplied seed and the
-versioned creation contract; do not imply human gameplay is already available.
-**Resolution:**
-
 ### F-23 [P2] open - Board renderer combines presentation and gesture orchestration
 
 **File:** apps/web/src/features/board/BoardSvg.tsx:120

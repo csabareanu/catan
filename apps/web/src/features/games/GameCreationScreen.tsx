@@ -18,8 +18,6 @@ type CreationError = {
   fields: ApiErrorFields
 }
 
-const DEFAULT_SEED = '894177203164'
-
 export function GameCreationScreen({
   isLoggingOut,
   onLogout,
@@ -27,7 +25,7 @@ export function GameCreationScreen({
   token,
   onUnauthorized,
 }: GameCreationScreenProps) {
-  const [seed, setSeed] = useState(DEFAULT_SEED)
+  const [seed, setSeed] = useState(createFreshSeed)
   const [aiCount, setAiCount] = useState<CreateGameInput['ai_count']>(2)
   const [creationError, setCreationError] = useState<CreationError | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -69,8 +67,8 @@ export function GameCreationScreen({
       <p className="eyebrow">Game setup</p>
       <h1>Create a game.</h1>
       <p className="access-description">
-        Choose a reproducible seed and two or three AI opponents. The game will
-        appear in your private library after it is created.
+        Choose two or three AI opponents. We will create a fresh board and add
+        the game to your private library.
       </p>
 
       <form className="access-form" onSubmit={handleSubmit} noValidate>
@@ -79,43 +77,6 @@ export function GameCreationScreen({
             {creationError.message}
           </p>
         )}
-
-        <label className="access-field">
-          <span>Game seed</span>
-          <input
-            name="seed"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            value={seed}
-            onChange={(event) => setSeed(event.target.value)}
-            aria-invalid={fieldError('seed') !== undefined}
-            aria-describedby={fieldError('seed') ? 'game-seed-error' : undefined}
-            required
-          />
-          {fieldError('seed') && (
-            <span className="access-field-error" id="game-seed-error">
-              {fieldError('seed')}
-            </span>
-          )}
-          <small className="field-help">Use a non-negative whole number.</small>
-        </label>
-
-        <div className="creation-option-grid">
-          <label className="access-field">
-            <span>Ruleset</span>
-            <select value="base" disabled aria-label="Ruleset">
-              <option value="base">Base game</option>
-            </select>
-          </label>
-
-          <label className="access-field">
-            <span>Map</span>
-            <select value="standard" disabled aria-label="Map">
-              <option value="standard">Standard map</option>
-            </select>
-          </label>
-        </div>
 
         <label className="access-field">
           <span>AI opponents</span>
@@ -136,6 +97,42 @@ export function GameCreationScreen({
           )}
         </label>
 
+        <div className="creation-format-card" aria-label="Game format">
+          <div>
+            <span className="creation-format-label">Game format</span>
+            <strong>Base game · Standard map</strong>
+          </div>
+          <small>Current game format</small>
+        </div>
+
+        <details className="creation-advanced">
+          <summary>Advanced options</summary>
+          <div className="creation-advanced-fields">
+            <label className="access-field">
+              <span>Reproducible board seed</span>
+              <input
+                name="seed"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={seed}
+                onChange={(event) => setSeed(event.target.value)}
+                aria-invalid={fieldError('seed') !== undefined}
+                aria-describedby={fieldError('seed') ? 'game-seed-error' : undefined}
+                required
+              />
+              {fieldError('seed') && (
+                <span className="access-field-error" id="game-seed-error">
+                  {fieldError('seed')}
+                </span>
+              )}
+              <small className="field-help">
+                Use the same non-negative whole number to recreate this board.
+              </small>
+            </label>
+          </div>
+        </details>
+
         <button className="access-primary-action" type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Creating game…' : 'Create game'}
         </button>
@@ -147,6 +144,13 @@ export function GameCreationScreen({
       </div>
     </AccessShell>
   )
+}
+
+function createFreshSeed(): string {
+  const values = new Uint32Array(2)
+  globalThis.crypto.getRandomValues(values)
+
+  return ((BigInt(values[0] & 0x7fffffff) << 32n) | BigInt(values[1])).toString()
 }
 
 function toCreationError(caught: unknown): CreationError {
