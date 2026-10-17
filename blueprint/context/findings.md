@@ -62,48 +62,6 @@ confirmation-modal refinement F-19. P2 design findings below assess
 the user's expanded professional-player-UI goal; they are not retroactive
 claims that Feature 4b violated its approved technical-observer scope.
 
-### F-11 [P2] open - Terrain legend has transparent color swatches
-
-**File:** apps/web/src/features/board/BoardSvg.tsx:127
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** Legend swatches are HTML spans using board-hex terrain
-classes. Those classes set SVG fill, while .board-legend-swatch supplies no
-background (apps/web/src/App.css:1978). All six swatch backgrounds compute to
-transparent, despite different fill values, so the legend looks like a bare
-list of terrain names and adds no usable color key. Browser inspection confirms
-the user's observation on both preview and observer.
-**Suggested fix:** Either give the existing swatches real backgrounds or
-replace the persistent legend with optional resource help showing each terrain,
-its resource symbol, and its output. Once tiles are self-explanatory, keep this
-help secondary so it does not consume board space by default.
-**Resolution:** Reconfirmed 2026-10-16. Moving the existing guide into a desktop
-sidebar disclosure reduces clutter but does not repair the key: all six HTML
-swatches still have a transparent computed background. BoardHelp also retains
-the canonical-topology explanation rather than explaining resource production.
-
-### F-12 [P2] open - Full-board labels become unreadable on smaller screens
-
-**File:** apps/web/src/features/board/BoardSvg.tsx:188
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** Tiles are flat fills with terrain text and number discs;
-ports rely on text badges. Terrain and port labels use 7 SVG units and numbers
-use 13. On the 390px observer these render at approximately 3.7px and 6.8px;
-at 320px they fall to 2.8px and 5.1px. No board zoom/reset control is provided.
-The existing terrain text means this is not a pure color-only encoding, but
-that alternative becomes impractical to read. Terrain names also do not teach
-which resources the tiles produce.
-**Suggested fix:** Combine the improved shell with distinguishable resource
-symbols, subtle terrain art/patterns, readable number tokens, compact icon-based
-ports, and accessible inspection/zoom controls. Use consistent symbols in
-later cards, costs, trades, and player hands. Preserve number/edge/vertex
-legibility and avoid detailed art over interaction targets. Keep text
-alternatives and resource help; symbols complement rather than remove them.
-**Resolution:** Re-examined 2026-10-16. Desktop terrain is substantially larger,
-but at 390x844 terrain labels render at about 2.0px and number labels at 3.7px.
-At 844x390 those labels fall to about 0.33px and 0.60px. Correct the available
-board height in F-09 first; symbols alone cannot repair this layout failure.
-Resource symbols, legible ports, and inspection controls remain useful follow-ups.
-
 ### F-13 [P2] open - Creating an ordinary game starts with developer configuration
 
 **File:** apps/web/src/features/games/GameCreationScreen.tsx:83
@@ -118,6 +76,24 @@ path. Offer a new board by default and move an optional repeatable board code
 to Advanced options. Present fixed Base game/Standard map choices as concise
 information rather than unusable controls. Preserve a supplied seed and the
 versioned creation contract; do not imply human gameplay is already available.
+**Resolution:**
+
+### F-23 [P2] open - Board renderer combines presentation and gesture orchestration
+
+**File:** apps/web/src/features/board/BoardSvg.tsx:120
+**Found:** 2026-10-17 by /audit (scope: F-11/F-12 re-review)
+**Why it matters:** `BoardSvg` now owns board layout construction, SVG
+rendering, resource and port presentation, keyboard controls, native wheel
+binding, mouse dragging, touch panning, pinch state, double-tap detection, and
+zoom math in one roughly 485-line component. The native wheel path also repeats
+view-update work that the button and pointer paths perform through separate
+closures. This makes future replay interaction changes harder to review and
+leaves gesture behavior without an isolated unit boundary.
+**Suggested fix:** Extract a focused `useBoardViewport` or equivalent hook for
+view state, gesture lifecycle, event binding, and shared transforms. Keep
+`BoardSvg` responsible for rendering the board and controls, and add focused
+pointer or pinch assertions around the extracted behavior before 4c grows the
+interaction surface.
 **Resolution:**
 
 ### F-14 [P2] open - First visit introduces a board generator rather than the game

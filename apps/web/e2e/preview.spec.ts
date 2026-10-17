@@ -84,6 +84,36 @@ test('submits the seed on both preview paths and keeps developer metadata availa
     ).toBeVisible()
     await expect(page.locator('.board-hex')).toHaveCount(19)
     await expect(page.locator('.board-port')).toHaveCount(9)
+    const boardGuide = page.locator('.board-renderer .board-legend')
+    await expect(boardGuide).toHaveAttribute('aria-label', 'Terrain and resource guide')
+    await expect(boardGuide.locator('.board-legend-item')).toHaveCount(6)
+    await expect(boardGuide.locator('.board-legend-swatch-forest')).not.toHaveCSS(
+      'background-color',
+      'rgba(0, 0, 0, 0)',
+    )
+    await expect(boardGuide).toContainText('Lumber')
+    await expect(boardGuide).toContainText('No production')
+    await expect(page.locator('.board-resource-symbol')).toHaveCount(19)
+    const boardShell = page.locator('.board-svg-shell')
+    const boardSVG = page.locator('.board-svg')
+    const fittedViewBox = await boardSVG.getAttribute('viewBox')
+
+    if (!fittedViewBox) {
+      throw new Error('The board must expose a fitted SVG viewBox before zooming.')
+    }
+
+    await expect(page.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Zoom in' }).click()
+    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
+    await expect(boardSVG).not.toHaveAttribute('viewBox', fittedViewBox)
+    await page.getByRole('button', { name: 'Fit board' }).click()
+    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
+    await expect(boardSVG).toHaveAttribute('viewBox', fittedViewBox)
+    await boardShell.hover({ position: { x: 120, y: 120 } })
+    await page.mouse.wheel(0, -120)
+    await expect(page.locator('.board-svg-zoom-status')).not.toContainText('Board zoom 100%')
+    await expect(boardSVG).not.toHaveAttribute('viewBox', fittedViewBox)
+    await page.getByRole('button', { name: 'Fit board' }).click()
     await expect(page.getByText('base@1.0.0', { exact: true })).toBeHidden()
 
     await page.getByText('Developer details', { exact: true }).click()
@@ -92,6 +122,28 @@ test('submits the seed on both preview paths and keeps developer metadata availa
   }
 
   expect(submittedSeeds).toEqual(['42', '42'])
+})
+
+test('handles board wheel zoom without a passive-listener warning', async ({ page }) => {
+  const consoleMessages: string[] = []
+  page.on('console', (message) => consoleMessages.push(message.text()))
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(boardResponse('42')),
+    })
+  })
+
+  await page.goto('/preview')
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+  await expect(page.locator('.board-svg')).toBeVisible()
+
+  await page.locator('.board-svg-shell').hover({ position: { x: 120, y: 120 } })
+  await page.mouse.wheel(0, -120)
+
+  await expect(page.locator('.board-svg-zoom-status')).not.toContainText('Board zoom 100%')
+  expect(consoleMessages.filter((message) => message.includes('Unable to preventDefault inside passive event listener invocation'))).toEqual([])
 })
 
 test('uses player-facing copy while the board is being generated', async ({ page }) => {
@@ -125,6 +177,19 @@ test('keeps the generated SVG board within a narrow viewport', async ({ page }) 
   await page.getByRole('button', { name: 'Generate preview' }).click()
 
   await expect(page.locator('.board-svg')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Zoom in' })).toBeVisible()
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
+  const zoomedMetrics = await page.locator('.board-svg-shell').evaluate((shell) => ({
+    clientWidth: shell.clientWidth,
+    scrollWidth: shell.scrollWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }))
+  expect(zoomedMetrics.scrollWidth).toBeLessThanOrEqual(zoomedMetrics.clientWidth + 1)
+  expect(zoomedMetrics.documentWidth).toBeLessThanOrEqual(zoomedMetrics.viewportWidth)
+  await page.getByRole('button', { name: 'Fit board' }).click()
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
   const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
   const viewportWidth = await page.evaluate(() => window.innerWidth)
   expect(pageWidth).toBeLessThanOrEqual(viewportWidth)

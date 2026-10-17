@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { devices, expect, test } from '@playwright/test'
 import { isBoardData } from '../src/features/board/boardApi'
 import type { ReplayResponse } from '../src/features/replay/replayApi'
 import standardBoard from './fixtures/standard-board.json' with { type: 'json' }
@@ -125,6 +125,7 @@ for (const viewport of [
       const sidebar = document.querySelector<HTMLElement>('.observer-sidebar')
       const map = document.querySelector<SVGGElement>('.board-hex-layer')
       const ocean = document.querySelector<SVGRectElement>('.board-svg-background')
+      const forest = document.querySelector<SVGPolygonElement>('.board-hex-forest')
       const token = document.querySelector<SVGCircleElement>('.number-token-disc')
       const svgBounds = document.querySelector<SVGSVGElement>('.board-svg')?.getBoundingClientRect()
       const headerBounds = document.querySelector<HTMLElement>('.observer-header')?.getBoundingClientRect()
@@ -147,6 +148,8 @@ for (const viewport of [
         oceanHeight: ocean?.getBoundingClientRect().height ?? 0,
         tokenWidth: token?.getBoundingClientRect().width ?? 0,
         tokenHeight: token?.getBoundingClientRect().height ?? 0,
+        seaFill: ocean ? getComputedStyle(ocean).fill : null,
+        forestFill: forest ? getComputedStyle(forest).fill : null,
         portsInsideCanvas: svgBounds !== undefined && portBounds.every((port) =>
           port.left >= svgBounds.left && port.right <= svgBounds.right &&
           port.top >= svgBounds.top && port.bottom <= svgBounds.bottom),
@@ -162,11 +165,18 @@ for (const viewport of [
     expect(metrics.mapHeight).toBeGreaterThan(metrics.viewportHeight * 0.55)
     expect(metrics.oceanWidth / metrics.oceanHeight).toBeLessThan(1.2)
     expect(metrics.tokenWidth).toBeCloseTo(metrics.tokenHeight, 1)
+    expect(metrics.seaFill).not.toBe(metrics.forestFill)
     expect(metrics.portsInsideCanvas).toBe(true)
 
     await page.screenshot({ path: testInfo.outputPath('observer-desktop.png') })
     await page.getByText('Board guide', { exact: true }).click()
-    await expect(page.locator('.observer-board-help').getByLabel('Terrain legend')).toBeVisible()
+    await expect(page.locator('.observer-board-help').getByLabel('Terrain and resource guide')).toBeVisible()
+    await expect(page.locator('.observer-board-help .board-legend-item')).toHaveCount(6)
+    await expect(page.locator('.observer-board-help .board-legend-swatch-forest')).not.toHaveCSS(
+      'background-color',
+      'rgba(0, 0, 0, 0)',
+    )
+    await expect(page.locator('.observer-board-help .board-legend')).toContainText('Lumber')
     await expect(page.locator('.observer-sidebar')).toHaveCSS('overflow-y', 'auto')
     await expect(page.locator('.board-hex-layer')).toBeInViewport({ ratio: 1 })
   })
@@ -193,6 +203,104 @@ test('keeps the observer usable in a landscape phone viewport', async ({ page })
   expect(metrics.boardBottom).toBeLessThanOrEqual(metrics.viewportHeight)
   expect(metrics.documentHeight).toBeLessThanOrEqual(metrics.viewportHeight)
   expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+})
+
+test('keeps observer navigation clear on a narrow phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.route('**/api/v1/games/42/replay', (route) =>
+    route.fulfill({ status: 200, json: replayResponse('completed', true) }),
+  )
+
+  await page.goto('/games/42/observe')
+
+  const metrics = await page.evaluate(() => {
+    const toRect = (element: Element | null) => {
+      if (!element) {
+        return null
+      }
+
+      const { bottom, left, right, top } = element.getBoundingClientRect()
+      return { bottom, left, right, top }
+    }
+    const navLinks = Array.from(
+      document.querySelectorAll('.observer-shell .primary-nav .nav-link'),
+    ).map((link) => toRect(link))
+    const account = toRect(document.querySelector('.observer-shell .account-trigger'))
+    const hasOverlap = (first: NonNullable<typeof account>, second: NonNullable<typeof account>) =>
+      first.left < second.right &&
+      first.right > second.left &&
+      first.top < second.bottom &&
+      first.bottom > second.top
+
+    return {
+      account,
+      documentWidth: document.documentElement.scrollWidth,
+      hasNavigationOverlap: account !== null && navLinks.some((link) =>
+        link !== null && hasOverlap(link, account)),
+      navLinks,
+      viewportWidth: window.innerWidth,
+    }
+  })
+
+  expect(metrics.hasNavigationOverlap).toBe(false)
+  expect(metrics.navLinks.every((link) => link !== null)).toBe(true)
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+  await expect(page.locator('.observer-shell .account-name')).toBeHidden()
+})
+
+test('keeps the board guide available in the mobile details drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.route('**/api/v1/games/42/replay', (route) =>
+    route.fulfill({ status: 200, json: replayResponse('completed', true) }),
+  )
+
+  await page.goto('/games/42/observe')
+  await page.getByRole('button', { name: 'Game details', exact: true }).click()
+
+  const detailsDialog = page.getByRole('dialog', { name: 'Game details' })
+  await expect(detailsDialog).toBeVisible()
+  await detailsDialog.getByText('Board guide', { exact: true }).click()
+  await expect(detailsDialog.getByLabel('Terrain and resource guide')).toBeVisible()
+  await expect(detailsDialog.locator('.board-legend-item')).toHaveCount(6)
+  await expect(detailsDialog.locator('.board-legend-copy strong').first()).toHaveCSS(
+    'color',
+    'rgb(245, 240, 229)',
+  )
+})
+
+test.describe('touch board inspection', () => {
+  const touchDevice = devices['iPhone 13']
+
+  test.use({
+    viewport: touchDevice.viewport,
+    screen: touchDevice.screen,
+    userAgent: touchDevice.userAgent,
+    deviceScaleFactor: touchDevice.deviceScaleFactor,
+    isMobile: touchDevice.isMobile,
+    hasTouch: touchDevice.hasTouch,
+  })
+
+  test('supports double-tap zoom inside the board viewport', async ({ page }) => {
+    await page.route('**/api/v1/games/42/replay', (route) =>
+      route.fulfill({ status: 200, json: replayResponse('completed', true) }),
+    )
+
+    await page.goto('/games/42/observe')
+
+    const boardShell = page.locator('.observer-board .board-svg-shell')
+    await boardShell.tap({ position: { x: 180, y: 230 } })
+    await boardShell.tap({ position: { x: 180, y: 230 } })
+
+    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
+    const metrics = await boardShell.evaluate((shell) => ({
+      clientWidth: shell.clientWidth,
+      scrollWidth: shell.scrollWidth,
+    }))
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
+
+    await page.getByRole('button', { name: 'Fit board' }).tap()
+    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
+  })
 })
 
 test('explains a replay without a persisted frame', async ({ page }) => {
