@@ -12,12 +12,13 @@ type GameRunControlsProps = {
 }
 
 const STATUS_MESSAGES: Record<GameLifecycleStatus, string> = {
-  created: 'Ready to start the run.',
-  queued: 'The run is queued. Status updates automatically.',
+  created: 'This game is ready to start.',
+  queued: 'The game is queued. Status updates automatically.',
   running: 'The game is running. Status updates automatically.',
+  'awaiting human input': 'The game is waiting for human input.',
   awaiting_human_input: 'The game is waiting for human input.',
-  completed: 'The run has completed.',
-  failed: 'The run failed. You can try starting it again.',
+  completed: 'The game has finished.',
+  failed: 'The game needs attention. You can try again.',
 }
 
 export function GameRunControls(props: GameRunControlsProps) {
@@ -63,7 +64,7 @@ export function GameRunControls(props: GameRunControlsProps) {
           disabled={disabled || pendingAction !== null}
           aria-busy={pendingAction === 'start'}
         >
-          {pendingAction === 'start' ? 'Starting run...' : lifecycleStatus === 'failed' ? 'Retry run' : 'Start run'}
+            {pendingAction === 'start' ? 'Starting game...' : lifecycleStatus === 'failed' ? 'Retry game' : 'Start game'}
         </button>
       )}
     </div>

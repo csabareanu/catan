@@ -1,15 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { ApiError } from '../../lib/apiClient'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
-import { GameRunControls } from './GameRunControls'
-import {
-  deleteGame,
-  listGames,
-  type GameLifecycleStatus,
-  type GameListPagination,
-  type GameSummary,
-} from './gameApi'
+import { DeleteGameModal } from './DeleteGameModal'
+import { GameLibraryCard } from './GameLibraryCard'
+import { deleteGame, type GameLibraryView, type GameSummary } from './gameApi'
+import { useGameLibrary } from './useGameLibrary'
 
 type GameLibraryProps = {
   user: AuthenticatedUser
@@ -19,19 +15,48 @@ type GameLibraryProps = {
   onUnauthorized: () => void
 }
 
-type LibraryLoadState = 'loading' | 'success' | 'error'
+type LibraryViewOption = {
+  value: GameLibraryView
+  label: string
+  heading: string
+  emptyHeading: string
+  emptyDescription: string
+}
+
+const LIBRARY_VIEW_OPTIONS: readonly LibraryViewOption[] = [
+  {
+    value: 'all',
+    label: 'All games',
+    heading: 'All games',
+    emptyHeading: 'Your library is empty',
+    emptyDescription: 'Create a game to see your saved boards and matches here.',
+  },
+  {
+    value: 'saved_setups',
+    label: 'Saved setups',
+    heading: 'Saved setups',
+    emptyHeading: 'No saved setups',
+    emptyDescription: 'Create a board and save it here when you want to start later.',
+  },
+  {
+    value: 'in_progress',
+    label: 'In progress',
+    heading: 'Games in progress',
+    emptyHeading: 'No games in progress',
+    emptyDescription: 'Started games will appear here while they are running or need attention.',
+  },
+  {
+    value: 'history',
+    label: 'History',
+    heading: 'Game history',
+    emptyHeading: 'No finished games yet',
+    emptyDescription: 'Completed games will appear here so you can revisit them later.',
+  },
+]
 
 type DeleteError = {
   gameId: number
   message: string
-}
-
-type DeleteGameModalProps = {
-  game: GameSummary
-  isDeleting: boolean
-  errorMessage: string | null
-  onCancel: () => void
-  onConfirm: () => void
 }
 
 export function GameLibrary({
@@ -41,57 +66,33 @@ export function GameLibrary({
   onLogout,
   onUnauthorized,
 }: GameLibraryProps) {
-  const [games, setGames] = useState<GameSummary[]>([])
-  const [loadState, setLoadState] = useState<LibraryLoadState>('loading')
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
   const [deletingGameId, setDeletingGameId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GameSummary | null>(null)
   const [deleteError, setDeleteError] = useState<DeleteError | null>(null)
-  const [pagination, setPagination] = useState<GameListPagination | null>(null)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
-  const [pagesNeedRefresh, setPagesNeedRefresh] = useState(false)
-  const moreRequest = useRef<AbortController | null>(null)
+  const {
+    games,
+    loadState,
+    errorMessage,
+    activeView,
+    counts,
+    totalGames,
+    hasMore,
+    isLoadingMore,
+    loadMoreError,
+    retry,
+    selectView,
+    loadMore,
+    updateLifecycleStatus,
+    removeGameFromLibrary,
+  } = useGameLibrary({
+    token,
+    onUnauthorized,
+    isLoadingDisabled: deletingGameId !== null || isLoggingOut,
+  })
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null)
   const newGameActionRef = useRef<HTMLAnchorElement | null>(null)
   const libraryCollectionRef = useRef<HTMLElement>(null)
-  const totalGames = pagination?.total ?? 0
-  const hasMore = pagination !== null && games.length < totalGames && (
-    pagination.current_page < pagination.last_page || pagesNeedRefresh
-  )
-
-  useEffect(() => {
-    let isActive = true
-    const controller = new AbortController()
-
-    listGames(token, onUnauthorized, 1, controller.signal)
-      .then((response) => {
-        if (!isActive) {
-          return
-        }
-
-        setGames(response.data)
-        setPagination(response.meta)
-        setPagesNeedRefresh(false)
-        setLoadState('success')
-        setErrorMessage(null)
-      })
-      .catch((caught: unknown) => {
-        if (!isActive || controller.signal.aborted) {
-          return
-        }
-
-        setLoadState('error')
-        setErrorMessage(toLibraryErrorMessage(caught))
-      })
-
-    return () => {
-      isActive = false
-      controller.abort()
-      moreRequest.current?.abort()
-    }
-  }, [onUnauthorized, reloadKey, token])
+  const activeViewOption = getLibraryViewOption(activeView)
 
   useEffect(() => {
     const closeMenusOutside = (event: PointerEvent) => {
@@ -138,84 +139,43 @@ export function GameLibrary({
     }
   }, [])
 
-  const retry = () => {
-    setErrorMessage(null)
-    setLoadState('loading')
-    setReloadKey((currentKey) => currentKey + 1)
-  }
+  const handleViewKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number
 
-  const loadMore = async () => {
-    if (
-      !hasMore || pagination === null || moreRequest.current !== null ||
-      deletingGameId !== null || isLoggingOut
-    ) {
-      return
-    }
-
-    const controller = new AbortController()
-    moreRequest.current = controller
-    setIsLoadingMore(true)
-    setLoadMoreError(null)
-
-    try {
-      const targetPage = pagination.current_page + 1
-      const refreshPages = pagesNeedRefresh
-      let response = await listGames(
-        token, onUnauthorized, refreshPages ? 1 : targetPage, controller.signal,
-      )
-      const incomingGames = [...response.data]
-
-      // Deletion shifts offset pages, so rebuild the loaded range before extending it.
-      while (refreshPages && response.meta.current_page < Math.min(targetPage, response.meta.last_page)) {
-        response = await listGames(token, onUnauthorized, response.meta.current_page + 1, controller.signal)
-        incomingGames.push(...response.data)
-      }
-
-      if (controller.signal.aborted) {
+    switch (event.key) {
+      case 'ArrowRight':
+        nextIndex = (index + 1) % LIBRARY_VIEW_OPTIONS.length
+        break
+      case 'ArrowLeft':
+        nextIndex = (index - 1 + LIBRARY_VIEW_OPTIONS.length) % LIBRARY_VIEW_OPTIONS.length
+        break
+      case 'Home':
+        nextIndex = 0
+        break
+      case 'End':
+        nextIndex = LIBRARY_VIEW_OPTIONS.length - 1
+        break
+      default:
         return
-      }
-
-      setGames((currentGames) => {
-        const gamesById = new Map((refreshPages ? [] : currentGames).map((game) => [game.id, game]))
-        for (const game of incomingGames) {
-          if (!gamesById.has(game.id)) {
-            gamesById.set(game.id, game)
-          }
-        }
-        return [...gamesById.values()]
-      })
-      setPagination(response.meta)
-      setPagesNeedRefresh(false)
-    } catch (caught: unknown) {
-      if (!controller.signal.aborted) {
-        setLoadMoreError(toLibraryErrorMessage(caught))
-      }
-    } finally {
-      if (moreRequest.current === controller) {
-        moreRequest.current = null
-      }
-      if (!controller.signal.aborted) {
-        setIsLoadingMore(false)
-      }
     }
+
+    event.preventDefault()
+    const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    tabs?.[nextIndex].focus()
+    selectView(LIBRARY_VIEW_OPTIONS[nextIndex].value)
   }
 
-  const updateLifecycleStatus = useCallback((gameId: number, status: GameLifecycleStatus) => {
-    setGames((currentGames) => currentGames.map((game) =>
-      game.id === gameId ? { ...game, lifecycle_status: status } : game,
-    ))
-  }, [])
-
-  const restoreDeleteFocus = useCallback(() => {
+  const restoreDeleteFocus = useCallback((focusMenuTrigger: boolean) => {
     const trigger = deleteTriggerRef.current
+    const menuTrigger = trigger
+      ?.closest('details')
+      ?.querySelector<HTMLElement>('.library-more-trigger')
 
-    if (trigger?.isConnected) {
-      trigger.closest('details')?.setAttribute('open', '')
-    }
+    trigger?.closest('details')?.removeAttribute('open')
 
     window.requestAnimationFrame(() => {
-      if (trigger?.isConnected) {
-        trigger.focus()
+      if (focusMenuTrigger && menuTrigger?.isConnected) {
+        menuTrigger.focus()
       } else {
         newGameActionRef.current?.focus()
       }
@@ -229,11 +189,11 @@ export function GameLibrary({
   const closeDeleteConfirmation = useCallback(() => {
     setDeleteTarget(null)
     setDeleteError(null)
-    restoreDeleteFocus()
+    restoreDeleteFocus(true)
   }, [restoreDeleteFocus])
 
   const openDeleteConfirmation = (game: GameSummary, trigger: HTMLButtonElement) => {
-    if (deletingGameId !== null || moreRequest.current !== null || isLoggingOut) {
+    if (deletingGameId !== null || isLoadingMore || isLoggingOut) {
       return
     }
 
@@ -246,7 +206,7 @@ export function GameLibrary({
   const handleDelete = async () => {
     const game = deleteTarget
 
-    if (game === null || deletingGameId !== null || moreRequest.current !== null || isLoggingOut) {
+    if (game === null || deletingGameId !== null || isLoadingMore || isLoggingOut) {
       return
     }
 
@@ -255,14 +215,9 @@ export function GameLibrary({
 
     try {
       await deleteGame(token, game.id, onUnauthorized)
-      setPagesNeedRefresh(true)
-      setGames((currentGames) => currentGames.filter(({ id }) => id !== game.id))
-      setPagination((current) => current === null
-        ? null
-        : { ...current, total: Math.max(0, current.total - 1) },
-      )
+      removeGameFromLibrary(game)
       setDeleteTarget(null)
-      restoreDeleteFocus()
+      restoreDeleteFocus(false)
     } catch (caught: unknown) {
       setDeleteError({
         gameId: game.id,
@@ -285,7 +240,7 @@ export function GameLibrary({
         <div className="library-heading">
           <h1>Your games</h1>
           <p className="access-description">
-            Create a game or revisit a saved run.
+            Pick up a game, prepare a board, or revisit a match.
           </p>
         </div>
         <a
@@ -300,174 +255,130 @@ export function GameLibrary({
         </a>
       </header>
 
-      {loadState === 'loading' && (
-        <div className="library-state" role="status" aria-live="polite">
-          <span className="status-dot" aria-hidden="true" />
-          Loading your games
-        </div>
-      )}
+      <section ref={libraryCollectionRef} className="library-collection">
+        <nav className="library-view-tabs" aria-label="Game library views" role="tablist">
+          {LIBRARY_VIEW_OPTIONS.map((view, index) => {
+            const viewCount = counts?.[view.value]
 
-      {loadState === 'error' && errorMessage && (
-        <div className="library-state library-state-error" role="alert">
-          <p>{errorMessage}</p>
-          <button className="access-secondary-action" type="button" onClick={retry}>
-            Try again
-          </button>
-        </div>
-      )}
+            return (
+              <button
+                aria-controls="game-library-panel"
+                aria-selected={activeView === view.value}
+                className="library-view-tab"
+                id={`library-tab-${view.value}`}
+                key={view.value}
+                role="tab"
+                tabIndex={activeView === view.value ? 0 : -1}
+                type="button"
+                onClick={() => selectView(view.value)}
+                onKeyDown={(event) => handleViewKeyDown(event, index)}
+              >
+                <span>{view.label}</span>
+                <span className="library-view-tab-count" aria-label={`${view.label} count`}>
+                  {viewCount ?? '...'}
+                </span>
+              </button>
+            )
+          })}
+        </nav>
 
-      {loadState === 'success' && (
-        <section
-          ref={libraryCollectionRef}
-          className="library-collection"
-          aria-labelledby="saved-games-title"
+        <div
+          id="game-library-panel"
+          role="tabpanel"
+          aria-busy={loadState === 'loading'}
+          aria-labelledby={`library-tab-${activeView}`}
         >
-          <div className="library-section-heading">
-            <h2 id="saved-games-title">
-              {totalGames === 0
-                ? 'No saved games'
-                : `${totalGames} saved game${totalGames === 1 ? '' : 's'}`}
-            </h2>
-            <span className="library-private-label">
-              <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
-                <rect x="5" y="10" width="14" height="11" rx="2" />
-                <path d="M8 10V6a4 4 0 0 1 8 0v4" />
-              </svg>
-              Only you
-            </span>
-          </div>
-
-          {games.length === 0 ? (
-            <div className="library-empty" role="status">
-              <LibraryBoardEmblem />
-              <h3>Your first game awaits</h3>
-              <p>Choose a seed and two or three AI opponents to create your first game.</p>
-              <a className="access-primary-action" href="/games/new">
-                <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Create a game
-              </a>
+          {loadState === 'loading' && (
+            <div className="library-state" role="status" aria-live="polite">
+              <span className="status-dot" aria-hidden="true" />
+              Loading your games
             </div>
-          ) : (
-            <ul className="library-list" aria-label="Your games">
-              {games.map((game) => (
-                <li className="library-item" key={game.id}>
-                  <LibraryBoardEmblem />
-
-                  <div className="library-item-body">
-                    <div className="library-item-heading">
-                      <h3>Game {game.id}</h3>
-                      <span className={`library-status library-status-${game.lifecycle_status}`}>
-                        {lifecycleStatusLabel(game.lifecycle_status)}
-                      </span>
-                    </div>
-
-                    <p className="library-item-description">
-                      {gameSummaryDescription(game)}
-                    </p>
-                    <div className="library-item-meta">
-                      <span>{mapLabel(game.map.key)}</span>
-                      <span>
-                        Created{' '}
-                        <time dateTime={game.created_at ?? undefined}>
-                          {formatGameDate(game.created_at)}
-                        </time>
-                      </span>
-                    </div>
-                    <p className="library-item-seed">
-                      <span>Seed</span>
-                      <code>{game.seed}</code>
-                    </p>
-                  </div>
-
-                  <div className="library-item-actions">
-                    <div className="library-item-run">
-                      <GameRunControls
-                        compact
-                        gameId={game.id}
-                        lifecycleStatus={game.lifecycle_status}
-                        token={token}
-                        disabled={isLoggingOut || deletingGameId === game.id}
-                        onStatusChange={updateLifecycleStatus}
-                        onUnauthorized={onUnauthorized}
-                      />
-                      {game.lifecycle_status === 'created' && (
-                        <a
-                          className="access-secondary-action library-row-action"
-                          href={`/games/${game.id}/setup`}
-                        >
-                          Open setup
-                          <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
-                            <path d="M5 12h14m-6-6 6 6-6 6" />
-                          </svg>
-                        </a>
-                      )}
-                      {!canStartRun(game.lifecycle_status) && (
-                        <a
-                          className="access-secondary-action library-row-action"
-                          href={`/games/${game.id}/observe`}
-                        >
-                          {runActionLabel(game.lifecycle_status)}
-                          <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
-                            <path d="M5 12h14m-6-6 6 6-6 6" />
-                          </svg>
-                        </a>
-                      )}
-                    </div>
-
-                    <details className="library-game-menu">
-                      <summary
-                        className="library-more-trigger"
-                        aria-label={`More actions for Game ${game.id}`}
-                      >
-                        <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
-                          <circle cx="12" cy="5" r="1" />
-                          <circle cx="12" cy="12" r="1" />
-                          <circle cx="12" cy="19" r="1" />
-                        </svg>
-                      </summary>
-                      <div className="menu-panel library-game-menu-panel">
-                        <button
-                          className="menu-item menu-item-danger"
-                          disabled={deletingGameId !== null || isLoadingMore}
-                          type="button"
-                          onClick={(event) => openDeleteConfirmation(game, event.currentTarget)}
-                        >
-                          <svg className="menu-item-icon" aria-hidden="true" viewBox="0 0 24 24">
-                            <path d="M4 6h16m-13 0 1 15h8l1-15M9 6V3h6v3m-5 4v7m4-7v7" />
-                          </svg>
-                          {deletingGameId === game.id
-                            ? 'Deleting game'
-                            : `Delete game ${game.id}`}
-                        </button>
-                      </div>
-                    </details>
-                  </div>
-                </li>
-              ))}
-            </ul>
           )}
 
-          {hasMore && (
-            <div className="library-pagination">
-              <p className="library-pagination-summary" role="status" aria-live="polite">
-                Showing {games.length} of {totalGames} games
-              </p>
-              {loadMoreError && <p className="library-pagination-error" role="alert">{loadMoreError}</p>}
-              <button
-                className="access-secondary-action"
-                type="button"
-                onClick={() => void loadMore()}
-                disabled={isLoadingMore || deletingGameId !== null || isLoggingOut}
-                aria-busy={isLoadingMore}
-              >
-                {isLoadingMore ? 'Loading more games...' : loadMoreError ? 'Try again' : 'Load more'}
+          {loadState === 'error' && errorMessage && (
+            <div className="library-state library-state-error" role="alert">
+              <p>{errorMessage}</p>
+              <button className="access-secondary-action" type="button" onClick={retry}>
+                Try again
               </button>
             </div>
           )}
-        </section>
-      )}
+
+          {loadState === 'success' && (
+            <>
+              <div className="library-section-heading">
+                <h2>{libraryCountHeading(activeViewOption, totalGames)}</h2>
+                <span className="library-private-label">
+                  <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
+                    <rect x="5" y="10" width="14" height="11" rx="2" />
+                    <path d="M8 10V6a4 4 0 0 1 8 0v4" />
+                  </svg>
+                  Only you
+                </span>
+              </div>
+
+              {games.length === 0 ? (
+                <div className="library-empty" role="status">
+                  <LibraryBoardEmblem />
+                  <h3>{activeViewOption.emptyHeading}</h3>
+                  <p>{activeViewOption.emptyDescription}</p>
+                  {activeView === 'in_progress' && (counts?.saved_setups ?? 0) > 0 ? (
+                    <button
+                      className="access-secondary-action"
+                      type="button"
+                      onClick={() => selectView('saved_setups')}
+                    >
+                      View saved setups
+                    </button>
+                  ) : (
+                    <a className="access-primary-action" href="/games/new">
+                      <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      Create a game
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <ul className="library-list" aria-label={activeViewOption.label}>
+                  {games.map((game) => (
+                    <GameLibraryCard
+                      key={game.id}
+                      game={game}
+                      token={token}
+                      isLoggingOut={isLoggingOut}
+                      isDeleting={deletingGameId === game.id}
+                      isAnyGameDeleting={deletingGameId !== null}
+                      isLoadingMore={isLoadingMore}
+                      onDeleteRequest={openDeleteConfirmation}
+                      onStatusChange={updateLifecycleStatus}
+                      onUnauthorized={onUnauthorized}
+                    />
+                  ))}
+                </ul>
+              )}
+
+              {hasMore && (
+                <div className="library-pagination">
+                  <p className="library-pagination-summary" role="status" aria-live="polite">
+                    Showing {games.length} of {totalGames} {activeViewOption.label.toLowerCase()}
+                  </p>
+                  {loadMoreError && <p className="library-pagination-error" role="alert">{loadMoreError}</p>}
+                  <button
+                    className="access-secondary-action"
+                    type="button"
+                    onClick={() => void loadMore()}
+                    disabled={isLoadingMore || deletingGameId !== null || isLoggingOut}
+                    aria-busy={isLoadingMore}
+                  >
+                    {isLoadingMore ? 'Loading more games...' : loadMoreError ? 'Try again' : 'Load more'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
 
       {deleteTarget && (
         <DeleteGameModal
@@ -481,189 +392,6 @@ export function GameLibrary({
 
     </AccessShell>
   )
-}
-
-function DeleteGameModal({
-  game,
-  isDeleting,
-  errorMessage,
-  onCancel,
-  onConfirm,
-}: DeleteGameModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const cancelButtonRef = useRef<HTMLButtonElement>(null)
-  const errorRef = useRef<HTMLParagraphElement>(null)
-  const hasFocusedInitialControl = useRef(false)
-
-  useEffect(() => {
-    if (!hasFocusedInitialControl.current) {
-      cancelButtonRef.current?.focus()
-      hasFocusedInitialControl.current = true
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-
-        if (!isDeleting) {
-          onCancel()
-        }
-
-        return
-      }
-
-      if (event.key !== 'Tab' || dialogRef.current === null) {
-        return
-      }
-
-      const focusableElements = getModalFocusableElements(dialogRef.current)
-
-      if (focusableElements.length === 0) {
-        event.preventDefault()
-        dialogRef.current.focus()
-        return
-      }
-
-      const firstFocusableElement = focusableElements[0]
-      const lastFocusableElement = focusableElements[focusableElements.length - 1]
-      const activeElement = document.activeElement
-
-      if (!dialogRef.current.contains(activeElement)) {
-        event.preventDefault()
-        firstFocusableElement.focus()
-      } else if (event.shiftKey && activeElement === firstFocusableElement) {
-        event.preventDefault()
-        lastFocusableElement.focus()
-      } else if (!event.shiftKey && activeElement === lastFocusableElement) {
-        event.preventDefault()
-        firstFocusableElement.focus()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isDeleting, onCancel])
-
-  useEffect(() => {
-    if (isDeleting) {
-      dialogRef.current?.focus()
-    }
-  }, [isDeleting])
-
-  useEffect(() => {
-    if (errorMessage) {
-      errorRef.current?.focus()
-    }
-  }, [errorMessage])
-
-  return (
-    <div
-      className="delete-modal-backdrop"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !isDeleting) {
-          onCancel()
-        }
-      }}
-    >
-      <div
-        ref={dialogRef}
-        aria-busy={isDeleting}
-        aria-describedby="delete-game-description"
-        aria-labelledby="delete-game-title"
-        aria-modal="true"
-        className="delete-modal"
-        role="dialog"
-        tabIndex={-1}
-      >
-        <div className="delete-modal-heading">
-          <span className="delete-modal-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M4 6h16m-13 0 1 15h8l1-15M9 6V3h6v3m-5 4v7m4-7v7" />
-            </svg>
-          </span>
-          <div>
-            <p className="delete-modal-eyebrow">Permanent action</p>
-            <h2 id="delete-game-title">Delete Game {game.id}?</h2>
-          </div>
-        </div>
-        <p id="delete-game-description" className="delete-modal-description">
-          This will permanently delete the saved game and its history. You cannot undo this action.
-        </p>
-        {errorMessage && (
-          <p
-            ref={errorRef}
-            className="delete-modal-error"
-            role="alert"
-            tabIndex={-1}
-          >
-            {errorMessage}
-          </p>
-        )}
-        <div className="delete-modal-actions">
-          <button
-            ref={cancelButtonRef}
-            className="access-secondary-action"
-            disabled={isDeleting}
-            type="button"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="delete-modal-confirm"
-            disabled={isDeleting}
-            type="button"
-            onClick={onConfirm}
-          >
-            {isDeleting ? 'Deleting game' : 'Delete game'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function getModalFocusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => {
-    const styles = window.getComputedStyle(element)
-
-    return (
-      styles.display !== 'none' &&
-      styles.visibility !== 'hidden' &&
-      element.getClientRects().length > 0
-    )
-  })
-}
-
-function toLibraryErrorMessage(caught: unknown): string {
-  if (!(caught instanceof ApiError)) {
-    return 'The game library could not be loaded. Please try again.'
-  }
-
-  if (caught.status === 404) {
-    return 'The game library could not be found. Please try again.'
-  }
-
-  if (caught.status === 422) {
-    return caught.message
-  }
-
-  if (caught.status === 503) {
-    return 'The game service is unavailable right now. Please try again.'
-  }
-
-  if (caught.status === 0) {
-    return 'The game library could not be reached. Check the connection and try again.'
-  }
-
-  return caught.message
 }
 
 function toDeleteErrorMessage(caught: unknown): string {
@@ -706,80 +434,26 @@ function LibraryBoardEmblem() {
   )
 }
 
-function gameSummaryDescription(game: GameSummary): string {
-  const participants = game.mode === 'human_vs_ai'
-    ? `You + ${aiOpponentCount(game)} AI opponents`
-    : gameModeLabel(game.mode)
-
-  return `${participants} · ${rulesetLabel(game.ruleset.key)}`
+function getLibraryViewOption(view: GameLibraryView): LibraryViewOption {
+  return LIBRARY_VIEW_OPTIONS.find((option) => option.value === view) ?? LIBRARY_VIEW_OPTIONS[0]
 }
 
-function aiOpponentCount(game: GameSummary): number {
-  const configuredCount = game.configuration.ai_count
-
-  if (typeof configuredCount === 'number' && Number.isInteger(configuredCount)) {
-    return configuredCount
+function libraryCountHeading(option: LibraryViewOption, total: number): string {
+  if (total === 0) {
+    return option.heading
   }
 
-  return Math.max(game.seat_count - (game.human_seat_number === null ? 0 : 1), 0)
-}
-
-function rulesetLabel(key: string): string {
-  return key === 'base' ? 'Base game' : readableLabel(key)
-}
-
-function mapLabel(key: string): string {
-  const label = readableLabel(key)
-
-  return label.toLowerCase().endsWith('map') ? label : `${label} map`
-}
-
-function readableLabel(value: string): string {
-  return value
-    .split(/[_-]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function canStartRun(status: GameLifecycleStatus): boolean {
-  return status === 'created' || status === 'failed'
-}
-
-function runActionLabel(status: GameLifecycleStatus): string {
-  return status === 'completed' ? 'View run' : 'Observe'
-}
-
-function gameModeLabel(mode: string): string {
-  if (mode === 'human_vs_ai') {
-    return 'Human vs AI'
+  if (option.value === 'saved_setups') {
+    return `${total} saved setup${total === 1 ? '' : 's'}`
   }
 
-  if (mode === 'ai_only') {
-    return 'AI simulation'
+  if (option.value === 'in_progress') {
+    return `${total} game${total === 1 ? '' : 's'} in progress`
   }
 
-  return readableLabel(mode)
-}
-
-function lifecycleStatusLabel(status: GameLifecycleStatus): string {
-  return status
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function formatGameDate(value: string | null): string {
-  if (value === null) {
-    return 'Date unavailable'
+  if (option.value === 'history') {
+    return `${total} finished game${total === 1 ? '' : 's'}`
   }
 
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return 'Date unavailable'
-  }
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-  }).format(date)
+  return `${total} game${total === 1 ? '' : 's'}`
 }

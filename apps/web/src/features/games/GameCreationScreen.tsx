@@ -538,6 +538,7 @@ function toBoardError(caught: unknown): BoardApiError {
 function isObserverReady(status: GameResource['lifecycle_status']): boolean {
   return status === 'queued' ||
     status === 'running' ||
+    status === 'awaiting human input' ||
     status === 'awaiting_human_input' ||
     status === 'completed'
 }

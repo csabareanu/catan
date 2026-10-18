@@ -54,6 +54,11 @@ class GameLibraryTest extends TestCase
                 'meta',
             ])
             ->assertJsonPath('meta.per_page', 20)
+            ->assertJsonPath('meta.view', 'all')
+            ->assertJsonPath('meta.counts.all', 2)
+            ->assertJsonPath('meta.counts.saved_setups', 2)
+            ->assertJsonPath('meta.counts.in_progress', 0)
+            ->assertJsonPath('meta.counts.history', 0)
             ->assertJsonPath('data.0.id', $newerGame->id)
             ->assertJsonPath('data.1.id', $olderGame->id)
             ->assertJsonMissingPath('data.0.board')
@@ -62,6 +67,81 @@ class GameLibraryTest extends TestCase
         $this->assertCount(2, $response->json('data'));
         $this->assertNotSame($foreignGame->id, $response->json('data.0.id'));
         $this->assertNotSame($foreignGame->id, $response->json('data.1.id'));
+    }
+
+    public function test_the_game_library_filters_views_and_reports_complete_owner_counts(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $token = $owner->createToken('test-client')->plainTextToken;
+
+        Game::factory()->count(21)->for($owner, 'owner')->create([
+            'lifecycle_status' => 'created',
+        ]);
+        Game::factory()->for($owner, 'owner')->create(['lifecycle_status' => 'queued']);
+        Game::factory()->for($owner, 'owner')->create(['lifecycle_status' => 'running']);
+        Game::factory()->for($owner, 'owner')->create(['lifecycle_status' => 'awaiting human input']);
+        Game::factory()->for($owner, 'owner')->create(['lifecycle_status' => 'failed']);
+        Game::factory()->count(2)->for($owner, 'owner')->create([
+            'lifecycle_status' => 'completed',
+        ]);
+        Game::factory()->for($otherUser, 'owner')->create([
+            'lifecycle_status' => 'created',
+        ]);
+
+        $savedSetups = $this->withToken($token)
+            ->getJson('/api/v1/games?view=saved_setups&page=2');
+
+        $savedSetups->assertOk()
+            ->assertJsonPath('meta.view', 'saved_setups')
+            ->assertJsonPath('meta.total', 21)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.counts.all', 27)
+            ->assertJsonPath('meta.counts.saved_setups', 21)
+            ->assertJsonPath('meta.counts.in_progress', 4)
+            ->assertJsonPath('meta.counts.history', 2);
+        $this->assertCount(1, $savedSetups->json('data'));
+        $this->assertSame('created', $savedSetups->json('data.0.lifecycle_status'));
+
+        $inProgress = $this->withToken($token)
+            ->getJson('/api/v1/games?view=in_progress');
+
+        $inProgress->assertOk()
+            ->assertJsonPath('meta.view', 'in_progress')
+            ->assertJsonPath('meta.total', 4);
+        $this->assertSame(
+            ['failed', 'awaiting human input', 'running', 'queued'],
+            array_column($inProgress->json('data'), 'lifecycle_status'),
+        );
+
+        $history = $this->withToken($token)
+            ->getJson('/api/v1/games?view=history');
+
+        $history->assertOk()
+            ->assertJsonPath('meta.view', 'history')
+            ->assertJsonPath('meta.total', 2);
+        $this->assertCount(2, $history->json('data'));
+    }
+
+    public function test_an_invalid_game_library_view_returns_stable_validation_json(): void
+    {
+        $owner = User::factory()->create();
+        $token = $owner->createToken('test-client')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->getJson('/api/v1/games?view=unknown');
+
+        $response->assertUnprocessable()->assertExactJson([
+            'error' => [
+                'code' => 'validation_failed',
+                'message' => 'The game list request is invalid.',
+                'fields' => [
+                    'view' => [
+                        'The view must be all, saved_setups, in_progress, or history.',
+                    ],
+                ],
+            ],
+        ]);
     }
 
     public function test_the_game_list_uses_a_fixed_page_size_and_honors_page_selection(): void

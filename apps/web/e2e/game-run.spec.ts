@@ -42,20 +42,20 @@ test('queues a game once and follows queued, running, and completed status', asy
     })
   })
 
-  await showLibrary(page, 'created')
-  await page.getByRole('button', { name: 'Start run', exact: true }).click()
-  const startingButton = page.getByRole('button', { name: 'Starting run...', exact: true })
+  await showLibrary(page, 'failed')
+  await clickRunAction(page, 'Retry game')
+  const startingButton = page.getByRole('button', { name: 'Starting game...', exact: true })
   await expect(startingButton).toBeDisabled()
   await startingButton.evaluate((button: HTMLButtonElement) => button.click())
   await expect.poll(() => startCount).toBe(1)
   releaseStart?.()
 
-  await expect(page.locator('.library-status')).toHaveText('Queued')
-  await expect(page.getByRole('button', { name: 'Start run', exact: true })).toHaveCount(0)
+  await expect(page.locator('.library-status-queued')).toHaveText('In progress')
+  await expect(page.getByRole('button', { name: 'Retry game', exact: true })).toHaveCount(0)
   await page.clock.runFor(2000)
-  await expect(page.locator('.library-status')).toHaveText('Running')
+  await expect(page.locator('.library-status-running')).toHaveText('In progress')
   await page.clock.runFor(2000)
-  await expect(page.locator('.library-status')).toHaveText('Completed')
+  await expect(page.locator('.library-status-completed')).toHaveText('Finished')
   await page.clock.runFor(10000)
   expect(detailCount).toBe(2)
   expect(startCount).toBe(1)
@@ -73,11 +73,11 @@ test('stops polling a failed run and lets the owner request a retry', async ({ p
 
   await showLibrary(page, 'running')
   await page.clock.runFor(2000)
-  await expect(page.locator('.library-status')).toHaveText('Failed')
+  await expect(page.locator('.library-status-failed')).toHaveText('Needs attention')
   await page.clock.runFor(10000)
   expect(detailCount).toBe(1)
-  await page.getByRole('button', { name: 'Retry run', exact: true }).click()
-  await expect(page.locator('.library-status')).toHaveText('Queued')
+  await clickRunAction(page, 'Retry game')
+  await expect(page.locator('.library-status-queued')).toHaveText('In progress')
 })
 
 for (const state of ['completed', 'awaiting_human_input'] as const) {
@@ -91,10 +91,10 @@ for (const state of ['completed', 'awaiting_human_input'] as const) {
       return route.fulfill({ status: 200, json: gameResponse(state) })
     })
 
-    await showLibrary(page, 'created')
-    await page.getByRole('button', { name: 'Start run', exact: true }).click()
+    await showLibrary(page, 'failed')
+    await clickRunAction(page, 'Retry game')
     await expect(page.locator(`.library-status-${state}`)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Start run', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Retry game', exact: true })).toHaveCount(0)
     await page.clock.runFor(10000)
     expect(detailCount).toBe(0)
   })
@@ -117,11 +117,11 @@ for (const failure of [
       route.fulfill({ status: 200, json: gameResponse(failure.nextStatus) }),
     )
 
-    await showLibrary(page, 'created')
-    await page.getByRole('button', { name: 'Start run', exact: true }).click()
+    await showLibrary(page, 'failed')
+    await clickRunAction(page, 'Retry game')
     await expect(page.getByRole('alert')).toContainText(failure.message)
-    await expect(page.locator('.library-status')).toHaveText('Created')
-    await expect(page.getByRole('button', { name: 'Start run', exact: true })).toHaveCount(0)
+    await expect(page.locator('.library-status-failed')).toHaveText('Needs attention')
+    await expect(page.getByRole('button', { name: 'Retry game', exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: 'Refresh status', exact: true }).click()
     await expect(page.locator(`.library-status-${failure.nextStatus}`)).toBeVisible()
     await expect(page.getByRole('alert')).toHaveCount(0)
@@ -143,11 +143,11 @@ test('checks status after a network start failure without sending another start'
     route.fulfill({ status: 200, json: gameResponse('queued') }),
   )
 
-  await showLibrary(page, 'created')
-  await page.getByRole('button', { name: 'Start run', exact: true }).click()
+  await showLibrary(page, 'failed')
+  await clickRunAction(page, 'Retry game')
   await expect(page.getByRole('alert')).toContainText('Check the connection and refresh the status before trying again.')
   await page.getByRole('button', { name: 'Refresh status', exact: true }).click()
-  await expect(page.locator('.library-status')).toHaveText('Queued')
+  await expect(page.locator('.library-status-queued')).toHaveText('In progress')
   expect(startCount).toBe(1)
 })
 
@@ -161,13 +161,14 @@ test('pauses polling after a network failure and resumes through a status refres
   })
 
   await showLibrary(page, 'running')
+  await openGameMenu(page)
   await page.clock.runFor(2000)
   await expect(page.getByRole('alert')).toBeVisible()
-  await expect(page.locator('.library-status')).toHaveText('Running')
+  await expect(page.locator('.library-status-running')).toHaveText('In progress')
   await page.clock.runFor(10000)
   expect(detailCount).toBe(1)
   await page.getByRole('button', { name: 'Refresh status', exact: true }).click()
-  await expect(page.locator('.library-status')).toHaveText('Completed')
+  await expect(page.locator('.library-status-completed')).toHaveText('Finished')
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
@@ -177,6 +178,7 @@ test('shows a missing-game recovery path without losing the session', async ({ p
   )
 
   await showLibrary(page, 'running')
+  await openGameMenu(page)
   await page.clock.runFor(2000)
   await expect(page.getByRole('alert')).toContainText('The requested game was not found.')
   await expect(page.getByRole('link', { name: 'Reload library', exact: true })).toHaveAttribute('href', '/games')
@@ -189,6 +191,7 @@ test('clears an expired session when a lifecycle refresh returns 401', async ({ 
   )
 
   await showLibrary(page, 'running')
+  await openGameMenu(page)
   await page.clock.runFor(2000)
   await expect(page).toHaveURL(/\/login$/)
   expect(await page.evaluate(() => sessionStorage.getItem('catan.api-token'))).toBeNull()
@@ -222,6 +225,20 @@ async function showLibrary(page: Page, lifecycleStatus: GameLifecycleStatus) {
   )
   await page.goto('/games')
   await expect(page.locator(`.library-status-${lifecycleStatus}`)).toBeVisible()
+}
+
+async function openGameMenu(page: Page) {
+  const gameCard = page.locator('.library-item').filter({ hasText: 'Game 42' })
+  const gameMenu = gameCard.locator('.library-game-menu')
+
+  if ((await gameMenu.getAttribute('open')) === null) {
+    await gameMenu.locator('.library-more-trigger').click()
+  }
+}
+
+async function clickRunAction(page: Page, action: 'Retry game') {
+  await openGameMenu(page)
+  await page.getByRole('button', { name: action, exact: true }).click()
 }
 
 function gameSummary(lifecycleStatus: GameLifecycleStatus): GameSummary {

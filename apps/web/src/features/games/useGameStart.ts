@@ -60,6 +60,7 @@ export type GameStartState = {
 const OBSERVER_READY_STATUSES: ReadonlySet<GameLifecycleStatus> = new Set([
   'queued',
   'running',
+  'awaiting human input',
   'awaiting_human_input',
   'completed',
 ])

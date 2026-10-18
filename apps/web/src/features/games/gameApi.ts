@@ -15,12 +15,17 @@ const LIFECYCLE_STATUSES = [
   'created',
   'queued',
   'running',
+  'awaiting human input',
   'awaiting_human_input',
   'completed',
   'failed',
 ] as const
 
 export type GameLifecycleStatus = (typeof LIFECYCLE_STATUSES)[number]
+
+const GAME_LIBRARY_VIEWS = ['all', 'saved_setups', 'in_progress', 'history'] as const
+
+export type GameLibraryView = (typeof GAME_LIBRARY_VIEWS)[number]
 
 export type GameSummary = {
   id: number
@@ -59,10 +64,22 @@ export type GameListPagination = {
   total: number
 }
 
+export type GameListCounts = {
+  all: number
+  saved_setups: number
+  in_progress: number
+  history: number
+}
+
+export type GameListMeta = GameListPagination & {
+  view: GameLibraryView
+  counts: GameListCounts
+}
+
 export type GameListResponse = {
   data: GameSummary[]
   links: Record<string, unknown>
-  meta: GameListPagination
+  meta: GameListMeta
 }
 
 export type GameResponse = {
@@ -80,10 +97,22 @@ export type CreateGameInput = {
 export async function listGames(
   token: string,
   onUnauthorized?: () => void,
+  view: GameLibraryView = 'all',
   page = 1,
   signal?: AbortSignal,
 ): Promise<GameListResponse> {
-  const path = page === 1 ? GAMES_PATH : `${GAMES_PATH}?page=${page}`
+  const params = new URLSearchParams()
+
+  if (view !== 'all') {
+    params.set('view', view)
+  }
+
+  if (page > 1) {
+    params.set('page', String(page))
+  }
+
+  const query = params.toString()
+  const path = query === '' ? GAMES_PATH : `${GAMES_PATH}?${query}`
 
   return requestJson(path, isGameListResponse, {
     token,
@@ -152,7 +181,7 @@ function isGameListResponse(value: unknown): value is GameListResponse {
     Array.isArray(value.data) &&
     value.data.every(isGameSummary) &&
     isRecord(value.links) &&
-    isGameListPagination(value.meta)
+    isGameListMeta(value.meta)
   )
 }
 
@@ -163,6 +192,26 @@ function isGameListPagination(value: unknown): value is GameListPagination {
     isInteger(value.last_page) && value.last_page >= 1 &&
     isInteger(value.per_page) && value.per_page >= 1 &&
     isInteger(value.total) && value.total >= 0
+  )
+}
+
+function isGameListMeta(value: unknown): value is GameListMeta {
+  if (!isRecord(value) || !isGameListPagination(value)) {
+    return false
+  }
+
+  const metadata = value as GameListPagination & Record<string, unknown>
+
+  return isGameLibraryView(metadata.view) && isGameListCounts(metadata.counts)
+}
+
+function isGameListCounts(value: unknown): value is GameListCounts {
+  return (
+    isRecord(value) &&
+    isNonNegativeInteger(value.all) &&
+    isNonNegativeInteger(value.saved_setups) &&
+    isNonNegativeInteger(value.in_progress) &&
+    isNonNegativeInteger(value.history)
   )
 }
 
@@ -238,4 +287,15 @@ function isGameLifecycleStatus(value: unknown): value is GameLifecycleStatus {
     isString(value) &&
     (LIFECYCLE_STATUSES as readonly string[]).includes(value)
   )
+}
+
+function isGameLibraryView(value: unknown): value is GameLibraryView {
+  return (
+    isString(value) &&
+    (GAME_LIBRARY_VIEWS as readonly string[]).includes(value)
+  )
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return isInteger(value) && value >= 0
 }

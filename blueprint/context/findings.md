@@ -28,28 +28,6 @@ observer specification. No P0 or P1 was confirmed. This is a fresh ledger
 cycle, so IDs start at F-01; earlier resolved IDs remain prefixed in their
 archives.
 
-### F-02 [P2] open - The library does not distinguish setups from active games and history
-
-**File:** apps/web/src/features/games/GameLibrary.tsx:353;
-apps/api/app/Http/Controllers/Api/V1/GameController.php:26
-**Found:** 2026-10-18 by /audit (scope: project UI)
-**Why it matters:** All six lifecycle statuses share one chronological list,
-one saved-game count, and broadly identical row presentation. A mixed-status
-browser fixture showed Created, Completed, Awaiting Human Input, Running, and
-Failed records interleaved. The player must scan status badges to find a
-game to enter, an unfinished setup, or history. New saved setups can displace
-active games onto older API pages. Status labels also expose control-plane
-terms instead of explaining the player's next action.
-**Suggested fix:** Keep one My games destination with clear In progress,
-Saved setups, and History views. Present failed work as a recoverable item in
-context, rather than requiring another major destination. Use actions such
-as Open setup, Open game, and View history; introduce Continue only when
-human gameplay actually exists. Keep the same durable game model. Filtering
-and counts must cover the complete owner-scoped collection through the API,
-not just whichever page React has loaded. Use contextual empty states and
-keep New game available. This is separate from the new-game journey in F-01.
-**Resolution:**
-
 ### F-03 [P2] open - Resource labels have insufficient contrast on three terrain types
 
 **File:** apps/web/src/App.css:2056;
@@ -144,6 +122,20 @@ style and a richer treatment to a future illustrated style. Preserve the
 current compact island framing and port readability; increasing empty ocean
 width would undo the earlier desktop layout improvements. Keep decorative
 effects separate from topology, input targets, and canonical state.
+**Resolution:**
+
+### F-09 [P3] open - Lifecycle reconciliation checks for an impossible null status
+
+**File:** apps/web/src/features/games/useGameLibrary.ts:209
+**Found:** 2026-10-18 by /audit (scope: F-08 repair)
+**Why it matters:** `GameSummary.lifecycle_status` is a required
+`GameLifecycleStatus`, and the API response validator rejects values outside
+that status union. The `previousStatus === null` branch can never run, leaving
+an unnecessary condition in the lifecycle reconciliation logic. This is a
+small cleanup and does not affect runtime behavior.
+**Suggested fix:** Remove the null comparison and keep the equality early
+return, or change the API/type contract if a missing status is intentionally
+supported.
 **Resolution:**
 
 ## Product and visual direction to preserve for subsequent specs
