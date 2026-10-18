@@ -62,22 +62,19 @@ confirmation-modal refinement F-19. P2 design findings below assess
 the user's expanded professional-player-UI goal; they are not retroactive
 claims that Feature 4b violated its approved technical-observer scope.
 
-### F-23 [P2] open - Board renderer combines presentation and gesture orchestration
+### F-24 [P2] open - Board keyboard viewport controls lack browser coverage
 
-**File:** apps/web/src/features/board/BoardSvg.tsx:120
-**Found:** 2026-10-17 by /audit (scope: F-11/F-12 re-review)
-**Why it matters:** `BoardSvg` now owns board layout construction, SVG
-rendering, resource and port presentation, keyboard controls, native wheel
-binding, mouse dragging, touch panning, pinch state, double-tap detection, and
-zoom math in one roughly 485-line component. The native wheel path also repeats
-view-update work that the button and pointer paths perform through separate
-closures. This makes future replay interaction changes harder to review and
-leaves gesture behavior without an isolated unit boundary.
-**Suggested fix:** Extract a focused `useBoardViewport` or equivalent hook for
-view state, gesture lifecycle, event binding, and shared transforms. Keep
-`BoardSvg` responsible for rendering the board and controls, and add focused
-pointer or pinch assertions around the extracted behavior before 4c grows the
-interaction surface.
+**File:** apps/web/src/features/board/useBoardViewport.ts:234
+**Found:** 2026-10-18 by /audit (scope: current)
+**Why it matters:** The extracted hook handles `Home`, `+`, `-`, arrow, and
+Page navigation for the focused board viewport, but the current Playwright
+suite does not exercise those paths. A regression in keyboard zoom or panning
+could therefore pass the build, lint, wheel, pointer, and touch assertions while
+weakening the board's keyboard accessibility behavior.
+**Suggested fix:** Add a focused browser test that focuses the board viewport,
+uses the keyboard zoom and pan controls, verifies the SVG view changes, and
+confirms `Home` restores the fitted view. Keep the test next to the existing
+preview or observer interaction coverage.
 **Resolution:**
 
 ## Observer page composition review - 2026-10-16

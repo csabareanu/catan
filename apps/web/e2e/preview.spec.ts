@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { devices, expect, test } from '@playwright/test'
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 1000 },
@@ -25,7 +25,7 @@ for (const viewport of VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.goto('/')
 
-    await expect(page).toHaveTitle('Catan · Seeded Board Preview')
+    await expect(page).toHaveTitle('Catan · Welcome')
     await expect(page.getByRole('heading', { name: 'Welcome to Catan.' })).toBeVisible()
     await expect(
       page.locator('.landing-copy').getByRole('link', { name: 'Create account' }),
@@ -172,6 +172,99 @@ test('handles board wheel zoom without a passive-listener warning', async ({ pag
 
   await expect(page.locator('.board-svg-zoom-status')).not.toContainText('Board zoom 100%')
   expect(consoleMessages.filter((message) => message.includes('Unable to preventDefault inside passive event listener invocation'))).toEqual([])
+})
+
+test('pans the board viewport with a primary pointer drag', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(boardResponse('42')),
+    })
+  })
+
+  await page.goto('/preview')
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+
+  const boardShell = page.locator('.board-svg-shell')
+  const boardSVG = page.locator('.board-svg')
+  await expect(boardSVG).toBeVisible()
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+
+  const zoomedViewBox = await boardSVG.getAttribute('viewBox')
+  const shellBox = await boardShell.boundingBox()
+
+  if (!zoomedViewBox || !shellBox) {
+    throw new Error('The board viewport must be measurable before dragging.')
+  }
+
+  const startX = shellBox.x + shellBox.width / 2
+  const startY = shellBox.y + shellBox.height / 2
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(startX - 80, startY, { steps: 4 })
+  await page.mouse.up()
+
+  await expect(boardSVG).not.toHaveAttribute('viewBox', zoomedViewBox)
+  const metrics = await boardShell.evaluate((shell) => ({
+    clientWidth: shell.clientWidth,
+    scrollWidth: shell.scrollWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }))
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+  expect(consoleErrors).toEqual([])
+})
+
+test.describe('touch board viewport inspection', () => {
+  const touchDevice = devices['iPhone 13']
+
+  test.use({
+    viewport: touchDevice.viewport,
+    screen: touchDevice.screen,
+    userAgent: touchDevice.userAgent,
+    deviceScaleFactor: touchDevice.deviceScaleFactor,
+    isMobile: touchDevice.isMobile,
+    hasTouch: touchDevice.hasTouch,
+  })
+
+  test('zooms the board with a touch double tap', async ({ page }) => {
+    await page.route('**/api/v1/boards/generate', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(boardResponse('42')),
+      })
+    })
+
+    await page.goto('/preview')
+    await page.getByRole('button', { name: 'Generate preview' }).click()
+
+    const boardShell = page.locator('.board-svg-shell')
+    await expect(boardShell).toBeVisible()
+    await boardShell.tap({ position: { x: 180, y: 230 } })
+    await boardShell.tap({ position: { x: 180, y: 230 } })
+
+    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
+    const metrics = await boardShell.evaluate((shell) => ({
+      clientWidth: shell.clientWidth,
+      scrollWidth: shell.scrollWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }))
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+
+    await page.getByRole('button', { name: 'Fit board' }).tap()
+    await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
+  })
 })
 
 test('uses player-facing copy while the board is being generated', async ({ page }) => {
