@@ -223,6 +223,70 @@ test('pans the board viewport with a primary pointer drag', async ({ page }) => 
   expect(consoleErrors).toEqual([])
 })
 
+test('supports keyboard zoom, panning, and fitted reset inside the board viewport', async ({ page }) => {
+  const consoleErrors: string[] = []
+  const pageErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+  page.on('pageerror', (error) => {
+    pageErrors.push(error.message)
+  })
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(boardResponse('42')),
+    })
+  })
+
+  await page.goto('/preview')
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+
+  const boardShell = page.locator('.board-svg-shell')
+  const boardSVG = page.locator('.board-svg')
+  await expect(boardShell).toBeVisible()
+  await expect(boardSVG).toBeVisible()
+  await boardShell.focus()
+  await expect(boardShell).toBeFocused()
+
+  const fittedViewBox = await boardSVG.getAttribute('viewBox')
+
+  if (!fittedViewBox) {
+    throw new Error('The board must expose its fitted SVG view box before keyboard interaction.')
+  }
+
+  await page.keyboard.press('=')
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
+  const zoomedViewBox = await boardSVG.getAttribute('viewBox')
+  expect(zoomedViewBox).not.toBe(fittedViewBox)
+
+  await page.keyboard.press('ArrowRight')
+  const arrowPannedViewBox = await boardSVG.getAttribute('viewBox')
+  expect(arrowPannedViewBox).not.toBe(zoomedViewBox)
+
+  await page.keyboard.press('PageDown')
+  const pagePannedViewBox = await boardSVG.getAttribute('viewBox')
+  expect(pagePannedViewBox).not.toBe(arrowPannedViewBox)
+
+  await page.keyboard.press('Home')
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
+  await expect(boardSVG).toHaveAttribute('viewBox', fittedViewBox)
+
+  const metrics = await boardShell.evaluate((shell) => ({
+    clientWidth: shell.clientWidth,
+    scrollWidth: shell.scrollWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }))
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+  expect(consoleErrors).toEqual([])
+  expect(pageErrors).toEqual([])
+})
+
 test.describe('touch board viewport inspection', () => {
   const touchDevice = devices['iPhone 13']
 
