@@ -70,6 +70,7 @@ export type GameResponse = {
 }
 
 export type CreateGameInput = {
+  creation_key?: string
   seed: string
   ruleset_key: 'base'
   map_key: 'standard'
@@ -95,12 +96,14 @@ export async function createGame(
   token: string,
   input: CreateGameInput,
   onUnauthorized?: () => void,
+  signal?: AbortSignal,
 ): Promise<GameResponse> {
   return requestJson(GAMES_PATH, isGameResponse, {
     method: 'POST',
     body: input,
     token,
     onUnauthorized,
+    signal,
   })
 }
 

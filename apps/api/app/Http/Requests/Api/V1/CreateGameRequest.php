@@ -27,6 +27,7 @@ class CreateGameRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'creation_key' => ['bail', 'sometimes', 'required', 'uuid'],
             'seed' => [
                 'bail',
                 'required',
@@ -60,6 +61,8 @@ class CreateGameRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'creation_key.required' => 'The creation_key field must contain a UUID when provided.',
+            'creation_key.uuid' => 'The creation_key must be a valid UUID.',
             'seed.regex' => 'The seed must be a canonical non-negative integer string.',
             'ruleset_key.in' => 'The ruleset_key must be base.',
             'map_key.in' => 'The map_key must be standard.',

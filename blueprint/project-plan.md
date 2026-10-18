@@ -254,6 +254,40 @@ Visual feedback begins early. The first frontend milestone is a rendered seeded 
 
 > Open question: Choose the exact visual theme, artwork direction, typography, color system, motion language, and UI component approach during dedicated frontend prototyping.
 
+### Play, Watch, and Replay direction
+
+Decision recorded 2026-10-18: keep `/games/:gameId/observe` as the shared
+read-only destination for started games during the current bootstrap stage.
+The preview/start journey fix continues to use it. The distinctions below
+guide future specifications; they do not add routes, controls, or API
+restrictions to that fix.
+
+| Situation | Future experience | History presentation |
+|---|---|---|
+| Unstarted saved setup | Open setup to review the board and start | No gameplay history |
+| Unfinished game with a human seat | Continue game with current state and legal actions | Bounded recent activity, without full replay navigation |
+| Unfinished AI-only game | Watch a read-only spectator view of current state and AI activity | Bounded recent activity, without full replay navigation |
+| Finished match | Results and Replay | Full permitted history with timeline navigation |
+
+Persist the complete command and event history even when only recent activity
+is shown during play. Define the recent-log limit in a later specification.
+When the finished-match replay restriction is introduced, Laravel must enforce
+it at historical-access boundaries as well as the UI. Current API behaviour
+remains unchanged until that policy is explicitly implemented.
+
+An AI-only simulation may finish before the owner opens it; results and replay
+remain available without requiring a live viewing session. Playback pause and
+speed affect presentation, not the engine's execution. Any simulation-pacing
+controls would need their own specification.
+
+Human replay preserves the permitted seat perspective; AI-only replay uses
+the public spectator perspective. Finishing does not automatically reveal
+other seats' private hands. Actual match completion must come from the Go
+domain state and result; completing an initialization job does not mean the
+match has finished. Revisit these boundaries when specifying 4c and the later
+human gameplay interface. They can share rendering components without
+requiring separate URLs for each experience.
+
 ## 8. Deployment - Where and how will this ship?
 
 The MVP ships as a reproducible local development environment using Docker Compose.

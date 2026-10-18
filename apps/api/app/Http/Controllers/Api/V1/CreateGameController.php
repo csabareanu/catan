@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\GameCreationKeyConflict;
 use App\Exceptions\GameEngineProtocolException;
 use App\Exceptions\GameEngineUnavailable;
 use App\Http\Controllers\Controller;
@@ -25,6 +26,12 @@ class CreateGameController extends Controller
         $owner = $request->user();
         try {
             $game = $this->gameCreationService->create($owner, $request->validated());
+        } catch (GameCreationKeyConflict) {
+            return $this->errorResponse(
+                Response::HTTP_CONFLICT,
+                'game_creation_key_conflict',
+                'The creation key has already been used for a different game configuration.',
+            );
         } catch (GameEngineUnavailable) {
             return $this->errorResponse(
                 Response::HTTP_SERVICE_UNAVAILABLE,
@@ -40,7 +47,7 @@ class CreateGameController extends Controller
         }
 
         $response = (new GameResource($game))->response();
-        $response->setStatusCode(Response::HTTP_CREATED);
+        $response->setStatusCode($game->wasRecentlyCreated ? Response::HTTP_CREATED : Response::HTTP_OK);
 
         return $response;
     }

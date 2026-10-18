@@ -29,6 +29,10 @@ const metadata = {
     title: 'Catan · Game 42',
     description: 'Observe the saved board and history for Catan game 42.',
   },
+  '/games/42/setup': {
+    title: 'Catan · Game 42 setup',
+    description: 'Review and start the saved board for Catan game 42.',
+  },
 }
 
 test('sets route-specific browser metadata and the keep tab mark', async ({ page, request }) => {

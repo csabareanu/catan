@@ -357,6 +357,23 @@ The same data-driven SVG board grows into the replay tool and interactive
 match. Player controls, private hands, and legal actions appear only when
 supported by real API state.
 
+### Play, Watch, and Replay direction
+
+Keep `/games/:gameId/observe` as the shared read-only destination during the
+current bootstrap stage, including the F-01 preview/start fix. Future human
+play uses current state, legal actions, and bounded recent activity; active
+AI-only games use a spectator Watch experience with recent activity. Reserve
+full player-facing replay navigation for finished matches, while continuing
+to persist the complete history. Laravel must enforce the historical-access
+policy when it is introduced; existing endpoints remain unchanged for now.
+
+AI-only simulations may finish without being watched. Replay pause and speed
+control presentation rather than engine execution. Replay remains seat-safe
+for human games and public for AI-only spectators. A completed bootstrap job
+is not an actual finished match. Revisit these boundaries for 4c and later
+human gameplay work. The durable decision and details are in
+[Project plan: Play, Watch, and Replay direction](../project-plan.md#play-watch-and-replay-direction).
+
 ## Deployment
 
 The MVP runs locally through Docker Compose with Laravel API and worker,

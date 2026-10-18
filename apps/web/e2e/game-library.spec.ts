@@ -63,6 +63,10 @@ test('renders owner game summaries and lifecycle statuses', async ({ page }) => 
   await expect(page.getByText('Standard map', { exact: true })).toHaveCount(2)
   await expect(page.getByText('Created Oct 15, 2026', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Start run', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open setup', exact: true })).toHaveAttribute(
+    'href',
+    '/games/42/setup',
+  )
   await expect(page.getByRole('link', { name: 'Observe', exact: true })).toBeVisible()
   await expect(
     page.locator('.library-more-trigger[aria-label="More actions for Game 42"]'),

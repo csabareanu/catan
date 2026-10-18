@@ -1,4 +1,4 @@
-import { getObservedGameID } from './navigation'
+import { getObservedGameID, getSetupGameID } from './navigation'
 
 export type PageMetadata = {
   title: string
@@ -44,6 +44,15 @@ export function getPageMetadata(pathname: string): PageMetadata {
     return {
       title: `Catan · Game ${observedGameID}`,
       description: `Observe the saved board and history for Catan game ${observedGameID}.`,
+    }
+  }
+
+  const setupGameID = getSetupGameID(pathname)
+
+  if (setupGameID !== null) {
+    return {
+      title: `Catan · Game ${setupGameID} setup`,
+      description: `Review and start the saved board for Catan game ${setupGameID}.`,
     }
   }
 

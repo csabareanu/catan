@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'owner_id',
+    'creation_key',
     'mode',
     'ruleset_key',
     'ruleset_version',

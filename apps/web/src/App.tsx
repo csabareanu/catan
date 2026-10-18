@@ -6,6 +6,7 @@ import {
   getObservedGameID,
   isLandingPath,
   isPrivatePath,
+  getSetupGameID,
   navigateTo,
   useBrowserPathname,
 } from './lib/navigation'
@@ -185,6 +186,7 @@ function PrivateRoute({
 
   if (session.status === 'authenticated') {
     const observedGameID = getObservedGameID(pathname)
+    const setupGameID = getSetupGameID(pathname)
 
     if (observedGameID !== null) {
       return (
@@ -202,6 +204,19 @@ function PrivateRoute({
     if (pathname === '/games/new') {
       return (
         <GameCreationScreen
+          isLoggingOut={isLoggingOut}
+          onUnauthorized={handleUnauthorizedSession}
+          onLogout={onLogout}
+          token={readSessionToken() ?? ''}
+          user={session.user}
+        />
+      )
+    }
+
+    if (setupGameID !== null) {
+      return (
+        <GameCreationScreen
+          gameID={setupGameID}
           isLoggingOut={isLoggingOut}
           onUnauthorized={handleUnauthorizedSession}
           onLogout={onLogout}

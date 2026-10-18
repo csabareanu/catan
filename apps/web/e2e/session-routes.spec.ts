@@ -4,19 +4,21 @@ import { gameListResponse } from './fixtures/gameListResponse'
 const SESSION_TOKEN_KEY = 'catan.api-token'
 
 test('gates private game paths when no browser session exists', async ({ page }) => {
-  await page.goto('/games')
+  for (const path of ['/games', '/games/42/setup']) {
+    await page.goto(path)
 
-  await expect(
-    page.getByRole('heading', { name: 'Sign in to access your games.' }),
-  ).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: 'Sign in' })).toHaveAttribute(
-    'href',
-    '/login',
-  )
-  await expect(page.getByRole('main').getByRole('link', { name: 'Create an account' })).toHaveAttribute(
-    'href',
-    '/register',
-  )
+    await expect(
+      page.getByRole('heading', { name: 'Sign in to access your games.' }),
+    ).toBeVisible()
+    await expect(page.getByRole('main').getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/login',
+    )
+    await expect(page.getByRole('main').getByRole('link', { name: 'Create an account' })).toHaveAttribute(
+      'href',
+      '/register',
+    )
+  }
 })
 
 test('restores a stored bearer token through the current-user endpoint', async ({

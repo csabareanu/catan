@@ -1346,6 +1346,121 @@
   border-radius: var(--radius-xl);
 }
 
+.game-creation-content {
+  display: block;
+  min-height: calc(100vh - var(--header-height));
+}
+
+.game-creation-card {
+  width: min(100%, 72rem);
+  margin-inline: auto;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.game-creation-intro {
+  margin-bottom: var(--space-8);
+}
+
+.game-creation-intro h1 {
+  margin: 0 0 var(--space-3);
+  color: var(--text);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  line-height: 1.08;
+}
+
+.game-creation-grid {
+  grid-template-columns: minmax(18rem, 0.78fr) minmax(0, 1.22fr);
+}
+
+.game-creation-setup {
+  display: flex;
+  flex-direction: column;
+}
+
+.game-creation-regenerate {
+  width: 100%;
+  margin-top: var(--space-5);
+}
+
+.game-creation-generation-note {
+  min-height: 2.8rem;
+}
+
+.game-start-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.game-start-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.game-save-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.game-setup-saved-notice {
+  width: fit-content;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--line) solid var(--success);
+  border-radius: var(--radius-sm);
+  color: var(--success);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.game-setup-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.game-start-status,
+.game-start-feedback p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.game-start-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--line) solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
+
+.game-start-feedback-warning {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.game-start-feedback .access-secondary-action,
+.game-start-feedback .access-primary-action {
+  align-self: flex-start;
+}
+
+.game-creation-board-panel {
+  min-height: 40rem;
+}
+
+.game-creation-links {
+  margin-top: var(--space-6);
+}
+
 .setup-panel {
   padding: clamp(var(--space-5), 3vw, var(--space-8));
   border: var(--line) solid var(--border);
@@ -1674,6 +1789,10 @@
   background: var(--danger);
 }
 
+.board-state-warning .board-state-dot {
+  background: var(--warning);
+}
+
 .empty-state {
   display: flex;
   flex: 1;
@@ -1861,6 +1980,10 @@
   color: var(--paper-muted);
 }
 
+.board-feedback .access-secondary-action {
+  margin-top: var(--space-5);
+}
+
 .board-result-ready {
   align-items: stretch;
   justify-content: flex-start;
@@ -1886,6 +2009,17 @@
 
 .board-result-intro .empty-copy {
   max-width: none;
+}
+
+.preview-stale-note {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--line) solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--paper-ink);
+  background: rgb(255 219 117 / 24%);
+  font-size: var(--text-sm);
+  line-height: 1.45;
 }
 
 .board-renderer,
@@ -1936,7 +2070,7 @@
   padding: 0.25rem;
   border: var(--line) solid rgb(255 255 255 / 18%);
   border-radius: var(--radius-pill);
-  color: var(--paper-ink);
+  color: var(--text);
   background: rgb(8 30 38 / 84%);
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(8px);
@@ -1953,7 +2087,7 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  color: inherit;
+  color: var(--text);
   background: transparent;
   cursor: pointer;
   font: inherit;
@@ -1979,7 +2113,7 @@
 
 .board-svg-control:disabled {
   cursor: not-allowed;
-  opacity: 0.35;
+  color: var(--muted);
 }
 
 .board-svg-fit-control {
@@ -2814,6 +2948,10 @@
 .observer-board .board-svg-control:focus-visible:not(:disabled) {
   color: var(--accent-bright);
   background: rgb(255 255 255 / 12%);
+}
+
+.observer-board .board-svg-control:disabled {
+  color: var(--muted);
 }
 
 @media (max-height: 44rem) {

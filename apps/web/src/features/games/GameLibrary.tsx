@@ -392,6 +392,17 @@ export function GameLibrary({
                         onStatusChange={updateLifecycleStatus}
                         onUnauthorized={onUnauthorized}
                       />
+                      {game.lifecycle_status === 'created' && (
+                        <a
+                          className="access-secondary-action library-row-action"
+                          href={`/games/${game.id}/setup`}
+                        >
+                          Open setup
+                          <svg className="library-icon" aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M5 12h14m-6-6 6 6-6 6" />
+                          </svg>
+                        </a>
+                      )}
                       {!canStartRun(game.lifecycle_status) && (
                         <a
                           className="access-secondary-action library-row-action"
