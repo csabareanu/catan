@@ -39,6 +39,7 @@ Run commands from the repository root unless noted otherwise.
 - Docker stable image-based stack: `docker compose up --build -d`
 - Development Compose smoke test: `COMPOSE_FILE=compose.yaml:compose.dev.yaml scripts/compose-smoke.sh`
 - Stable Compose smoke test: `scripts/compose-smoke.sh`
+- Real Compose observer smoke: `scripts/compose-observer-smoke.sh`
 
 There is no root-level combined Verify command yet. CI is not configured yet.
 

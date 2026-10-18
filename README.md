@@ -166,6 +166,30 @@ worker to persist the bootstrap, and checks PostgreSQL for exactly one
 It prints the healthy dependencies and the final running game id. It uses the
 existing named PostgreSQL volume and never removes it.
 
+To verify the real browser observer against the running Compose stack, use the
+separate opt-in smoke command:
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright \
+  scripts/compose-observer-smoke.sh
+```
+
+This command reuses the Compose lifecycle smoke, opens the actual web service
+with Playwright without API response interception, checks the authenticated
+observer's running status and full board, then deletes the disposable game and
+revokes its bearer token. The disposable account record remains because the
+API has no account-deletion endpoint. The command is separate from
+`cd apps/web && npm run test:e2e`, which remains the fast API-mocked browser
+suite.
+
+For the mounted development workflow, select both Compose files:
+
+```bash
+COMPOSE_FILE=compose.yaml:compose.dev.yaml \
+  PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright \
+  scripts/compose-observer-smoke.sh
+```
+
 The smoke script defaults to the stable image-based Compose file. To validate
 the mounted development workflow, select both files explicitly:
 

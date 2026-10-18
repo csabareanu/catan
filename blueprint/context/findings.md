@@ -80,30 +80,6 @@ pointer or pinch assertions around the extracted behavior before 4c grows the
 interaction surface.
 **Resolution:**
 
-### F-17 [P2] open - Browser evidence misses realistic board and viewport usability
-
-**File:** apps/web/e2e/game-observer.spec.ts:65
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** The observer fixture contains one hex, no edges, and no
-ports. Assertions check SVG presence and horizontal scrollWidth only; a tall,
-unreadable real 19-hex board still passes. Library fixtures use empty links/meta,
-so pagination loss is invisible. The prior Compose visual script also used a
-one-hex private fixture with intercepted responses. All 44 tests pass while
-F-05 and F-08 through F-12 remain reproducible. Mocked private screenshots do
-not prove the active spec's real authentication/create/run/observe/delete flow.
-**Suggested fix:** Add representative full-board fixtures and behavioral
-assertions for the agreed viewport layout, reachable controls, breakpoint
-collisions, pagination, legend meaning, and menu focus. Keep a small real-stack
-smoke flow distinct from API-mocked browser tests and record which evidence was
-actually obtained. Do not equate CSS nowrap or SVG visibility with usability.
-**Resolution:** Re-examined 2026-10-16. The observer now uses an actual
-engine-generated 19-hex, 72-edge, 9-port fixture and checks desktop terrain
-height, port bounds, token proportions, sidebar scrolling, and the corrected
-desktop composition. The focused observer suite passes 10/10 and the serial
-full frontend suite passes 55/55. The mocked tests still do not establish the
-real-stack flow, do not test 320x568, and do not verify focus restoration for
-the phone sheet. Keep open for that broader evidence.
-
 ## Observer page composition review - 2026-10-16
 
 Scope: `/games/:gameId/observe`, the active F-09 implementation, its staged,

@@ -259,6 +259,61 @@ test('keeps observer navigation clear on a narrow phone viewport', async ({ page
   await expect(page.locator('.observer-shell .account-name')).toBeHidden()
 })
 
+test('keeps the observer usable at the smallest supported phone viewport', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 568 })
+  await page.route('**/api/v1/games/42/replay', (route) =>
+    route.fulfill({ status: 200, json: replayResponse('completed', true) }),
+  )
+
+  await page.goto('/games/42/observe')
+
+  const board = page.locator('.observer-board')
+  const boardSvg = page.locator('.observer-board .board-svg')
+  const detailsTrigger = page.getByRole('button', { name: 'Game details', exact: true })
+
+  await expect(boardSvg).toBeVisible()
+  await expect(page.locator('.observer-back-link')).toBeVisible()
+  await expect(page.locator('.observer-back-link')).toBeInViewport()
+  await expect(detailsTrigger).toBeVisible()
+  await expect(detailsTrigger).toBeInViewport()
+  await expect(page.locator('.board-hex')).toHaveCount(19)
+
+  const metrics = await page.evaluate(() => ({
+    boardBounds: document.querySelector<HTMLElement>('.observer-board')?.getBoundingClientRect(),
+    documentHeight: document.documentElement.scrollHeight,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportHeight: window.innerHeight,
+    viewportWidth: window.innerWidth,
+  }))
+
+  expect(metrics.boardBounds?.width).toBeGreaterThan(0)
+  expect(metrics.boardBounds?.height).toBeGreaterThan(0)
+  expect(metrics.boardBounds?.bottom).toBeLessThanOrEqual(metrics.viewportHeight)
+  expect(metrics.documentHeight).toBeLessThanOrEqual(metrics.viewportHeight)
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+
+  await detailsTrigger.click()
+  const detailsDialog = page.getByRole('dialog', { name: 'Game details' })
+  const closeDetails = detailsDialog.getByRole('button', { name: 'Close details', exact: true })
+
+  await expect(detailsDialog).toBeVisible()
+  await expect(closeDetails).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(detailsDialog.locator(':focus')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(detailsDialog).toBeHidden()
+  await expect(detailsTrigger).toBeFocused()
+
+  await detailsTrigger.click()
+  await expect(detailsDialog).toBeVisible()
+  await page.locator('.observer-sidebar-backdrop').click({ position: { x: 2, y: 2 } })
+  await expect(detailsDialog).toBeHidden()
+  await expect(detailsTrigger).toBeFocused()
+
+  await expect(board).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('observer-320.png') })
+})
+
 test('keeps the board guide available in the mobile details drawer', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route('**/api/v1/games/42/replay', (route) =>

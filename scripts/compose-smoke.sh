@@ -164,6 +164,18 @@ json_value() {
     ' "$path" < "$json_file"
 }
 
+write_state_file() {
+    if [[ -z "${SMOKE_STATE_FILE:-}" || -z "${token:-}" || -z "${game_id:-}" ]]; then
+        return
+    fi
+
+    umask 077
+    {
+        printf 'COMPOSE_OBSERVER_TOKEN=%q\n' "$token"
+        printf 'COMPOSE_OBSERVER_GAME_ID=%q\n' "$game_id"
+    } > "$SMOKE_STATE_FILE"
+}
+
 request_json() {
     local method="$1"
     local url="$2"
@@ -255,6 +267,7 @@ assert_json_value "Create three-seat game" "$TEMP_DIR/create.json" data.lifecycl
 if ! game_id="$(json_value "$TEMP_DIR/create.json" data.id)" || ! [[ "$game_id" =~ ^[0-9]+$ ]]; then
     fail "game creation did not return a numeric game id."
 fi
+write_state_file
 printf '  created game: %s (seed %s)\n' "$game_id" "$SEED"
 
 if ! start_status="$(request_json POST "$API_BASE_URL/api/v1/games/$game_id/run" "$TEMP_DIR/start.json" '' "$token")"; then
@@ -341,5 +354,6 @@ if (( command_count != 1 || event_count < 1 || first_event_sequence != 1 || snap
     fail_with_diagnostics "unexpected bootstrap history for game $game_id: commands=$command_count events=$event_count first_event_sequence=$first_event_sequence snapshots=$snapshot_count"
 fi
 
+write_state_file
 printf 'PostgreSQL history: 1 bootstrap command, %s linked ordered event(s), 1 initial snapshot.\n' "$event_count"
 printf 'Compose smoke test passed: game %s is running.\n' "$game_id"
