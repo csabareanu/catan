@@ -63,9 +63,20 @@ test('renders the board, players, and visible history', async ({ page }) => {
 
   await expect(page.locator('.observer-player').first().getByText('Ada Player', { exact: true })).toBeVisible()
   await expect(page.getByText('Human player', { exact: true })).toBeVisible()
+  await expect(page.locator('.observer-status-panel')).toContainText('Playing')
+  await expect(page.locator('.observer-status-panel')).toContainText('Awaiting Roll')
+  await expect(page.locator('.observer-status-panel')).toContainText('Ada Player')
+  await expect(page.locator('.observer-status-panel')).toContainText('Longest Road')
+  await expect(page.locator('.observer-player').filter({ hasText: 'Ada Player' })).toContainText('2 points')
+  await expect(page.locator('.observer-player').filter({ hasText: 'Ada Player' })).toContainText('Turn')
+  await expect(page.locator('.observer-player').filter({ hasText: 'AI 2' })).toContainText('1 point')
+  await expect(page.locator('.observer-player').filter({ hasText: 'AI 2' })).toContainText('Longest Road')
   await expect(page.getByText('Game initialized', { exact: true })).toBeVisible()
   await expect(page.getByText('The current board view is ready for replay.', { exact: true })).toBeVisible()
   await expect(page.getByText('current_state', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('public_scores', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('active_seat_number', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('public_awards', { exact: true })).toHaveCount(0)
 
   const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
   const viewportWidth = await page.evaluate(() => window.innerWidth)
@@ -315,6 +326,18 @@ test('explains a replay without a persisted frame', async ({ page }) => {
   await expect(page.getByText('No visible history is available yet.', { exact: true })).toBeVisible()
 })
 
+test('handles a frame without public status fields', async ({ page }) => {
+  await page.route('**/api/v1/games/45/replay', (route) =>
+    route.fulfill({ status: 200, json: replayResponse('completed', true, false) }),
+  )
+
+  await page.goto('/games/45/observe')
+
+  await expect(page.locator('.observer-status-panel')).toBeVisible()
+  await expect(page.locator('.observer-status-panel')).toContainText('Public status is not available yet.')
+  await expect(page.locator('.observer-player').first()).toBeVisible()
+})
+
 test('refreshes a queued replay until it reaches a stable status', async ({ page }) => {
   let replayRequestCount = 0
   await page.route('**/api/v1/games/44/replay', (route) => {
@@ -385,6 +408,7 @@ test('clears an expired session when the replay request returns 401', async ({ p
 function replayResponse(
   lifecycleStatus: ReplayResponse['context']['game']['lifecycle_status'],
   includeFrame: boolean,
+  includePublicStatus = true,
 ): ReplayResponse {
   return {
     schema_version: 'replay-v1',
@@ -434,10 +458,14 @@ function replayResponse(
           state_schema_version: 'state-v1',
           public_projection_schema_version: 'replay-public-v1',
           public_state: {
-            phase: 'playing',
-            active_seat_number: 1,
+            ...(includePublicStatus ? {
+              phase: 'playing',
+              turn_phase: 'awaiting_roll',
+              public_awards: { longest_road: 2 },
+              public_scores: { '1': 2, '2': 1 },
+              active_seat_number: 1,
+            } : {}),
             roads: { [standardBoard.edges[0].id]: { owner_seat_number: 1 } },
-            public_scores: { '1': 2 },
           },
           viewer_state: null,
         }

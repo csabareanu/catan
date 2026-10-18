@@ -80,30 +80,6 @@ pointer or pinch assertions around the extracted behavior before 4c grows the
 interaction surface.
 **Resolution:**
 
-### F-16 [P2] open - Public game information is displayed as field counts
-
-**File:** apps/web/src/features/replay/GameObserver.tsx:435
-**Found:** 2026-10-16 by /audit (scope: full browser UI)
-**Why it matters:** public_scores becomes "4 visible" instead of actual public
-scores, active_seat_number becomes "Seat 2" instead of the player's identity,
-and roads/buildings become aggregate recorded counts. The observer receives
-useful projected data but presents its structure rather than what is happening
-in the game. BoardSvg receives context.board only, so a public road in a frame
-does not appear on the map. That static-board boundary is explicit in 4b and
-is not a regression; it needs an intentional next-step design before replay.
-**Suggested fix:** Render explicit player cards using available public names,
-public scores, turn/phase, and awards when supported. Keep hidden VP and other
-seats' holdings private. Design piece overlays on stable API edge/vertex IDs
-for the relevant board-state feature, alongside planned 4c stepping. Do not
-infer missing state or reconstruct game rules in React. Keep generic field
-inspection optional for development.
-**Resolution:** Reconfirmed 2026-10-16 against a synthetic four-seat public
-frame using the real board fixture. Public scores remain a count of entries,
-the active player remains a seat number, and a projected road remains a count
-without a board overlay. Keep basic player-facing presentation distinct from
-the deferred authoritative replay and piece-overlay work; never invent turns,
-scores, hidden VP, or game rules to fill the sidebar.
-
 ### F-17 [P2] open - Browser evidence misses realistic board and viewport usability
 
 **File:** apps/web/e2e/game-observer.spec.ts:65

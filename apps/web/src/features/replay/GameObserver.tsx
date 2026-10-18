@@ -3,6 +3,10 @@ import { ApiError } from '../../lib/apiClient'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
 import { BoardHelp, BoardSvg } from '../board/BoardSvg'
+import {
+  readPublicReplayState,
+  type PublicReplayState,
+} from './publicReplayState'
 import { getGameReplay, type ReplayResponse } from './replayApi'
 
 const POLL_INTERVAL_MS = 2000
@@ -177,6 +181,7 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
   const sidebarRef = useRef<HTMLElement>(null)
   const { context, events, event_cursor: eventCursor, frame } = replay
   const game = context.game
+  const publicState = readPublicReplayState(frame)
 
   const closeSidebar = useCallback(() => {
     setIsSidebarOpen(false)
@@ -298,29 +303,54 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
             Close details
           </button>
         </div>
+        {frame && (
+          <ObserverStatus publicState={publicState} seats={context.seats} />
+        )}
         <section className="observer-panel" aria-labelledby="observer-players-title">
           <div className="observer-section-heading">
             <h2 id="observer-players-title">Players</h2>
             <span>{context.seats.length} players</span>
           </div>
           <ul className="observer-player-list" aria-label="Game players">
-            {context.seats.map((seat) => (
-              <li className="observer-player" key={seat.seat_number}>
-                <span
-                  className={`observer-player-avatar observer-player-${playerColorClass(seat.seat_number, seat.controller_type)}`}
-                  aria-hidden="true"
+            {context.seats.map((seat) => {
+              const playerAwards = publicState.awards
+                .filter((award) => award.seatNumber === seat.seat_number)
+                .map((award) => award.label)
+              const isActive = publicState.activeSeatNumber === seat.seat_number
+              const score = publicState.scores.get(seat.seat_number)
+
+              return (
+                <li
+                  className={`observer-player${isActive ? ' observer-player-active' : ''}`}
+                  key={seat.seat_number}
                 >
-                  {playerInitial(seat.label, seat.seat_number)}
-                </span>
-                <span className="observer-player-copy">
-                  <strong>{seat.label ?? `Seat ${seat.seat_number}`}</strong>
-                  <small>{controllerTypeLabel(seat.controller_type)}</small>
-                </span>
-                {seat.seat_number === game.human_seat_number && (
-                  <span className="observer-you">You</span>
-                )}
-              </li>
-            ))}
+                  <span
+                    className={`observer-player-avatar observer-player-${playerColorClass(seat.seat_number, seat.controller_type)}`}
+                    aria-hidden="true"
+                  >
+                    {playerInitial(seat.label, seat.seat_number)}
+                  </span>
+                  <span className="observer-player-copy">
+                    <strong>{seatDisplayName(seat.label, seat.seat_number)}</strong>
+                    <span className="observer-player-meta">
+                      <small>{controllerTypeLabel(seat.controller_type)}</small>
+                      {score !== undefined && (
+                        <small className="observer-player-score">{scoreLabel(score)}</small>
+                      )}
+                    </span>
+                    {playerAwards.length > 0 && (
+                      <span className="observer-player-awards">{playerAwards.join(' · ')}</span>
+                    )}
+                  </span>
+                  <span className="observer-player-badges">
+                    {isActive && <span className="observer-turn">Turn</span>}
+                    {seat.seat_number === game.human_seat_number && (
+                      <span className="observer-you">You</span>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         </section>
 
@@ -386,6 +416,74 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
         <p className="observer-sidebar-footer">History and board data are supplied by the server.</p>
       </aside>
     </div>
+  )
+}
+
+function ObserverStatus({
+  publicState,
+  seats,
+}: {
+  publicState: PublicReplayState
+  seats: ReplayResponse['context']['seats']
+}) {
+  const activeSeat = publicState.activeSeatNumber === null
+    ? null
+    : seats.find((seat) => seat.seat_number === publicState.activeSeatNumber) ?? null
+  const hasStatus = publicState.phase !== null ||
+    publicState.turnPhase !== null ||
+    activeSeat !== null ||
+    publicState.awards.length > 0
+
+  return (
+    <section className="observer-panel observer-status-panel" aria-labelledby="observer-status-title">
+      <div className="observer-section-heading">
+        <h2 id="observer-status-title">Game status</h2>
+        <span>Public view</span>
+      </div>
+      {hasStatus ? (
+        <>
+          <dl className="observer-status-list">
+            {publicState.phase !== null && (
+              <div>
+                <dt>Phase</dt>
+                <dd>{stateLabel(publicState.phase)}</dd>
+              </div>
+            )}
+            {publicState.turnPhase !== null && (
+              <div>
+                <dt>Turn</dt>
+                <dd>{stateLabel(publicState.turnPhase)}</dd>
+              </div>
+            )}
+            {activeSeat !== null && (
+              <div>
+                <dt>Playing now</dt>
+                <dd>{seatDisplayName(activeSeat.label, activeSeat.seat_number)}</dd>
+              </div>
+            )}
+          </dl>
+          {publicState.awards.length > 0 && (
+            <div className="observer-awards">
+              <span className="observer-status-label">Awards</span>
+              <ul className="observer-award-list">
+                {publicState.awards.map((award) => {
+                  const seat = seats.find((candidate) => candidate.seat_number === award.seatNumber)
+
+                  return (
+                    <li key={`${award.label}-${award.seatNumber}`}>
+                      <span>{award.label}</span>
+                      <strong>{seatDisplayName(seat?.label ?? null, award.seatNumber)}</strong>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="observer-note">Public status is not available yet.</p>
+      )}
+    </section>
   )
 }
 
@@ -481,6 +579,18 @@ function controllerTypeLabel(controllerType: string): string {
   }
 
   return lifecycleStatusLabel(controllerType)
+}
+
+function stateLabel(value: string): string {
+  return lifecycleStatusLabel(value)
+}
+
+function seatDisplayName(label: string | null, seatNumber: number): string {
+  return label?.trim() || `Seat ${seatNumber}`
+}
+
+function scoreLabel(score: number): string {
+  return `${score} ${score === 1 ? 'point' : 'points'}`
 }
 
 function playerInitial(label: string | null, seatNumber: number): string {
