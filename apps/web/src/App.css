@@ -2226,8 +2226,11 @@
 
 .board-renderer,
 .observer-board-help {
-  --board-sea: #245d6e;
-  --board-sea-deep: #173f4d;
+  --board-sea-light: #397f8b;
+  --board-sea: #286779;
+  --board-sea-deep: #173f50;
+  --board-sea-wave: #a7d3d0;
+  --board-shallows: #8fc5bd;
   --board-tile-line: #f3e5c7;
   --board-label-ink: #171d16;
   --board-forest: #5c9369;
@@ -2343,11 +2346,34 @@
 }
 
 .board-svg-background {
-  fill: var(--board-sea);
   stroke: var(--sea-line);
   stroke-opacity: 0.5;
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
+}
+
+.board-sea-wave-field {
+  opacity: 0.42;
+}
+
+.board-sea-wave {
+  fill: none;
+  stroke: var(--board-sea-wave);
+  stroke-width: 1.4;
+  opacity: 0.42;
+}
+
+.board-sea-wave-secondary {
+  opacity: 0.24;
+}
+
+.board-coastline-shallows {
+  fill: none;
+  stroke: var(--board-shallows);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 18;
+  opacity: 0.58;
 }
 
 .board-hex {

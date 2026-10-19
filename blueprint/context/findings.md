@@ -28,25 +28,6 @@ observer specification. No P0 or P1 was confirmed. This is a fresh ledger
 cycle, so IDs start at F-01; earlier resolved IDs remain prefixed in their
 archives.
 
-### F-07 [P3] open - The sea has colour but little visual identity as water
-
-**File:** apps/web/src/features/board/BoardSvg.tsx:137;
-apps/web/src/App.css:2008
-**Found:** 2026-10-18 by /audit (scope: project UI)
-**Why it matters:** The island sits on a uniformly filled rounded rectangle
-using computed colour `rgb(36, 93, 110)`. The sea is distinguishable from
-land, but the observer has no visible waves, shoreline, shallow-water band,
-or depth cues. At desktop and phone sizes it reads as a board canvas rather
-than the body of water requested by the user. This is a visual refinement
-against the new art direction, not a broken gameplay or API contract.
-**Suggested fix:** Add restrained wave marks, a light coastal/shallow-water
-edge, and a deeper-water gradient. Apply a clean treatment to the current
-style and a richer treatment to a future illustrated style. Preserve the
-current compact island framing and port readability; increasing empty ocean
-width would undo the earlier desktop layout improvements. Keep decorative
-effects separate from topology, input targets, and canonical state.
-**Resolution:**
-
 ### F-09 [P3] open - Lifecycle reconciliation checks for an impossible null status
 
 **File:** apps/web/src/features/games/useGameLibrary.ts:209
@@ -73,6 +54,20 @@ varies by assistive technology and was not tested with a screen reader.
 **Suggested fix:** Verify the flow with a screen reader. If the two alerts are
 announced redundantly, keep the exact setup error as the alert and expose the
 board-panel status as a polite status update for seed validation failures.
+**Resolution:**
+
+### F-11 [P3] open - Mobile board controls overlap a port label
+
+**File:** apps/web/src/App.css:2268; apps/web/src/features/board/BoardSvg.tsx:197
+**Found:** 2026-10-19 by /audit (scope: F-07 board renderer)
+**Why it matters:** The zoom toolbar is anchored to the bottom-right of the
+board viewport. In the fitted phone view it covers part of a coastal port
+badge, hiding some trade-ratio information until the player moves or zooms the
+board. This appears in the 320px observer screenshot and is separate from the
+sea decoration, which remains behind the port layer.
+**Suggested fix:** Choose a responsive toolbar placement or compact layout that
+keeps port labels visible at supported phone widths while preserving access to
+the zoom controls.
 **Resolution:**
 
 ## Product and visual direction to preserve for subsequent specs

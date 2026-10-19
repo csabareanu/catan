@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type {
   BoardData,
   BoardEdge,
@@ -69,6 +70,9 @@ const TERRAIN_LEGEND: Terrain[] = [
 type EdgePoints = [ScreenPoint, ScreenPoint]
 
 export function BoardSvg({ board }: { board: BoardData }) {
+  const seaID = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+  const seaGradientID = `${seaID}-gradient`
+  const seaWavesID = `${seaID}-waves`
   const hasBoard = board.hexes.length > 0
   const initialLayout = hasBoard ? createLayout(board) : null
   const {
@@ -100,6 +104,7 @@ export function BoardSvg({ board }: { board: BoardData }) {
   const layout = initialLayout
   const titleID = 'board-svg-title'
   const descriptionID = 'board-svg-description'
+  const coastline = coastlinePath(board, layout.vertexPoints)
 
   return (
     <div className="board-renderer">
@@ -127,17 +132,55 @@ export function BoardSvg({ board }: { board: BoardData }) {
             Standard Catan board generated from seed {board.seed}
           </title>
           <desc id={descriptionID}>
-            A Catan board with terrain hexes, number tokens, and trade ports.
+            A Catan board with terrain hexes, number tokens, trade ports, and
+            decorative waves in the surrounding sea.
           </desc>
 
-          <rect
-            className="board-svg-background"
-            x={layout.bounds.x}
-            y={layout.bounds.y}
-            width={layout.bounds.width}
-            height={layout.bounds.height}
-            rx="18"
-          />
+          <defs>
+            <linearGradient id={seaGradientID} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="var(--board-sea-light)" />
+              <stop offset="52%" stopColor="var(--board-sea)" />
+              <stop offset="100%" stopColor="var(--board-sea-deep)" />
+            </linearGradient>
+            <pattern
+              id={seaWavesID}
+              width="72"
+              height="54"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(-7)"
+            >
+              <path
+                className="board-sea-wave"
+                d="M-18 16 C-8 8 2 8 12 16 S32 24 42 16 S62 8 72 16 S92 24 102 16"
+              />
+              <path
+                className="board-sea-wave board-sea-wave-secondary"
+                d="M-18 43 C-8 35 2 35 12 43 S32 51 42 43 S62 35 72 43 S92 51 102 43"
+              />
+            </pattern>
+          </defs>
+
+          <g className="board-sea-layer" aria-hidden="true" pointerEvents="none">
+            <rect
+              className="board-svg-background"
+              x={layout.bounds.x}
+              y={layout.bounds.y}
+              width={layout.bounds.width}
+              height={layout.bounds.height}
+              rx="18"
+              fill={`url(#${seaGradientID})`}
+            />
+            <rect
+              className="board-sea-wave-field"
+              x={layout.bounds.x}
+              y={layout.bounds.y}
+              width={layout.bounds.width}
+              height={layout.bounds.height}
+              rx="18"
+              fill={`url(#${seaWavesID})`}
+            />
+            <path className="board-coastline-shallows" d={coastline} />
+          </g>
 
           <g className="board-hex-layer">
             {board.hexes.map((hex) => renderHex(hex, layout))}
@@ -272,6 +315,45 @@ function toScreenPoint(x: number, y: number): ScreenPoint {
 
 function axialCenter(q: number, r: number): ScreenPoint {
   return toScreenPoint(2 * q + r, 3 * r)
+}
+
+function coastlinePath(
+  board: BoardData,
+  vertexPoints: Map<string, ScreenPoint>,
+): string {
+  const edges = new Map<string, { vertexIDs: [string, string]; count: number }>()
+
+  for (const hex of board.hexes) {
+    hex.vertex_ids.forEach((vertexID, index) => {
+      const nextVertexID = hex.vertex_ids[(index + 1) % hex.vertex_ids.length]
+
+      if (!nextVertexID) {
+        return
+      }
+
+      const key = [vertexID, nextVertexID].sort().join('\u0000')
+      const existing = edges.get(key)
+
+      if (existing) {
+        existing.count += 1
+        return
+      }
+
+      edges.set(key, { vertexIDs: [vertexID, nextVertexID], count: 1 })
+    })
+  }
+
+  return [...edges.values()]
+    .filter((edge) => edge.count === 1)
+    .flatMap(({ vertexIDs }) => {
+      const first = vertexPoints.get(vertexIDs[0])
+      const second = vertexPoints.get(vertexIDs[1])
+
+      return first && second
+        ? [`M ${first.x} ${first.y} L ${second.x} ${second.y}`]
+        : []
+    })
+    .join(' ')
 }
 
 function renderHex(hex: BoardHex, layout: BoardLayout) {
