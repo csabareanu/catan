@@ -41,3 +41,17 @@ continue to work without page overflow.
 - `cd apps/web && PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-playwright-browsers npx playwright test e2e/game-observer.spec.ts --grep-invert 'Compose game'` passed, 15 tests.
 - `cd apps/web && PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-playwright-browsers npx playwright test --grep-invert 'Compose game'` passed, 99 tests.
 - The 320x568 fitted observer screenshot was captured and inspected at `apps/web/test-results/game-observer-keeps-the-ob-af4bc-st-supported-phone-viewport-chromium/observer-320.png`.
+
+## Findings
+
+### mobile-observer-controls/F-11 [P3] closed - Mobile board controls overlap a port label
+
+**File:** apps/web/src/App.css:2268; apps/web/src/features/board/BoardSvg.tsx:197
+**Found:** 2026-10-19 by /audit (scope: F-07 board renderer)
+**Why it matters:** The fitted mobile zoom toolbar covered part of a coastal
+port badge, hiding trade-ratio information.
+**Suggested fix:** Choose a responsive toolbar placement or compact layout that
+keeps port labels visible at supported phone widths while preserving access to
+the zoom controls.
+**Resolution:** Closed by /audit on 2026-10-19 after the fitted mobile view
+was rechecked with browser geometry assertions and the 320x568 screenshot.

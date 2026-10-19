@@ -56,20 +56,6 @@ announced redundantly, keep the exact setup error as the alert and expose the
 board-panel status as a polite status update for seed validation failures.
 **Resolution:**
 
-### F-11 [P3] open - Mobile board controls overlap a port label
-
-**File:** apps/web/src/App.css:2268; apps/web/src/features/board/BoardSvg.tsx:197
-**Found:** 2026-10-19 by /audit (scope: F-07 board renderer)
-**Why it matters:** The zoom toolbar is anchored to the bottom-right of the
-board viewport. In the fitted phone view it covers part of a coastal port
-badge, hiding some trade-ratio information until the player moves or zooms the
-board. This appears in the 320px observer screenshot and is separate from the
-sea decoration, which remains behind the port layer.
-**Suggested fix:** Choose a responsive toolbar placement or compact layout that
-keeps port labels visible at supported phone widths while preserving access to
-the zoom controls.
-**Resolution:**
-
 ## Product and visual direction to preserve for subsequent specs
 
 The following proposals are design decisions and future work, not additional
