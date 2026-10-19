@@ -206,7 +206,7 @@ export function useGameLibrary({
       )
       : currentGames.filter((game) => game.id !== gameId))
 
-    if (previousStatus === null || previousStatus === status) {
+    if (previousStatus === status) {
       return
     }
 
