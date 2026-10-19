@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Illustrated board | Catan design study</title>
+  <link rel="icon" href="assets/catan-mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="illustrated-board.css" />
+</head>
+<body>
+  <div class="prototype">
+    <header class="topbar">
+      <a class="brand" href="illustrated-board.html" aria-label="Catan illustrated board study"><img src="assets/catan-mark.svg" alt="" /><span class="wordmark">CATAN</span></a>
+      <nav class="nav" aria-label="Application context"><span>My games</span><span class="active">Board demo</span></nav>
+      <div class="account"><span class="avatar">AP</span><span class="account-name">Ada Player</span><span class="account-chevron" aria-hidden="true">⌄</span></div>
+    </header>
+
+    <div class="page-head">
+      <div><span class="eyebrow">Board preview</span><div class="heading-row"><h1>Illustrated island</h1><span class="study-tag">Design study 01</span></div></div>
+      <div class="appearance"><span class="mini-art" aria-hidden="true"></span><small>Appearance</small><strong>Illustrated</strong></div>
+    </div>
+
+    <main class="workspace">
+      <input class="view-radio" type="radio" name="study-view" id="island-view" checked aria-label="Full island" />
+      <input class="view-radio" type="radio" name="study-view" id="terrain-view" aria-label="Terrain details" />
+      <div class="view-switch" aria-label="Prototype views"><label class="view-label" for="island-view">Full island</label><label class="view-label" for="terrain-view">Terrain details</label></div>
+
+      <section class="canvas" aria-label="Illustrated board preview">
+        <svg class="island-board" viewBox="-242 -222 484 444" role="img" aria-labelledby="island-title island-desc" xmlns="http://www.w3.org/2000/svg">
+  <title id="island-title">Illustrated standard island</title>
+  <desc id="island-desc">Nineteen illustrated terrain hexes, eighteen number tokens and nine coastal trading ports, using the existing standard board fixture.</desc>
+  <defs>
+    <pattern id="board-forest" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern><pattern id="board-pasture" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="100 0 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern><pattern id="board-fields" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="200 0 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern><pattern id="board-hills" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="0 100 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern><pattern id="board-mountains" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="100 100 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern><pattern id="board-desert" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="200 100 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern>
+    <pattern id="wave-pattern" x="0" y="0" width="60" height="44" patternUnits="userSpaceOnUse" patternTransform="rotate(-7)">
+      <path class="sea-wave" d="M-15 13 Q-7 7 0 13 T15 13 T30 13 T45 13 T60 13 T75 13" />
+      <path class="sea-wave sea-wave-secondary" d="M-15 34 Q-7 28 0 34 T15 34 T30 34 T45 34 T60 34 T75 34" />
+    </pattern>
+  </defs>
+  <rect x="-2000" y="-2000" width="4000" height="4000" fill="url(#wave-pattern)" />
+  <g class="zoom-layer">
+    <g aria-hidden="true"><path class="coast-shallows" d="M -38.105 -154 L -76.21 -176 M -114.315 -110 L -114.315 -154 M -76.21 -176 L -114.315 -154 M 0 -176 L 38.105 -154 M -38.105 -154 L 0 -176 M 76.21 -176 L 114.315 -154 M 114.315 -110 L 114.315 -154 M 38.105 -154 L 76.21 -176 M -152.42 -44 L -152.42 -88 M -114.315 -110 L -152.42 -88 M 114.315 -110 L 152.42 -88 M 152.42 -44 L 152.42 -88 M -152.42 44 L -190.526 22 M -190.526 -22 L -190.526 22 M -152.42 -44 L -190.526 -22 M 152.42 -44 L 190.526 -22 M 190.526 -22 L 190.526 22 M 152.42 44 L 190.526 22 M -114.315 110 L -152.42 88 M -152.42 44 L -152.42 88 M 152.42 44 L 152.42 88 M 114.315 110 L 152.42 88 M -38.105 154 L -76.21 176 M -76.21 176 L -114.315 154 M -114.315 110 L -114.315 154 M 0 176 L 38.105 154 M -38.105 154 L 0 176 M 114.315 110 L 114.315 154 M 76.21 176 L 114.315 154 M 38.105 154 L 76.21 176" /><path class="coast-foam" d="M -38.105 -154 L -76.21 -176 M -114.315 -110 L -114.315 -154 M -76.21 -176 L -114.315 -154 M 0 -176 L 38.105 -154 M -38.105 -154 L 0 -176 M 76.21 -176 L 114.315 -154 M 114.315 -110 L 114.315 -154 M 38.105 -154 L 76.21 -176 M -152.42 -44 L -152.42 -88 M -114.315 -110 L -152.42 -88 M 114.315 -110 L 152.42 -88 M 152.42 -44 L 152.42 -88 M -152.42 44 L -190.526 22 M -190.526 -22 L -190.526 22 M -152.42 -44 L -190.526 -22 M 152.42 -44 L 190.526 -22 M 190.526 -22 L 190.526 22 M 152.42 44 L 190.526 22 M -114.315 110 L -152.42 88 M -152.42 44 L -152.42 88 M 152.42 44 L 152.42 88 M 114.315 110 L 152.42 88 M -38.105 154 L -76.21 176 M -76.21 176 L -114.315 154 M -114.315 110 L -114.315 154 M 0 176 L 38.105 154 M -38.105 154 L 0 176 M 114.315 110 L 114.315 154 M 76.21 176 L 114.315 154 M 38.105 154 L 76.21 176" /><path class="coast-sand" d="M -38.105 -154 L -76.21 -176 M -114.315 -110 L -114.315 -154 M -76.21 -176 L -114.315 -154 M 0 -176 L 38.105 -154 M -38.105 -154 L 0 -176 M 76.21 -176 L 114.315 -154 M 114.315 -110 L 114.315 -154 M 38.105 -154 L 76.21 -176 M -152.42 -44 L -152.42 -88 M -114.315 -110 L -152.42 -88 M 114.315 -110 L 152.42 -88 M 152.42 -44 L 152.42 -88 M -152.42 44 L -190.526 22 M -190.526 -22 L -190.526 22 M -152.42 -44 L -190.526 -22 M 152.42 -44 L 190.526 -22 M 190.526 -22 L 190.526 22 M 152.42 44 L 190.526 22 M -114.315 110 L -152.42 88 M -152.42 44 L -152.42 88 M 152.42 44 L 152.42 88 M 114.315 110 L 152.42 88 M -38.105 154 L -76.21 176 M -76.21 176 L -114.315 154 M -114.315 110 L -114.315 154 M 0 176 L 38.105 154 M -38.105 154 L 0 176 M 114.315 110 L 114.315 154 M 76.21 176 L 114.315 154 M 38.105 154 L 76.21 176" /></g>
+    <g class="terrain-layer"><g class="terrain-group" role="img" aria-label="hills, roll 5">
+      <polygon class="terrain-tile" points="-76.21,-176 -38.105,-154 -38.105,-110 -76.21,-88 -114.315,-110 -114.315,-154" fill="url(#board-hills)" />
+      <polygon class="terrain-inner" points="-76.21,-176 -38.105,-154 -38.105,-110 -76.21,-88 -114.315,-110 -114.315,-154" />
+    </g><g class="terrain-group" role="img" aria-label="pasture, roll 8">
+      <polygon class="terrain-tile" points="0,-176 38.105,-154 38.105,-110 0,-88 -38.105,-110 -38.105,-154" fill="url(#board-pasture)" />
+      <polygon class="terrain-inner" points="0,-176 38.105,-154 38.105,-110 0,-88 -38.105,-110 -38.105,-154" />
+    </g><g class="terrain-group" role="img" aria-label="hills, roll 2">
+      <polygon class="terrain-tile" points="76.21,-176 114.315,-154 114.315,-110 76.21,-88 38.105,-110 38.105,-154" fill="url(#board-hills)" />
+      <polygon class="terrain-inner" points="76.21,-176 114.315,-154 114.315,-110 76.21,-88 38.105,-110 38.105,-154" />
+    </g><g class="terrain-group" role="img" aria-label="fields, roll 8">
+      <polygon class="terrain-tile" points="-114.315,-110 -76.21,-88 -76.21,-44 -114.315,-22 -152.42,-44 -152.42,-88" fill="url(#board-fields)" />
+      <polygon class="terrain-inner" points="-114.315,-110 -76.21,-88 -76.21,-44 -114.315,-22 -152.42,-44 -152.42,-88" />
+    </g><g class="terrain-group" role="img" aria-label="pasture, roll 10">
+      <polygon class="terrain-tile" points="-38.105,-110 0,-88 0,-44 -38.105,-22 -76.21,-44 -76.21,-88" fill="url(#board-pasture)" />
+      <polygon class="terrain-inner" points="-38.105,-110 0,-88 0,-44 -38.105,-22 -76.21,-44 -76.21,-88" />
+    </g><g class="terrain-group" role="img" aria-label="forest, roll 3">
+      <polygon class="terrain-tile" points="38.105,-110 76.21,-88 76.21,-44 38.105,-22 0,-44 0,-88" fill="url(#board-forest)" />
+      <polygon class="terrain-inner" points="38.105,-110 76.21,-88 76.21,-44 38.105,-22 0,-44 0,-88" />
+    </g><g class="terrain-group" role="img" aria-label="hills, roll 9">
+      <polygon class="terrain-tile" points="114.315,-110 152.42,-88 152.42,-44 114.315,-22 76.21,-44 76.21,-88" fill="url(#board-hills)" />
+      <polygon class="terrain-inner" points="114.315,-110 152.42,-88 152.42,-44 114.315,-22 76.21,-44 76.21,-88" />
+    </g><g class="terrain-group" role="img" aria-label="forest, roll 10">
+      <polygon class="terrain-tile" points="-152.42,-44 -114.315,-22 -114.315,22 -152.42,44 -190.526,22 -190.526,-22" fill="url(#board-forest)" />
+      <polygon class="terrain-inner" points="-152.42,-44 -114.315,-22 -114.315,22 -152.42,44 -190.526,22 -190.526,-22" />
+    </g><g class="terrain-group" role="img" aria-label="mountains, roll 12">
+      <polygon class="terrain-tile" points="-76.21,-44 -38.105,-22 -38.105,22 -76.21,44 -114.315,22 -114.315,-22" fill="url(#board-mountains)" />
+      <polygon class="terrain-inner" points="-76.21,-44 -38.105,-22 -38.105,22 -76.21,44 -114.315,22 -114.315,-22" />
+    </g><g class="terrain-group" role="img" aria-label="fields, roll 11">
+      <polygon class="terrain-tile" points="0,-44 38.105,-22 38.105,22 0,44 -38.105,22 -38.105,-22" fill="url(#board-fields)" />
+      <polygon class="terrain-inner" points="0,-44 38.105,-22 38.105,22 0,44 -38.105,22 -38.105,-22" />
+    </g><g class="terrain-group" role="img" aria-label="pasture, roll 9">
+      <polygon class="terrain-tile" points="76.21,-44 114.315,-22 114.315,22 76.21,44 38.105,22 38.105,-22" fill="url(#board-pasture)" />
+      <polygon class="terrain-inner" points="76.21,-44 114.315,-22 114.315,22 76.21,44 38.105,22 38.105,-22" />
+    </g><g class="terrain-group" role="img" aria-label="fields, roll 6">
+      <polygon class="terrain-tile" points="152.42,-44 190.526,-22 190.526,22 152.42,44 114.315,22 114.315,-22" fill="url(#board-fields)" />
+      <polygon class="terrain-inner" points="152.42,-44 190.526,-22 190.526,22 152.42,44 114.315,22 114.315,-22" />
+    </g><g class="terrain-group" role="img" aria-label="forest, roll 4">
+      <polygon class="terrain-tile" points="-114.315,22 -76.21,44 -76.21,88 -114.315,110 -152.42,88 -152.42,44" fill="url(#board-forest)" />
+      <polygon class="terrain-inner" points="-114.315,22 -76.21,44 -76.21,88 -114.315,110 -152.42,88 -152.42,44" />
+    </g><g class="terrain-group" role="img" aria-label="fields, roll 6">
+      <polygon class="terrain-tile" points="-38.105,22 0,44 0,88 -38.105,110 -76.21,88 -76.21,44" fill="url(#board-fields)" />
+      <polygon class="terrain-inner" points="-38.105,22 0,44 0,88 -38.105,110 -76.21,88 -76.21,44" />
+    </g><g class="terrain-group" role="img" aria-label="forest, roll 5">
+      <polygon class="terrain-tile" points="38.105,22 76.21,44 76.21,88 38.105,110 0,88 0,44" fill="url(#board-forest)" />
+      <polygon class="terrain-inner" points="38.105,22 76.21,44 76.21,88 38.105,110 0,88 0,44" />
+    </g><g class="terrain-group" role="img" aria-label="mountains, roll 4">
+      <polygon class="terrain-tile" points="114.315,22 152.42,44 152.42,88 114.315,110 76.21,88 76.21,44" fill="url(#board-mountains)" />
+      <polygon class="terrain-inner" points="114.315,22 152.42,44 152.42,88 114.315,110 76.21,88 76.21,44" />
+    </g><g class="terrain-group" role="img" aria-label="desert, no production">
+      <polygon class="terrain-tile" points="-76.21,88 -38.105,110 -38.105,154 -76.21,176 -114.315,154 -114.315,110" fill="url(#board-desert)" />
+      <polygon class="terrain-inner" points="-76.21,88 -38.105,110 -38.105,154 -76.21,176 -114.315,154 -114.315,110" />
+    </g><g class="terrain-group" role="img" aria-label="mountains, roll 11">
+      <polygon class="terrain-tile" points="0,88 38.105,110 38.105,154 0,176 -38.105,154 -38.105,110" fill="url(#board-mountains)" />
+      <polygon class="terrain-inner" points="0,88 38.105,110 38.105,154 0,176 -38.105,154 -38.105,110" />
+    </g><g class="terrain-group" role="img" aria-label="pasture, roll 3">
+      <polygon class="terrain-tile" points="76.21,88 114.315,110 114.315,154 76.21,176 38.105,154 38.105,110" fill="url(#board-pasture)" />
+      <polygon class="terrain-inner" points="76.21,88 114.315,110 114.315,154 76.21,176 38.105,154 38.105,110" />
+    </g></g>
+    <g class="token-layer"><g class="number-token" transform="translate(-76.21 -132)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">5</text><circle class="token-pip" cx="-3.45" cy="6" r="0.65" /><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" /><circle class="token-pip" cx="3.45" cy="6" r="0.65" />
+    </g><g class="number-token token-hot" transform="translate(0 -132)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">8</text><circle class="token-pip" cx="-4.6" cy="6" r="0.65" /><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" /><circle class="token-pip" cx="4.6" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(76.21 -132)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">2</text><circle class="token-pip" cx="0" cy="6" r="0.65" />
+    </g><g class="number-token token-hot" transform="translate(-114.315 -66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">8</text><circle class="token-pip" cx="-4.6" cy="6" r="0.65" /><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" /><circle class="token-pip" cx="4.6" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(-38.105 -66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">10</text><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(38.105 -66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">3</text><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(114.315 -66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">9</text><circle class="token-pip" cx="-3.45" cy="6" r="0.65" /><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" /><circle class="token-pip" cx="3.45" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(-152.42 0)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">10</text><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(-76.21 0)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">12</text><circle class="token-pip" cx="0" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(0 0)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">11</text><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(76.21 0)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">9</text><circle class="token-pip" cx="-3.45" cy="6" r="0.65" /><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" /><circle class="token-pip" cx="3.45" cy="6" r="0.65" />
+    </g><g class="number-token token-hot" transform="translate(152.42 0)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">6</text><circle class="token-pip" cx="-4.6" cy="6" r="0.65" /><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" /><circle class="token-pip" cx="4.6" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(-114.315 66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">4</text><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" />
+    </g><g class="number-token token-hot" transform="translate(-38.105 66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">6</text><circle class="token-pip" cx="-4.6" cy="6" r="0.65" /><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" /><circle class="token-pip" cx="4.6" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(38.105 66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">5</text><circle class="token-pip" cx="-3.45" cy="6" r="0.65" /><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" /><circle class="token-pip" cx="3.45" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(114.315 66)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">4</text><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(0 132)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">11</text><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" />
+    </g><g class="number-token" transform="translate(76.21 132)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">3</text><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" />
+    </g></g>
+    <g class="port-layer"><g class="port" role="img" aria-label="Ore port, 2 to 1">
+      <path class="port-pier" d="M -19.053 -165 L -22.15 -191.822" />
+      <path class="port-pier-detail" d="M -19.053 -165 L -22.15 -191.822" />
+      <g transform="translate(-22.15 -191.822)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">2:1</text>
+        <text class="port-subtext" y="6">Ore</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Brick port, 2 to 1">
+      <path class="port-pier" d="M -114.315 -132 L -131.991 -152.41" />
+      <path class="port-pier-detail" d="M -114.315 -132 L -131.991 -152.41" />
+      <g transform="translate(-131.991 -152.41)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">2:1</text>
+        <text class="port-subtext" y="6">Brick</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Any port, 3 to 1">
+      <path class="port-pier" d="M -171.473 -33 L -197.987 -38.103" />
+      <path class="port-pier-detail" d="M -171.473 -33 L -197.987 -38.103" />
+      <g transform="translate(-197.987 -38.103)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">3:1</text>
+        <text class="port-subtext" y="6">Any</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Wool port, 2 to 1">
+      <path class="port-pier" d="M -133.368 99 L -155.048 115.093" />
+      <path class="port-pier-detail" d="M -133.368 99 L -155.048 115.093" />
+      <g transform="translate(-155.048 115.093)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">2:1</text>
+        <text class="port-subtext" y="6">Wool</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Any port, 3 to 1">
+      <path class="port-pier" d="M -57.158 165 L -65.996 190.513" />
+      <path class="port-pier-detail" d="M -57.158 165 L -65.996 190.513" />
+      <g transform="translate(-65.996 190.513)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">3:1</text>
+        <text class="port-subtext" y="6">Any</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Lumber port, 2 to 1">
+      <path class="port-pier" d="M 57.158 165 L 65.996 190.513" />
+      <path class="port-pier-detail" d="M 57.158 165 L 65.996 190.513" />
+      <g transform="translate(65.996 190.513)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">2:1</text>
+        <text class="port-subtext" y="6">Lumber</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Grain port, 2 to 1">
+      <path class="port-pier" d="M 152.42 66 L 177.197 76.729" />
+      <path class="port-pier-detail" d="M 152.42 66 L 177.197 76.729" />
+      <g transform="translate(177.197 76.729)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">2:1</text>
+        <text class="port-subtext" y="6">Grain</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Any port, 3 to 1">
+      <path class="port-pier" d="M 171.473 -33 L 197.987 -38.103" />
+      <path class="port-pier-detail" d="M 171.473 -33 L 197.987 -38.103" />
+      <g transform="translate(197.987 -38.103)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">3:1</text>
+        <text class="port-subtext" y="6">Any</text>
+      </g>
+    </g><g class="port" role="img" aria-label="Any port, 3 to 1">
+      <path class="port-pier" d="M 114.315 -132 L 131.991 -152.41" />
+      <path class="port-pier-detail" d="M 114.315 -132 L 131.991 -152.41" />
+      <g transform="translate(131.991 -152.41)">
+        <rect class="port-badge" x="-12" y="-11" width="24" height="22" rx="5" />
+        <text class="port-text" y="-1">3:1</text>
+        <text class="port-subtext" y="6">Any</text>
+      </g>
+    </g></g>
+  </g>
+</svg>
+        <details class="mobile-overview">
+          <summary><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v5M10 6v1" /></svg>Overview</summary>
+          <div class="mobile-guide"><h2>Board guide</h2><ul class="resource-list"><li class="resource-row"><span class="mini-terrain forest" aria-hidden="true"></span>
+      <div><strong>Forest</strong><small>Lumber</small></div></li><li class="resource-row"><span class="mini-terrain pasture" aria-hidden="true"></span>
+      <div><strong>Pasture</strong><small>Wool</small></div></li><li class="resource-row"><span class="mini-terrain fields" aria-hidden="true"></span>
+      <div><strong>Fields</strong><small>Grain</small></div></li><li class="resource-row"><span class="mini-terrain hills" aria-hidden="true"></span>
+      <div><strong>Clay hills</strong><small>Brick</small></div></li><li class="resource-row"><span class="mini-terrain mountains" aria-hidden="true"></span>
+      <div><strong>Mountains</strong><small>Ore</small></div></li><li class="resource-row"><span class="mini-terrain desert" aria-hidden="true"></span>
+      <div><strong>Desert</strong><small>No production</small></div></li></ul><p>Tokens show production rolls. Coastal markers show trade rates.</p></div>
+        </details>
+        <span class="canvas-caption">Standard island · 19 tiles</span>
+        <div class="zoom-controls" role="group" aria-label="Prototype zoom controls">
+          <button class="zoom-secondary" type="button" aria-label="Zoom out" onclick="setZoom(1)">−</button>
+          <button class="zoom-secondary" type="button" aria-label="Fit board" onclick="setZoom(1)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" /></svg></button>
+          <button class="zoom-in" type="button" aria-label="Zoom in" onclick="setZoom(1.5)">+</button>
+        </div>
+      </section>
+
+      <section class="terrain-panel" aria-label="Enlarged terrain samples">
+        <div class="terrain-intro"><h2>A closer look</h2><p>Six terrains, one illustration style</p></div>
+        <div class="terrain-grid"><figure class="terrain-card">
+      <svg class="terrain-sample" viewBox="0 -2 106 108" role="img" aria-label="Forest illustrated terrain sample" xmlns="http://www.w3.org/2000/svg">
+        <defs><pattern id="sample-0-forest" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern></defs>
+        <polygon class="terrain-tile" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" fill="url(#sample-0-forest)" />
+        <polygon class="terrain-inner" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" /><g class="number-token" transform="translate(50 50)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">5</text><circle class="token-pip" cx="-3.45" cy="6" r="0.65" /><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" /><circle class="token-pip" cx="3.45" cy="6" r="0.65" />
+    </g>
+      </svg>
+      <figcaption><strong>Forest</strong><small>Lumber</small></figcaption>
+    </figure><figure class="terrain-card">
+      <svg class="terrain-sample" viewBox="0 -2 106 108" role="img" aria-label="Pasture illustrated terrain sample" xmlns="http://www.w3.org/2000/svg">
+        <defs><pattern id="sample-1-pasture" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="100 0 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern></defs>
+        <polygon class="terrain-tile" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" fill="url(#sample-1-pasture)" />
+        <polygon class="terrain-inner" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" /><g class="number-token token-hot" transform="translate(50 50)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">8</text><circle class="token-pip" cx="-4.6" cy="6" r="0.65" /><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" /><circle class="token-pip" cx="4.6" cy="6" r="0.65" />
+    </g>
+      </svg>
+      <figcaption><strong>Pasture</strong><small>Wool</small></figcaption>
+    </figure><figure class="terrain-card">
+      <svg class="terrain-sample" viewBox="0 -2 106 108" role="img" aria-label="Fields illustrated terrain sample" xmlns="http://www.w3.org/2000/svg">
+        <defs><pattern id="sample-2-fields" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="200 0 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern></defs>
+        <polygon class="terrain-tile" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" fill="url(#sample-2-fields)" />
+        <polygon class="terrain-inner" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" /><g class="number-token token-hot" transform="translate(50 50)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">6</text><circle class="token-pip" cx="-4.6" cy="6" r="0.65" /><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" /><circle class="token-pip" cx="4.6" cy="6" r="0.65" />
+    </g>
+      </svg>
+      <figcaption><strong>Fields</strong><small>Grain</small></figcaption>
+    </figure><figure class="terrain-card">
+      <svg class="terrain-sample" viewBox="0 -2 106 108" role="img" aria-label="Clay hills illustrated terrain sample with sample road and settlement" xmlns="http://www.w3.org/2000/svg">
+        <defs><pattern id="sample-3-hills" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="0 100 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern></defs>
+        <polygon class="terrain-tile" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" fill="url(#sample-3-hills)" />
+        <polygon class="terrain-inner" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" /><g class="number-token" transform="translate(50 50)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">9</text><circle class="token-pip" cx="-3.45" cy="6" r="0.65" /><circle class="token-pip" cx="-1.15" cy="6" r="0.65" /><circle class="token-pip" cx="1.15" cy="6" r="0.65" /><circle class="token-pip" cx="3.45" cy="6" r="0.65" />
+    </g><path class="piece-underlay" d="M50 3L90.7 26.5" /><path class="piece-road" d="M50 3L90.7 26.5" />
+          <path class="piece-house" d="M83 26L91 20L99 26V36H83Z" />
+      </svg>
+      <figcaption><strong>Clay hills</strong><small>Brick · sample pieces</small></figcaption>
+    </figure><figure class="terrain-card">
+      <svg class="terrain-sample" viewBox="0 -2 106 108" role="img" aria-label="Mountains illustrated terrain sample" xmlns="http://www.w3.org/2000/svg">
+        <defs><pattern id="sample-4-mountains" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="100 100 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern></defs>
+        <polygon class="terrain-tile" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" fill="url(#sample-4-mountains)" />
+        <polygon class="terrain-inner" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" /><g class="number-token" transform="translate(50 50)" aria-hidden="true">
+      <circle class="token-shadow" cy="1.5" r="11.8" />
+      <circle class="token-disc" r="11.5" />
+      <circle class="token-inner" r="9.8" />
+      <text class="token-number" y="3.2">4</text><circle class="token-pip" cx="-2.3" cy="6" r="0.65" /><circle class="token-pip" cx="0" cy="6" r="0.65" /><circle class="token-pip" cx="2.3" cy="6" r="0.65" />
+    </g>
+      </svg>
+      <figcaption><strong>Mountains</strong><small>Ore</small></figcaption>
+    </figure><figure class="terrain-card">
+      <svg class="terrain-sample" viewBox="0 -2 106 108" role="img" aria-label="Desert illustrated terrain sample" xmlns="http://www.w3.org/2000/svg">
+        <defs><pattern id="sample-5-desert" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <svg width="1" height="1" viewBox="200 100 100 100" preserveAspectRatio="none">
+        <image href="assets/terrain-atlas.png" width="300" height="200" />
+      </svg>
+    </pattern></defs>
+        <polygon class="terrain-tile" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" fill="url(#sample-5-desert)" />
+        <polygon class="terrain-inner" points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" />
+      </svg>
+      <figcaption><strong>Desert</strong><small>No production</small></figcaption>
+    </figure></div>
+      </section>
+
+      <aside class="sidebar" aria-label="Board guide">
+        <span class="eyebrow">Know your island</span><h2>Board guide</h2>
+        <ul class="resource-list"><li class="resource-row"><span class="mini-terrain forest" aria-hidden="true"></span>
+      <div><strong>Forest</strong><small>Lumber</small></div></li><li class="resource-row"><span class="mini-terrain pasture" aria-hidden="true"></span>
+      <div><strong>Pasture</strong><small>Wool</small></div></li><li class="resource-row"><span class="mini-terrain fields" aria-hidden="true"></span>
+      <div><strong>Fields</strong><small>Grain</small></div></li><li class="resource-row"><span class="mini-terrain hills" aria-hidden="true"></span>
+      <div><strong>Clay hills</strong><small>Brick</small></div></li><li class="resource-row"><span class="mini-terrain mountains" aria-hidden="true"></span>
+      <div><strong>Mountains</strong><small>Ore</small></div></li><li class="resource-row"><span class="mini-terrain desert" aria-hidden="true"></span>
+      <div><strong>Desert</strong><small>No production</small></div></li></ul>
+        <div class="guide-note"><p>Number tokens show production rolls. Six and eight are highlighted in red.</p><p>Coastal markers show trade rates.</p></div>
+        <div class="preview-count"><span>19 terrain tiles</span><span>9 ports</span></div>
+      </aside>
+    </main>
+
+    <footer class="prototype-footer"><span>Illustrated appearance study</span><span class="footer-detail">Classic stays available in the app</span><a href="README.md">Design notes ↗</a></footer>
+  </div>
+  <script>
+    function setZoom(scale) {
+      document.querySelector('.zoom-layer').style.transform = `scale(${scale})`;
+      document.querySelector('.canvas').classList.toggle('is-zoomed', scale > 1);
+      document.querySelector('.zoom-in').disabled = scale > 1;
+    }
+  </script>
+</body>
+</html>

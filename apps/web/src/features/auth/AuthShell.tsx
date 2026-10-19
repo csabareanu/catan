@@ -5,6 +5,7 @@ import {
   useBrowserPathname,
 } from '../../lib/navigation'
 import type { AuthenticatedUser } from './authApi'
+import { SettingsButton } from '../settings/SettingsButton'
 
 type AccessShellProps = {
   children: ReactNode
@@ -115,38 +116,41 @@ export function AuthenticatedHeader({
         </a>
       </nav>
 
-      <details ref={accountMenuRef} className="account-menu">
-        <summary
-          ref={accountTriggerRef}
-          className="account-trigger"
-          aria-label={`Account menu for ${user.name}`}
-        >
-          <span className="avatar" aria-hidden="true">
-            {getUserInitials(user.name)}
-          </span>
-          <span className="account-name">{user.name}</span>
-          <svg className="account-chevron" aria-hidden="true" viewBox="0 0 24 24">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </summary>
-        <div className="menu-panel">
-          <div className="menu-account">
-            <strong>{user.name}</strong>
-            <span>{user.email}</span>
-          </div>
-          <button
-            className="menu-item"
-            type="button"
-            disabled={isLoggingOut}
-            onClick={() => void onLogout()}
+      <div className="header-tools">
+        <SettingsButton />
+        <details ref={accountMenuRef} className="account-menu">
+          <summary
+            ref={accountTriggerRef}
+            className="account-trigger"
+            aria-label={`Account menu for ${user.name}`}
           >
-            <svg className="menu-item-icon" aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M9 4H5v16h4m5-12 4 4-4 4m-5-4h13" />
+            <span className="avatar" aria-hidden="true">
+              {getUserInitials(user.name)}
+            </span>
+            <span className="account-name">{user.name}</span>
+            <svg className="account-chevron" aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m6 9 6 6 6-6" />
             </svg>
-            {isLoggingOut ? 'Signing out…' : 'Sign out'}
-          </button>
-        </div>
-      </details>
+          </summary>
+          <div className="menu-panel">
+            <div className="menu-account">
+              <strong>{user.name}</strong>
+              <span>{user.email}</span>
+            </div>
+            <button
+              className="menu-item"
+              type="button"
+              disabled={isLoggingOut}
+              onClick={() => void onLogout()}
+            >
+              <svg className="menu-item-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M9 4H5v16h4m5-12 4 4-4 4m-5-4h13" />
+              </svg>
+              {isLoggingOut ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
+        </details>
+      </div>
     </SiteHeader>
   )
 }
@@ -160,29 +164,32 @@ export function PublicHeader({
 
   return (
     <SiteHeader>
-      {isRestoringSession ? (
-        <div className="header-session-status" role="status">
-          <span className="status-dot" aria-hidden="true" />
-          <span>Restoring session</span>
-        </div>
-      ) : (
-        <nav className="header-actions" aria-label="Account access">
-          <a
-            className="header-sign-in-link"
-            href="/login"
-            aria-current={pathname === '/login' ? 'page' : undefined}
-          >
-            Sign in
-          </a>
-          <a
-            className="header-register-link"
-            href="/register"
-            aria-current={pathname === '/register' ? 'page' : undefined}
-          >
-            Create account
-          </a>
-        </nav>
-      )}
+      <div className="header-tools">
+        <SettingsButton />
+        {isRestoringSession ? (
+          <div className="header-session-status" role="status">
+            <span className="status-dot" aria-hidden="true" />
+            <span>Restoring session</span>
+          </div>
+        ) : (
+          <nav className="header-actions" aria-label="Account access">
+            <a
+              className="header-sign-in-link"
+              href="/login"
+              aria-current={pathname === '/login' ? 'page' : undefined}
+            >
+              Sign in
+            </a>
+            <a
+              className="header-register-link"
+              href="/register"
+              aria-current={pathname === '/register' ? 'page' : undefined}
+            >
+              Create account
+            </a>
+          </nav>
+        )}
+      </div>
     </SiteHeader>
   )
 }

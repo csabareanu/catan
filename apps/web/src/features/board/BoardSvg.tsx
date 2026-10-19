@@ -12,6 +12,9 @@ import {
   type BoardLayout,
   type ScreenPoint,
 } from './useBoardViewport'
+import { useSettings } from '../settings/useSettings'
+import { BoardTerrainPatterns } from './BoardTerrainPatterns'
+import terrainAtlas from '../../assets/terrain-atlas.webp'
 
 const HEX_RADIUS = 44
 const LATTICE_X_SCALE = Math.sqrt(3) / 2
@@ -75,9 +78,12 @@ type BoardSvgProps = {
 }
 
 export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
+  const { boardAppearance } = useSettings()
   const seaID = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const seaGradientID = `${seaID}-gradient`
   const seaWavesID = `${seaID}-waves`
+  const terrainPatternPrefix = `${seaID}-terrain`
+  const isIllustrated = boardAppearance === 'illustrated'
   const hasBoard = board.hexes.length > 0
   const initialLayout = hasBoard ? createLayout(board) : null
   const {
@@ -180,6 +186,7 @@ export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
       >
         <svg
           className="board-svg"
+          data-board-appearance={boardAppearance}
           viewBox={viewBox}
           role="img"
           aria-labelledby={`${titleID} ${descriptionID}`}
@@ -194,6 +201,7 @@ export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
           </desc>
 
           <defs>
+            {isIllustrated && <BoardTerrainPatterns idPrefix={terrainPatternPrefix} />}
             <linearGradient id={seaGradientID} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="var(--board-sea-light)" />
               <stop offset="52%" stopColor="var(--board-sea)" />
@@ -237,10 +245,20 @@ export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
               fill={`url(#${seaWavesID})`}
             />
             <path className="board-coastline-shallows" d={coastline} />
+            {isIllustrated && (
+              <>
+                <path className="board-coastline-foam" d={coastline} />
+                <path className="board-coastline-sand" d={coastline} />
+              </>
+            )}
           </g>
 
           <g className="board-hex-layer">
-            {board.hexes.map((hex) => renderHex(hex, layout))}
+            {board.hexes.map((hex) => renderHex(
+              hex,
+              layout,
+              isIllustrated ? terrainPatternPrefix : undefined,
+            ))}
           </g>
 
           <g className="board-edge-layer" aria-hidden="true">
@@ -248,7 +266,7 @@ export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
           </g>
 
           <g className="board-port-layer">
-            {board.ports.map((port) => renderPort(port, board, layout))}
+            {board.ports.map((port) => renderPort(port, board, layout, isIllustrated))}
           </g>
         </svg>
         {toolbar}
@@ -260,13 +278,23 @@ export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
 }
 
 export function BoardHelp() {
+  const { boardAppearance } = useSettings()
+
   return (
     <>
-      <div className="board-legend" aria-label="Terrain and resource guide" role="list">
+      <div
+        className="board-legend"
+        data-board-appearance={boardAppearance}
+        aria-label="Terrain and resource guide"
+        role="list"
+      >
         {TERRAIN_LEGEND.map((terrain) => (
           <span className="board-legend-item" key={terrain} role="listitem">
             <span
               className={`board-legend-swatch board-legend-swatch-${terrain}`}
+              style={boardAppearance === 'illustrated'
+                ? { backgroundImage: `url(${terrainAtlas})` }
+                : undefined}
               aria-hidden="true"
             />
             <span className="board-legend-symbol" aria-hidden="true">
@@ -373,7 +401,7 @@ function coastlinePath(
     .join(' ')
 }
 
-function renderHex(hex: BoardHex, layout: BoardLayout) {
+function renderHex(hex: BoardHex, layout: BoardLayout, terrainPatternPrefix?: string) {
   const center = layout.hexCenters.get(hex.id)
   const points = hex.vertex_ids
     .map((vertexID) => layout.vertexPoints.get(vertexID))
@@ -393,6 +421,8 @@ function renderHex(hex: BoardHex, layout: BoardLayout) {
   const tokenLabel = hasNumberToken
     ? `, number token ${hex.number_token}`
     : ', no number token'
+  const labelWidth = resourceLabel.length * 4 + 20
+  const labelY = center.y + (hasNumberToken ? 15 : 7)
 
   return (
     <g className={`board-hex-group board-hex-group-${hex.terrain}`} key={hex.id}>
@@ -403,39 +433,58 @@ function renderHex(hex: BoardHex, layout: BoardLayout) {
       <polygon
         className={`board-hex board-hex-${hex.terrain}`}
         data-hex-id={hex.id}
+        style={terrainPatternPrefix
+          ? { fill: `url(#${terrainPatternPrefix}-${hex.terrain})` }
+          : undefined}
         points={pointsToAttribute(points)}
       />
+      {terrainPatternPrefix && (
+        <rect
+          className="board-label-backing"
+          x={center.x - labelWidth / 2}
+          y={labelY}
+          width={labelWidth}
+          height="12"
+          rx="6"
+        />
+      )}
       <g
         className="board-resource-marker"
-        transform={`translate(${center.x} ${center.y + (hasNumberToken ? -27 : -7)})`}
+        transform={terrainPatternPrefix
+          ? `translate(${center.x - labelWidth / 2 + 7} ${labelY + 6})`
+          : `translate(${center.x} ${center.y + (hasNumberToken ? -27 : -7)})`}
       >
         <title>
           {terrainPresentation.resourceType
             ? `${resourceLabel} resource from ${terrainLabel}`
             : `${terrainLabel}, no resource production`}
         </title>
-        <text className="board-resource-symbol" textAnchor="middle" y="5">
+        <text
+          className="board-resource-symbol"
+          textAnchor="middle"
+          y={terrainPatternPrefix ? 3 : 5}
+        >
           {terrainPresentation.symbol}
         </text>
       </g>
       {hasNumberToken && (
         <g
           className={`number-token${isHighProbability ? ' number-token-red' : ''}`}
-          transform={`translate(${center.x} ${center.y})`}
+          transform={`translate(${center.x} ${center.y - (terrainPatternPrefix ? 8 : 0)})`}
         >
           <circle className="number-token-disc" r="14" />
           <text className="number-token-value" textAnchor="middle" y="5">
             {hex.number_token}
           </text>
           {isHighProbability && (
-            <circle className="number-token-pip" cy="20" r="1.7" />
+            <circle className="number-token-pip" cy={terrainPatternPrefix ? 18 : 20} r="1.7" />
           )}
         </g>
       )}
       <text
         className="board-hex-label"
-        x={center.x}
-        y={center.y + (hasNumberToken ? 29 : 16)}
+        x={center.x + (terrainPatternPrefix ? 4 : 0)}
+        y={terrainPatternPrefix ? labelY + 8.5 : center.y + (hasNumberToken ? 29 : 16)}
         textAnchor="middle"
       >
         {resourceLabel}
@@ -467,7 +516,12 @@ function renderEdge(
   )
 }
 
-function renderPort(port: BoardPort, board: BoardData, layout: BoardLayout) {
+function renderPort(
+  port: BoardPort,
+  board: BoardData,
+  layout: BoardLayout,
+  isIllustrated: boolean,
+) {
   const edge = board.edges.find((candidate) => candidate.id === port.edge_id)
   const points = edge ? edgePoints(edge, layout.vertexPoints) : null
 
@@ -491,7 +545,10 @@ function renderPort(port: BoardPort, board: BoardData, layout: BoardLayout) {
   const label = port.resource_type
     ? `${port.trade_ratio}:1 ${RESOURCE_SYMBOLS[port.resource_type]} ${RESOURCE_LABELS[port.resource_type]}`
     : `${port.trade_ratio}:1 Generic`
-  const labelWidth = Math.max(42, label.length * 6.3 + 18)
+  const resourceLabel = port.resource_type ? RESOURCE_LABELS[port.resource_type] : 'Any'
+  const labelWidth = isIllustrated
+    ? Math.max(24, resourceLabel.length * 3.4 + 10)
+    : Math.max(42, label.length * 6.3 + 18)
 
   return (
     <g className="board-port" data-port-id={port.id} key={port.id}>
@@ -518,10 +575,17 @@ function renderPort(port: BoardPort, board: BoardData, layout: BoardLayout) {
       <text
         className="board-port-label"
         x={marker.x}
-        y={marker.y + 4}
+        y={marker.y + (isIllustrated ? -1 : 4)}
         textAnchor="middle"
       >
-        {label}
+        {isIllustrated ? (
+          <>
+            <tspan x={marker.x}>{port.trade_ratio}:1</tspan>
+            <tspan className="board-port-resource" x={marker.x} dy="8">
+              {resourceLabel}
+            </tspan>
+          </>
+        ) : label}
       </text>
     </g>
   )

@@ -29,3 +29,4 @@
 - [ ] 11. **Human setup and core turns** - one authenticated human can create a game, complete initial placement, roll, build, and use bank or port trades while AI opponents take their turns.
 - [ ] 12. **Human special actions and negotiation** - the human player can resolve robber and discard decisions, use development cards, and negotiate player trades with AI opponents through legal-action guidance.
 - [ ] 13. **Completed match experience** - the browser presents clear turns, private resources, scoring, awards, victory, important-event animation, responsive layouts, and a complete post-game replay.
+- [x] 14. **Selectable board appearance** - retain Classic and add an Illustrated style using the approved top-down terrain artwork and visible coastline; a compact selector remembers the browser's choice across preview, setup, and observer boards while both styles share the same board data and controls.

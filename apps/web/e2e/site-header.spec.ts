@@ -35,6 +35,7 @@ for (const viewport of [
       await expect(header.getByRole('link', { name: 'Catan home' })).toHaveAttribute('href', '/')
       await expect(header.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
       await expect(header.getByRole('link', { name: 'Create account' })).toHaveAttribute('href', '/register')
+      await expect(header.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
       expect(await headerFrame(page), path).toEqual(reference)
     }
 
@@ -44,6 +45,8 @@ for (const viewport of [
       await page.goto(path)
       const account = page.locator('.account-trigger')
       await expect(account).toHaveAttribute('aria-label', `Account menu for ${user.name}`)
+      await expect(page.locator('.topbar').getByRole('button', { name: 'Settings', exact: true }))
+        .toBeVisible()
       expect(await headerFrame(page), path).toEqual(reference)
 
       const activeLink = page.getByRole('navigation', { name: 'Main navigation' })
@@ -79,7 +82,7 @@ async function headerFrame(page: Page) {
     const bounds = header.getBoundingClientRect()
     const content = frame.getBoundingClientRect()
     const logo = brand.getBoundingClientRect()
-    const controls = [...header.querySelectorAll('.nav-link, .account-trigger, .header-actions a')]
+    const controls = [...header.querySelectorAll('.nav-link, .account-trigger, .header-actions a, .header-settings-button')]
       .map((control) => control.getBoundingClientRect())
     const overlaps = (first: DOMRect, second: DOMRect) =>
       first.left < second.right && first.right > second.left &&

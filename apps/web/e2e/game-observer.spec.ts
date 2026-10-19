@@ -193,6 +193,56 @@ for (const viewport of [
   })
 }
 
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+  { width: 320, height: 568 },
+]) {
+  test(`keeps the illustrated observer and guide usable at ${viewport.width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport)
+    await page.addInitScript(() => localStorage.setItem('catan.board-appearance.v1', 'illustrated'))
+    await page.route('**/api/v1/games/42/replay', (route) =>
+      route.fulfill({ json: replayResponse('completed', true) }),
+    )
+    await page.goto('/games/42/observe')
+    const board = page.locator('.board-svg')
+    await expect(board).toHaveAttribute('data-board-appearance', 'illustrated')
+    await board.locator('image').first().evaluate(async (element) => {
+      const image = new Image()
+      image.src = element.getAttribute('href')!
+      await image.decode()
+    })
+    await expect(page.locator('.board-hex-layer')).toBeInViewport({ ratio: 1 })
+    const portsInside = await board.evaluate((svg) => {
+      const bounds = svg.getBoundingClientRect()
+      return [...svg.querySelectorAll('.board-port-badge')].every((port) => {
+        const badge = port.getBoundingClientRect()
+        return badge.left >= bounds.left && badge.right <= bounds.right &&
+          badge.top >= bounds.top && badge.bottom <= bounds.bottom
+      })
+    })
+    expect(portsInside).toBe(true)
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollWidth <= window.innerWidth &&
+      document.documentElement.scrollHeight <= window.innerHeight,
+    )).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath('illustrated-observer.png') })
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click()
+    await expect(page.locator('.board-svg-zoom-status')).toContainText('125%')
+    await page.screenshot({ path: testInfo.outputPath('illustrated-observer-zoomed.png') })
+    await page.getByRole('button', { name: 'Fit board', exact: true }).click()
+    if (viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Overview', exact: true }).click()
+    }
+    await page.getByText('Board guide', { exact: true }).click()
+    const guide = page.locator('.observer-board-help .board-legend')
+    await expect(guide).toBeVisible()
+    await expect(guide).toHaveAttribute('data-board-appearance', 'illustrated')
+    await expect(guide.locator('.board-legend-item')).toHaveCount(6)
+    await expect(guide.locator('.board-legend-swatch-forest')).toHaveCSS('background-size', '300% 200%')
+  })
+}
+
 test('keeps the observer usable in a landscape phone viewport', async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 })
   await page.route('**/api/v1/games/42/replay', (route) =>

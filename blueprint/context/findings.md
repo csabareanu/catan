@@ -177,3 +177,97 @@ parallel board implementations. Both styles need an identifiable ocean.
   and [WAI form notifications guidance](https://www.w3.org/WAI/tutorials/forms/notifications/).
 - Ledger changes: new open P2 entries F-01 through F-05 and P3 entries F-06
   and F-07. No earlier archived finding was reopened or silently accepted.
+
+## Illustrated board graphical and code audit - 2026-10-19
+
+**Scope:** Current Feature 14, with emphasis on the Illustrated map. Reviewed
+the committed Settings implementation, all staged, unstaged, and untracked
+feature source and tests, the shared board renderer and viewport behavior,
+the illustrated styles and atlas, the approved prototype, and affected
+preview, setup, header, and observer consumers. This is a focused frontend
+audit, not a full-project or backend audit.
+
+**Git:** `feature/selectable-board-appearance`, using local `main` as the base.
+Merge base: `16d67dfde3eaabaf28c56d95cb7bb02d326a0726`.
+Committed range: that base through `2f434ed`, plus the existing working tree.
+No fetch or pull was performed.
+
+**Verdict:** No new P0 or P1 findings. F-10 was re-reviewed and closed during
+this pass. The existing F-09 remains open. Optional visual refinements and
+future gameplay validation are not additional confirmed defects.
+
+### Visual assessment and optional refinements
+
+- Keep the approved artwork. Its consistent light, painting style, terrain
+  silhouettes, and palette give the board a coherent identity. Forest and
+  pasture have different textures as well as different greens; fields and
+  desert have different forms as well as different yellows. There are five
+  producing resources plus desert, and that variety serves the game.
+- The main source of visual density is the foreground: 18 number discs and
+  19 resource pills create 37 pale shapes across the island. The recent
+  alignment and capitalization changes improve this, and measured label
+  backings remain inside their hexes at every inspected viewport. Consider
+  an optional resource-label preference later, retaining names in the guide
+  and accessible descriptions. Keep the learning-friendly names available;
+  do not silently remove them as an audit repair.
+- Fitted phone views are overviews rather than comfortable text-reading
+  sizes. At 390px, resource names render at about 4.52 CSS px and port resource
+  names at 3.47 px; at 320px, about 3.65 and 2.81 px. Zoom works. This does
+  not reopen the user's accepted clipping or control-overlap behavior during
+  inspection zoom. Larger recognizable port symbols, with full trade details
+  on selection, are a useful later refinement when port interaction exists.
+  On a 1366x768 laptop, port resource text is also small, about 6.21 CSS px.
+- Preserve the calm water and restrained coast. More decorative scenery or
+  texture would add competition for attention without helping current board
+  reading. Do not add more buttons to the map for these refinements.
+- Keep foreground priority clear as gameplay arrives: pieces and legal-action
+  indicators first, numbers next, terrain beneath. A disposable browser-only
+  probe added sample roads and settlements on all six terrain types. Outlines
+  helped them separate from the artwork; pale player colors will need careful
+  outline choices. The probe was synthetic, not legal game state or shipped
+  gameplay, and does not prove full-match playability.
+- Before calling the match UI ready, inspect a developed board with actual
+  roads, settlements, cities, the robber, selection and legal-action markers,
+  all player colors, and the eventual hand/turn controls. Evaluate crowded
+  intersections and touch targets with real interactions. These are future
+  acceptance checks, not defects for unimplemented mechanics. Full
+  probability pips can also be considered in a later token-design pass; this
+  audit does not treat the existing high-roll markers as new rules work.
+
+### Evidence, code review, and limits
+
+- `cd apps/web && npm run lint`: passed.
+- `cd apps/web && npm run build`: passed, including TypeScript checking.
+- `cd apps/web && PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright npm run test:e2e -- e2e/board-appearance.spec.ts e2e/settings.spec.ts e2e/game-observer.spec.ts e2e/site-header.spec.ts`:
+  30 passed. Also reviewed the committed cross-route appearance test in
+  `game-creation.spec.ts`; the earlier full suite is not claimed as a new run.
+- Production preview inspected in managed Chromium at 1440x900, 1366x768,
+  768x1024, 390x844, 320x568, and 844x390. The document fit each viewport;
+  labels stayed inside their tiles. No console errors or failed requests were
+  observed. Existing browser tests also exercised wheel zoom, pointer pan,
+  two-finger pinch, fit reset, preference persistence, and the phone guide.
+- Browser deuteranopia emulation was inspected as an approximation. Terrain
+  textures and text still provide identification beyond color. This is not
+  a user accessibility study or a blanket accessibility certification.
+- Captures: `/tmp/catan-map-audit-1440.png`,
+  `/tmp/catan-map-audit-1366.png`, `/tmp/catan-map-audit-390.png`,
+  `/tmp/catan-map-audit-320.png`,
+  `/tmp/catan-map-audit-deuteranopia.png`, and
+  `/tmp/catan-map-audit-piece-contrast-probe.png`.
+- Source review covered `features/board/`, `features/settings/`, affected
+  `AuthShell.tsx` and `main.tsx` changes, board/Settings/header CSS, relevant
+  browser specs and fixtures, and the approved prototype and atlas layout.
+  Checked shared rendering, storage validation and fallback, SVG pattern IDs
+  and crop positions, layer order, modal/keyboard behavior, data ownership
+  boundaries, duplication, dead code, and test suppressions. No additional
+  concrete code-quality issue or skipped/focused test was found in this scope.
+- Excluded dependencies, generated build and test output as source, backend
+  implementation, database data, unrelated UI, and unbuilt game mechanics.
+  No network-backed audit tool was run. The Compose integration smoke test,
+  API/Go suites, human playtesting, and physical-phone testing were not run.
+  Runtime API responses were intercepted fixtures; no real user or game
+  record was created or changed.
+- Repair order: optimize the production atlas first; keep the approved art;
+  revisit label detail and port presentation as explicit design slices; test
+  a developed board when real pieces and interactions are implemented.
+- Only this ledger was edited. No product source was changed or committed.

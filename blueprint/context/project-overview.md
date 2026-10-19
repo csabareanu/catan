@@ -118,6 +118,10 @@ marked complete here; unchecked items remain planned.
 13. **Completed match experience** - planned. The browser delivers a clear,
     responsive, animated human-versus-AI match with scoring, victory, privacy,
     and full post-game replay.
+14. **Selectable board appearance** - planned. Players can keep the current
+   Classic board or choose the approved Illustrated terrain artwork. The choice
+   is remembered in the browser and applies across shared board views without
+   changing game data or controls.
 
 ## Data model
 
@@ -353,6 +357,12 @@ future board direction: fill the available window, use a desktop side panel
 and phone drawers or bottom sheets, and combine resource symbols with subtle
 terrain art. These board refinements require their own reviewed slices.
 
+The Illustrated board artwork and coastline treatment are approved for
+Feature 14. The existing Classic rendering remains available; both appearances
+use the shared renderer and board data. The selector preference is browser-local
+and does not change a game's seed, topology, rules, replay position, or saved
+state. Desktop and phone reference captures are in `blueprint/reference/`.
+
 The same data-driven SVG board grows into the replay tool and interactive
 match. Player controls, private hands, and legal actions appear only when
 supported by real API state.
@@ -415,11 +425,10 @@ Docker Desktop with WSL integration provides the current local runtime.
   Sanctum cookies, while completed Feature 4b explicitly approved bearer
   tokens in `sessionStorage`. Keep the current implementation until a reviewed
   slice resolves that plan-level intent; do not silently switch mechanisms.
-- **Visual direction** - the library theme is approved, and the UI audit
-  records the future board direction. Detailed artwork, motion, component
-  choices, and any additional frontend libraries remain implementation
-  decisions for reviewed slices. The project plan still carries its broader
-  visual-design open question.
+- **Visual direction** - the library theme and Feature 14 board artwork are
+  approved. Motion, component choices, and any additional frontend libraries
+  remain implementation decisions for reviewed slices. The project plan still
+  carries its broader visual-design open question.
 - **Commercial distribution** - revisit naming, visual-asset licensing,
   operating costs, and monetization before changing the non-commercial scope.
 - **Future operations** - choose public hosting, topology, real-time

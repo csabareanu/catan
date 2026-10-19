@@ -46,6 +46,56 @@ test('opens with a board preview without creating a game', async ({ page }) => {
   expect(gameCreationRequests).toBe(0)
 })
 
+test('carries the selected board appearance from preview into setup and observer', async ({ page }) => {
+  await authenticatePage(page)
+  await page.goto('/')
+  await page.evaluate(() => {
+    window.localStorage.setItem('catan.board-appearance.v1', 'unsupported')
+  })
+
+  const generatedSeeds: string[] = []
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    const seed = route.request().postDataJSON().seed as string
+    generatedSeeds.push(seed)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(boardResponse(seed)),
+    })
+  })
+  const observerBoard = boardResponse('42').data
+  await page.route('**/api/v1/games/42/replay', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(replayResponse('queued', observerBoard)),
+    })
+  })
+
+  await page.goto('/preview')
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await expect(settings.getByRole('radio', { name: 'Classic', exact: true })).toBeChecked()
+  await settings.getByRole('radio', { name: 'Illustrated', exact: true }).check()
+  await settings.getByRole('button', { name: 'Done', exact: true }).click()
+  expect(generatedSeeds).toHaveLength(1)
+
+  await page.goto('/games/new')
+  await expect(page.locator('.board-svg')).toHaveAttribute('data-board-appearance', 'illustrated')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(settings.getByRole('radio', { name: 'Illustrated', exact: true })).toBeChecked()
+  await settings.getByRole('button', { name: 'Done', exact: true }).click()
+
+  await page.goto('/games/42/observe')
+  await expect(page.locator('.observer-board .board-svg'))
+    .toHaveAttribute('data-board-appearance', 'illustrated')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(settings.getByRole('radio', { name: 'Illustrated', exact: true })).toBeChecked()
+  await settings.getByRole('button', { name: 'Done', exact: true }).click()
+  expect(generatedSeeds).toHaveLength(2)
+})
+
 test('returns to the board preview from game creation', async ({ page }) => {
   await authenticatePage(page)
   await page.route('**/api/v1/boards/generate', async (route) => {
