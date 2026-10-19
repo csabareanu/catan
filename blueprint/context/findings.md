@@ -28,20 +28,6 @@ observer specification. No P0 or P1 was confirmed. This is a fresh ledger
 cycle, so IDs start at F-01; earlier resolved IDs remain prefixed in their
 archives.
 
-### F-06 [P3] open - The creation screen's board-preview link opens the welcome page
-
-**File:** apps/web/src/features/games/GameCreationScreen.tsx:143
-**Found:** 2026-10-18 by /audit (scope: project UI)
-**Why it matters:** Return to board preview links to `/`, while the board
-preview lives at `/preview`. Browser navigation confirmed the link goes to
-the welcome route. The label promises a different destination and adds a
-detour for someone trying to inspect a board.
-**Suggested fix:** Point an explicit board-demo link at `/preview`, or label
-the `/` destination Home. Reconsider whether a separate demo escape link is
-useful once F-01 provides a preview within game setup. Cover the retained
-link's actual destination in the creation browser test.
-**Resolution:**
-
 ### F-07 [P3] open - The sea has colour but little visual identity as water
 
 **File:** apps/web/src/features/board/BoardSvg.tsx:137;

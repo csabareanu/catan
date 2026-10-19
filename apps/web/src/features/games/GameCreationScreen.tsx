@@ -519,7 +519,7 @@ export function GameCreationScreen({
 
       <div className="access-links game-creation-links">
         <a href="/games">Return to your games</a>
-        <a href="/">Return to board preview</a>
+        <a href="/preview">Return to board preview</a>
       </div>
 
       <footer className="page-footer">

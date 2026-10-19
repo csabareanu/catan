@@ -46,6 +46,28 @@ test('opens with a board preview without creating a game', async ({ page }) => {
   expect(gameCreationRequests).toBe(0)
 })
 
+test('returns to the board preview from game creation', async ({ page }) => {
+  await authenticatePage(page)
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    const requestSeed = route.request().postDataJSON().seed as string
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(boardResponse(requestSeed)),
+    })
+  })
+
+  await page.goto('/games/new')
+  await page.getByRole('link', { name: 'Return to board preview' }).click()
+
+  await expect(page).toHaveURL(/\/preview$/)
+  await expect(page.getByRole('heading', { name: /Chart a board from a seed/ })).toBeVisible()
+  await expect(page.getByLabel('Board seed')).toBeVisible()
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+  await expect(page.getByRole('heading', { name: 'Your board is ready.' })).toBeVisible()
+  await expect(page.locator('.board-svg')).toBeVisible()
+})
+
 test('regenerates a board and applies a manual seed without saving', async ({ page }) => {
   await authenticatePage(page)
   const submittedSeeds: string[] = []
