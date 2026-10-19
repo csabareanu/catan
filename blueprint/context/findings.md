@@ -42,20 +42,6 @@ return, or change the API/type contract if a missing status is intentionally
 supported.
 **Resolution:**
 
-### F-10 [P3] unverified - One seed rejection exposes two alert regions
-
-**File:** apps/web/src/features/games/GameCreationScreen.tsx:328, 467
-**Found:** 2026-10-19 by /audit (scope: current)
-**Why it matters:** A seed 422 updates both the setup callout and the board
-failure panel, each with `role="alert"`. The browser confirms both alert
-regions are present for the same failure. Screen readers may announce the
-generic board error and the detailed seed error back-to-back; the exact impact
-varies by assistive technology and was not tested with a screen reader.
-**Suggested fix:** Verify the flow with a screen reader. If the two alerts are
-announced redundantly, keep the exact setup error as the alert and expose the
-board-panel status as a polite status update for seed validation failures.
-**Resolution:**
-
 ## Product and visual direction to preserve for subsequent specs
 
 The following proposals are design decisions and future work, not additional

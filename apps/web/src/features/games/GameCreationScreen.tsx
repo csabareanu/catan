@@ -158,6 +158,7 @@ export function GameCreationScreen({
     token,
   })
   const seedError = generationError?.fields?.seed?.[0]
+  const hasSeedValidationError = generationError?.status === 422 && Boolean(seedError)
   const collapsedSeedError = !isSavedSetup && !advancedOptionsExpanded ? seedError : undefined
   const boardStateLabel =
     gameStart.phase === 'mismatch'
@@ -464,7 +465,11 @@ export function GameCreationScreen({
           )}
 
           {generationState === 'error' && !isSavedSetup && generationError && (
-            <div className="board-feedback board-feedback-error" role="alert">
+            <div
+              className="board-feedback board-feedback-error"
+              role={hasSeedValidationError ? 'status' : 'alert'}
+              aria-live={hasSeedValidationError ? 'polite' : 'assertive'}
+            >
               <span className="feedback-mark" aria-hidden="true">
                 !
               </span>

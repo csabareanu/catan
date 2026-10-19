@@ -117,7 +117,11 @@ test('keeps board generation errors beside the setup controls', async ({ page })
   })
 
   await page.goto('/games/new')
-  await expect(page.locator('.game-creation-board-panel').getByRole('alert')).toContainText(
+  await expect(page.getByRole('alert')).toHaveCount(1)
+  await expect(page.getByRole('alert')).toContainText(
+    'Seed needs attention · Advanced options',
+  )
+  await expect(page.locator('.game-creation-board-panel').getByRole('status')).toContainText(
     'The board generation request is invalid.',
   )
   await page.locator('.creation-advanced summary').click()
@@ -176,6 +180,10 @@ test('keeps the seed validation error visible when advanced options are collapse
   await expect(generationNote).toContainText('The seed must be a canonical non-negative integer string.')
   await expect(generationNote).toHaveClass(/game-creation-generation-note-error/)
   await expect(generationNote).toHaveAttribute('role', 'alert')
+  await expect(page.getByRole('alert')).toHaveCount(1)
+  await expect(page.locator('.game-creation-board-panel').getByRole('status')).toContainText(
+    'The board generation request is invalid.',
+  )
   await expect(generationNote).toHaveCSS('color', 'rgb(201, 109, 98)')
   await expect(page.getByRole('button', { name: 'Start game', exact: true })).toBeDisabled()
 
@@ -210,6 +218,9 @@ test('shows a recoverable service error during preview generation', async ({ pag
   await page.goto('/games/new')
 
   await expect(page.getByRole('alert')).toContainText(
+    'The board generation service is unavailable.',
+  )
+  await expect(page.locator('.game-creation-board-panel').getByRole('alert')).toContainText(
     'The board generation service is unavailable.',
   )
   await expect(page).toHaveURL(/\/games\/new$/)
