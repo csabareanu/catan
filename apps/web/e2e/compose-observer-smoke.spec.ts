@@ -36,7 +36,7 @@ test('observes a real Compose game without API interception', async ({ page }, t
   await expect(page.locator('.board-hex')).toHaveCount(19)
   await expect(page.locator('.board-port')).toHaveCount(9)
 
-  const detailsTrigger = page.getByRole('button', { name: 'Game details', exact: true })
+  const detailsTrigger = page.getByRole('button', { name: 'Overview', exact: true })
   await detailsTrigger.click()
 
   const detailsDialog = page.getByRole('dialog', { name: 'Game details' })

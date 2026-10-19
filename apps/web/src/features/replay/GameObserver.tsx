@@ -254,25 +254,29 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
 
   return (
     <div className="observer-layout">
-      <button
-        ref={sidebarToggleRef}
-        className="observer-sidebar-toggle"
-        type="button"
-        aria-controls="observer-sidebar"
-        aria-expanded={isSidebarOpen}
-        onClick={() => {
-          if (isSidebarOpen) {
-            closeSidebar()
-            return
-          }
-
-          setIsSidebarOpen(true)
-        }}
-      >
-        {isSidebarOpen ? 'Close details' : 'Game details'}
-      </button>
       <section className="observer-board" aria-label="Game board">
-        <BoardSvg board={context.board} />
+        <BoardSvg
+          board={context.board}
+          toolbarStart={(
+            <button
+              ref={sidebarToggleRef}
+              className="observer-sidebar-toggle"
+              type="button"
+              aria-controls="observer-sidebar"
+              aria-expanded={isSidebarOpen}
+              onClick={() => {
+                if (isSidebarOpen) {
+                  closeSidebar()
+                  return
+                }
+
+                setIsSidebarOpen(true)
+              }}
+            >
+              {isSidebarOpen ? 'Close overview' : 'Overview'}
+            </button>
+          )}
+        />
       </section>
 
       {isSidebarOpen && (

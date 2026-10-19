@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import type {
   BoardData,
   BoardEdge,
@@ -69,7 +69,12 @@ const TERRAIN_LEGEND: Terrain[] = [
 
 type EdgePoints = [ScreenPoint, ScreenPoint]
 
-export function BoardSvg({ board }: { board: BoardData }) {
+type BoardSvgProps = {
+  board: BoardData
+  toolbarStart?: ReactNode
+}
+
+export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
   const seaID = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const seaGradientID = `${seaID}-gradient`
   const seaWavesID = `${seaID}-waves`
@@ -105,12 +110,64 @@ export function BoardSvg({ board }: { board: BoardData }) {
   const titleID = 'board-svg-title'
   const descriptionID = 'board-svg-description'
   const coastline = coastlinePath(board, layout.vertexPoints)
+  const toolbar = (
+    <div className="board-svg-toolbar">
+      {toolbarStart && (
+        <div className="board-svg-toolbar-start">{toolbarStart}</div>
+      )}
+      <div
+        className="board-svg-controls"
+        role="toolbar"
+        aria-label="Board view controls"
+      >
+        <button
+          className="board-svg-control board-svg-control-secondary"
+          type="button"
+          aria-label="Zoom out"
+          title="Zoom out"
+          onClick={zoomOut}
+          disabled={!canZoomOut}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+        <button
+          className="board-svg-control board-svg-control-secondary board-svg-fit-control"
+          type="button"
+          aria-label="Fit board"
+          title="Fit board"
+          onClick={resetZoom}
+          disabled={!canZoomOut}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
+          </svg>
+        </button>
+        <button
+          className="board-svg-control"
+          type="button"
+          aria-label="Zoom in"
+          title="Zoom in"
+          onClick={zoomIn}
+          disabled={!canZoomIn}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+        <span className="board-svg-zoom-status" aria-live="polite">
+          Board zoom {Math.round(boardView.zoom * 100)}%
+        </span>
+      </div>
+    </div>
+  )
 
   return (
     <div className="board-renderer">
       <div
         ref={boardShellRef}
-        className="board-svg-shell"
+        className={`board-svg-shell${boardView.zoom > 1 ? ' board-svg-shell-zoomed' : ''}`}
         role="region"
         aria-label="Interactive board viewport"
         tabIndex={0}
@@ -194,47 +251,7 @@ export function BoardSvg({ board }: { board: BoardData }) {
             {board.ports.map((port) => renderPort(port, board, layout))}
           </g>
         </svg>
-        <div className="board-svg-controls" role="toolbar" aria-label="Board view controls">
-          <button
-            className="board-svg-control"
-            type="button"
-            aria-label="Zoom out"
-            title="Zoom out"
-            onClick={zoomOut}
-            disabled={!canZoomOut}
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M5 12h14" />
-            </svg>
-          </button>
-          <button
-            className="board-svg-control board-svg-fit-control"
-            type="button"
-            aria-label="Fit board"
-            title="Fit board"
-            onClick={resetZoom}
-            disabled={!canZoomOut}
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
-            </svg>
-          </button>
-          <button
-            className="board-svg-control"
-            type="button"
-            aria-label="Zoom in"
-            title="Zoom in"
-            onClick={zoomIn}
-            disabled={!canZoomIn}
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
-          <span className="board-svg-zoom-status" aria-live="polite">
-            Board zoom {Math.round(boardView.zoom * 100)}%
-          </span>
-        </div>
+        {toolbar}
       </div>
 
       <BoardHelp />

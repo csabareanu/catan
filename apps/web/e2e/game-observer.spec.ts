@@ -52,7 +52,7 @@ test('renders the board, players, and visible history', async ({ page }) => {
   expect(gameHeadingBox.height).toBeLessThan(30)
   expect(boardBox.y - (headingBox.y + headingBox.height)).toBeGreaterThanOrEqual(8)
 
-  await page.getByRole('button', { name: 'Game details', exact: true }).click()
+  await page.getByRole('button', { name: 'Overview', exact: true }).click()
   const detailsDialog = page.getByRole('dialog', { name: 'Game details' })
   const closeDetails = detailsDialog.getByRole('button', { name: 'Close details', exact: true })
 
@@ -95,7 +95,7 @@ test('renders the board, players, and visible history', async ({ page }) => {
   await expect(detailsDialog.locator(':focus')).toBeVisible()
 
   await page.keyboard.press('Escape')
-  const detailsTrigger = page.getByRole('button', { name: 'Game details', exact: true })
+  const detailsTrigger = page.getByRole('button', { name: 'Overview', exact: true })
   await expect(detailsDialog).toBeHidden()
   await expect(detailsTrigger).toBeFocused()
 
@@ -269,7 +269,48 @@ test('keeps the observer usable at the smallest supported phone viewport', async
 
   const board = page.locator('.observer-board')
   const boardSvg = page.locator('.observer-board .board-svg')
-  const detailsTrigger = page.getByRole('button', { name: 'Game details', exact: true })
+  const boardShell = page.locator('.observer-board .board-svg-shell')
+  const detailsTrigger = page.getByRole('button', { name: 'Overview', exact: true })
+  const expectControlsClearOfPorts = async () => {
+    const overlaps = await page.evaluate(() => {
+      const controls = [
+        ...document.querySelectorAll<HTMLElement>(
+          '.observer-board .observer-sidebar-toggle, .observer-board .board-svg-controls',
+        ),
+      ]
+      const shellBounds = document.querySelector('.observer-board .board-svg-shell')
+        ?.getBoundingClientRect()
+      const ports = [...document.querySelectorAll<SVGGElement>('.board-port')]
+
+      if (!shellBounds) {
+        return [{ error: 'Board viewport was not found.' }]
+      }
+
+      return controls.flatMap((control, controlIndex) => {
+        const controlBounds = control.getBoundingClientRect()
+
+        return ports.flatMap((port, portIndex) => {
+          const portBounds = port.getBoundingClientRect()
+          const visiblePort = {
+            left: Math.max(portBounds.left, shellBounds.left),
+            right: Math.min(portBounds.right, shellBounds.right),
+            top: Math.max(portBounds.top, shellBounds.top),
+            bottom: Math.min(portBounds.bottom, shellBounds.bottom),
+          }
+          const intersects = visiblePort.left < visiblePort.right
+            && visiblePort.top < visiblePort.bottom
+            && controlBounds.left < visiblePort.right
+            && controlBounds.right > visiblePort.left
+            && controlBounds.top < visiblePort.bottom
+            && controlBounds.bottom > visiblePort.top
+
+          return intersects ? [{ controlIndex, portIndex }] : []
+        })
+      })
+    })
+
+    expect(overlaps).toEqual([])
+  }
 
   await expect(boardSvg).toBeVisible()
   await expect(page.locator('.observer-back-link')).toBeVisible()
@@ -288,9 +329,28 @@ test('keeps the observer usable at the smallest supported phone viewport', async
 
   expect(metrics.boardBounds?.width).toBeGreaterThan(0)
   expect(metrics.boardBounds?.height).toBeGreaterThan(0)
+  const fittedBoardBounds = await boardShell.boundingBox()
+  expect(fittedBoardBounds?.width).toBeGreaterThanOrEqual(290)
+  expect(fittedBoardBounds?.height).toBeGreaterThanOrEqual(275)
+  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Fit board', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toBeVisible()
+  await expectControlsClearOfPorts()
   expect(metrics.boardBounds?.bottom).toBeLessThanOrEqual(metrics.viewportHeight)
   expect(metrics.documentHeight).toBeLessThanOrEqual(metrics.viewportHeight)
   expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click()
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 125%')
+  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Fit board', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click()
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 156%')
+  await page.getByRole('button', { name: 'Fit board', exact: true }).click()
+  await expect(page.locator('.board-svg-zoom-status')).toContainText('Board zoom 100%')
+  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Fit board', exact: true })).toBeHidden()
+  await expectControlsClearOfPorts()
 
   await detailsTrigger.click()
   const detailsDialog = page.getByRole('dialog', { name: 'Game details' })
@@ -321,7 +381,7 @@ test('keeps the board guide available in the mobile details drawer', async ({ pa
   )
 
   await page.goto('/games/42/observe')
-  await page.getByRole('button', { name: 'Game details', exact: true }).click()
+  await page.getByRole('button', { name: 'Overview', exact: true }).click()
 
   const detailsDialog = page.getByRole('dialog', { name: 'Game details' })
   await expect(detailsDialog).toBeVisible()
