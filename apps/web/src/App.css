@@ -2191,6 +2191,7 @@
   --board-sea: #245d6e;
   --board-sea-deep: #173f4d;
   --board-tile-line: #f3e5c7;
+  --board-label-ink: #171d16;
   --board-forest: #5c9369;
   --board-pasture: #a8c875;
   --board-fields: #dfbd58;
@@ -2354,7 +2355,7 @@
 .board-hex-group-forest .board-hex-label,
 .board-hex-group-hills .board-hex-label,
 .board-hex-group-mountains .board-hex-label {
-  fill: var(--paper-raised);
+  fill: var(--board-label-ink);
 }
 
 .board-resource-marker {

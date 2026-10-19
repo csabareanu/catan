@@ -28,28 +28,6 @@ observer specification. No P0 or P1 was confirmed. This is a fresh ledger
 cycle, so IDs start at F-01; earlier resolved IDs remain prefixed in their
 archives.
 
-### F-03 [P2] open - Resource labels have insufficient contrast on three terrain types
-
-**File:** apps/web/src/App.css:2056;
-apps/web/src/features/board/BoardSvg.tsx:336
-**Found:** 2026-10-18 by /audit (scope: project UI)
-**Why it matters:** Pale resource text is placed directly on the brighter
-forest, hills, and mountains fills. Contrast calculated from Chromium's
-computed SVG colours is approximately 3.01:1 for Lumber, 2.84:1 for Brick,
-and 2.83:1 for Ore. The fitted labels rendered at about 9.8 CSS pixels on
-desktop and 4.5 pixels on a 390px phone; they are not large text. These
-labels convey game information, so the ordinary-text contrast benchmark is
-4.5:1. Existing tests check distinct fills and viewport behaviour, but do not
-catch these foreground/background combinations. Zoom helps size, but does
-not correct the colour contrast. This is distinct from the archived work
-that added zoom and resource encoding.
-**Suggested fix:** Use sufficiently dark resource text for these fills or
-give labels a contrasting backing. Preserve redundant symbols and labels.
-Verify actual computed colours and the phone fitted/zoomed states. Carry
-the same readability criteria into both future map styles, with numbers,
-roads, buildings, and highlights remaining visually clear over artwork.
-**Resolution:**
-
 ### F-04 [P2] open - Phone board controls overlap a port in the fitted view
 
 **File:** apps/web/src/App.css:1928;

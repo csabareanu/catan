@@ -1,4 +1,4 @@
-import { devices, expect, test } from '@playwright/test'
+import { devices, expect, test, type Page } from '@playwright/test'
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 1000 },
@@ -150,6 +150,30 @@ test('submits a manual seed on the preview path and keeps developer metadata ava
   await expect(page.getByText('standard@1.0.0 · pointy-top', { exact: true })).toBeVisible()
 
   expect(submittedSeeds).toEqual(['42'])
+})
+
+test('keeps terrain resource labels above the contrast threshold when fitted and zoomed', async ({ page }) => {
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(boardResponse('42')),
+    })
+  })
+
+  for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport)
+    await page.goto('/preview')
+    await page.getByRole('button', { name: 'Generate preview' }).click()
+    await expect(page.locator('.board-svg')).toBeVisible()
+
+    await expectResourceLabelContrast(page)
+    await page.getByRole('button', { name: 'Zoom in' }).click()
+    await expectResourceLabelContrast(page)
+  }
 })
 
 test('handles board wheel zoom without a passive-listener warning', async ({ page }) => {
@@ -490,6 +514,48 @@ function boardResponse(seed: string) {
       edges,
       ports,
     },
+  }
+}
+
+async function expectResourceLabelContrast(page: Page): Promise<void> {
+  for (const terrain of [
+    { name: 'forest', label: 'Lumber' },
+    { name: 'hills', label: 'Brick' },
+    { name: 'mountains', label: 'Ore' },
+  ]) {
+    const label = page.locator(`.board-hex-group-${terrain.name} .board-hex-label`).first()
+    await expect(label).toBeVisible()
+
+    const contrastRatio = await label.evaluate((element) => {
+      const tile = element.parentElement?.querySelector('.board-hex')
+
+      if (tile === null || tile === undefined) {
+        throw new Error('A resource label must belong to a terrain tile.')
+      }
+
+      const luminance = (color: string): number => {
+        const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number)
+
+        if (channels === undefined || channels.length !== 3) {
+          throw new Error(`Expected an RGB color, received ${color}.`)
+        }
+
+        const [red, green, blue] = channels.map((channel) => channel / 255)
+        const linear = (channel: number) => channel <= 0.04045
+          ? channel / 12.92
+          : ((channel + 0.055) / 1.055) ** 2.4
+
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+      }
+
+      const foreground = luminance(window.getComputedStyle(element).fill)
+      const background = luminance(window.getComputedStyle(tile).fill)
+      const [lighter, darker] = [foreground, background].sort((first, second) => second - first)
+
+      return (lighter + 0.05) / (darker + 0.05)
+    })
+
+    expect(contrastRatio, `${terrain.label} contrast on ${terrain.name}`).toBeGreaterThanOrEqual(4.5)
   }
 }
 
