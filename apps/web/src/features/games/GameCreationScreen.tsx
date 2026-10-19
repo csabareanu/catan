@@ -38,6 +38,7 @@ export function GameCreationScreen({
   ))
   const [seed, setSeed] = useState(restoredIntent?.seed ?? createFreshSeed)
   const [aiCount, setAiCount] = useState<CreateGameInput['ai_count']>(restoredIntent?.aiCount ?? 2)
+  const [advancedOptionsExpanded, setAdvancedOptionsExpanded] = useState(false)
   const [generationState, setGenerationState] = useState<GenerationState>('loading')
   const [board, setBoard] = useState<BoardResponse | null>(null)
   const [savedGame, setSavedGame] = useState<GameResource | null>(null)
@@ -157,6 +158,7 @@ export function GameCreationScreen({
     token,
   })
   const seedError = generationError?.fields?.seed?.[0]
+  const collapsedSeedError = !isSavedSetup && !advancedOptionsExpanded ? seedError : undefined
   const boardStateLabel =
     gameStart.phase === 'mismatch'
       ? 'Review saved board'
@@ -258,8 +260,18 @@ export function GameCreationScreen({
 
           {!isSavedSetup && (
             <>
-              <details className="creation-advanced">
-                <summary>Advanced options</summary>
+              <details
+                className={`creation-advanced${seedError ? ' creation-advanced-has-error' : ''}`}
+                onToggle={(event) => setAdvancedOptionsExpanded(event.currentTarget.open)}
+              >
+                <summary>
+                  Advanced options
+                  {seedError && (
+                    <span className="creation-advanced-error-indicator">
+                      Seed needs attention
+                    </span>
+                  )}
+                </summary>
                 <div className="creation-advanced-fields">
                   <label className="access-field" htmlFor="game-board-seed">
                     <span>Reproducible board seed</span>
@@ -311,8 +323,16 @@ export function GameCreationScreen({
             </>
           )}
 
-          <p className="generation-note game-creation-generation-note" role="status">
-            {generationState === 'loading'
+          <p
+            className={`generation-note game-creation-generation-note${collapsedSeedError ? ' game-creation-generation-note-error' : ''}`}
+            role={collapsedSeedError ? 'alert' : 'status'}
+          >
+            {collapsedSeedError ? (
+              <>
+                <strong>Seed needs attention · Advanced options</strong>
+                <span>{collapsedSeedError}</span>
+              </>
+            ) : generationState === 'loading'
               ? isSavedSetup
                 ? 'Loading the saved board.'
                 : 'Preparing a reproducible board.'

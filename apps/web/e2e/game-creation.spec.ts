@@ -63,7 +63,7 @@ test('regenerates a board and applies a manual seed without saving', async ({ pa
   await expect(page.locator('.board-hex')).toHaveCount(1)
   const firstSeed = submittedSeeds[0]
 
-  await page.getByText('Advanced options', { exact: true }).click()
+  await page.locator('.creation-advanced summary').click()
   const seedInput = page.getByLabel('Reproducible board seed')
   await seedInput.fill('42')
   await expect(page.getByText('The seed changed. Apply it to refresh this board before continuing.')).toBeVisible()
@@ -95,13 +95,79 @@ test('keeps board generation errors beside the setup controls', async ({ page })
   })
 
   await page.goto('/games/new')
-  await expect(page.getByRole('alert')).toContainText('The board generation request is invalid.')
-  await page.getByText('Advanced options', { exact: true }).click()
+  await expect(page.locator('.game-creation-board-panel').getByRole('alert')).toContainText(
+    'The board generation request is invalid.',
+  )
+  await page.locator('.creation-advanced summary').click()
   await expect(page.getByLabel('Reproducible board seed')).toHaveAttribute('aria-invalid', 'true')
   await expect(
     page.getByText('The seed must be a canonical non-negative integer string.'),
   ).toBeVisible()
   await expect(page).toHaveURL(/\/games\/new$/)
+})
+
+test('keeps the seed validation error visible when advanced options are collapsed', async ({ page }) => {
+  await authenticatePage(page)
+  await page.route('**/api/v1/boards/generate', async (route) => {
+    const requestSeed = route.request().postDataJSON().seed as string
+
+    if (requestSeed === '01') {
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: {
+            code: 'validation_failed',
+            message: 'The board generation request is invalid.',
+            fields: {
+              seed: ['The seed must be a canonical non-negative integer string.'],
+            },
+          },
+        }),
+      })
+
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(boardResponse(requestSeed)),
+    })
+  })
+
+  await page.goto('/games/new')
+  await expect(page.getByRole('heading', { name: 'Your board is ready.' })).toBeVisible()
+  await page.locator('.creation-advanced summary').click()
+
+  const seedInput = page.getByLabel('Reproducible board seed')
+  await seedInput.fill('01')
+  await page.getByRole('button', { name: 'Apply seed' }).click()
+  await expect(seedInput).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.locator('#game-board-seed-error')).toBeVisible()
+
+  await page.locator('.creation-advanced summary').click()
+  await expect(seedInput).toBeHidden()
+  const generationNote = page.locator('.game-creation-generation-note')
+  await expect(page.locator('.creation-advanced summary')).toContainText('Seed needs attention')
+  await expect(generationNote).toContainText('Seed needs attention · Advanced options')
+  await expect(generationNote).toContainText('The seed must be a canonical non-negative integer string.')
+  await expect(generationNote).toHaveClass(/game-creation-generation-note-error/)
+  await expect(generationNote).toHaveAttribute('role', 'alert')
+  await expect(generationNote).toHaveCSS('color', 'rgb(201, 109, 98)')
+  await expect(page.getByRole('button', { name: 'Start game', exact: true })).toBeDisabled()
+
+  await page.locator('.creation-advanced summary').click()
+  await expect(seedInput).toHaveValue('01')
+  await expect(seedInput).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.locator('#game-board-seed-error')).toBeVisible()
+
+  await seedInput.fill('42')
+  await page.getByRole('button', { name: 'Apply seed' }).click()
+  await expect(page.getByText('Seed 42 created a Catan board with 1 terrain tiles.')).toBeVisible()
+  await expect(page.locator('.creation-advanced summary')).not.toContainText('Seed needs attention')
+  await expect(generationNote).not.toHaveClass(/game-creation-generation-note-error/)
+  await expect(page.getByRole('button', { name: 'Start game', exact: true })).toBeEnabled()
 })
 
 test('shows a recoverable service error during preview generation', async ({ page }) => {

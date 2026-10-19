@@ -540,6 +540,26 @@
   color: var(--accent-bright);
 }
 
+.creation-advanced-has-error summary,
+.creation-advanced-has-error summary:hover,
+.creation-advanced-has-error summary:focus-visible {
+  color: var(--danger);
+}
+
+.creation-advanced-error-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--space-2);
+  padding: 0.125rem var(--space-2);
+  border: var(--line) solid var(--danger);
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  vertical-align: middle;
+}
+
 .creation-advanced-fields {
   display: grid;
   gap: var(--space-4);
@@ -1553,6 +1573,24 @@
 
 .game-creation-generation-note {
   min-height: 2.8rem;
+}
+
+.generation-note.game-creation-generation-note-error {
+  display: grid;
+  max-width: none;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  border: var(--line) solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+  text-align: left;
+}
+
+.generation-note.game-creation-generation-note-error strong {
+  font-weight: 800;
 }
 
 .game-start-actions {

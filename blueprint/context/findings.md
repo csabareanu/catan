@@ -28,47 +28,6 @@ observer specification. No P0 or P1 was confirmed. This is a fresh ledger
 cycle, so IDs start at F-01; earlier resolved IDs remain prefixed in their
 archives.
 
-### F-04 [P2] open - Phone board controls overlap a port in the fitted view
-
-**File:** apps/web/src/App.css:1928;
-apps/web/src/App.css:2820;
-apps/web/src/features/board/BoardSvg.tsx:170
-**Found:** 2026-10-18 by /audit (scope: project UI)
-**Why it matters:** The absolutely positioned bottom-right zoom toolbar
-overlaps the lower-right port on the standard board fixture. At 320x568,
-the toolbar intersects approximately 244 square CSS pixels of its badge
-and 31 of its text bounding box. At 390x844, it overlaps about 160 square
-pixels of the badge. Screenshots confirm the collision at the initial
-fitted zoom. Tablet, landscape-phone, and desktop probes did not reproduce
-it. The existing containment assertions pass because both elements stay
-inside the canvas; containment does not test whether controls hide game
-information.
-**Suggested fix:** Reserve a compact control area outside the fitted board
-content or fit the board into a region that excludes the controls. Preserve
-the large desktop map and phone zoom/pan behaviour. Add a focused overlap
-assertion for fitted and reset phone states, including the Game details
-trigger; do not solve the collision with a much wider ocean or smaller text.
-**Resolution:**
-
-### F-05 [P2] open - A collapsed advanced section hides its seed validation error
-
-**File:** apps/web/src/features/games/GameCreationScreen.tsx:50;
-apps/web/src/features/games/GameCreationScreen.tsx:108
-**Found:** 2026-10-18 by /audit (scope: project UI)
-**Why it matters:** Reproduction: open Advanced options, enter `01`, close
-the section, and submit. For a 422 response carrying the existing canonical
-seed error, only The game configuration is invalid is visible. The seed
-field and the actionable error stay inside the closed details element.
-The browser confirmed that the specific error was hidden and the section
-remained closed. Existing validation coverage submits with the section open,
-so it misses this recovery problem.
-**Suggested fix:** Expand the advanced section when it contains a field
-error, and make the first invalid field discoverable through focus or a
-linked error summary. Preserve all entered values. Add the collapsed-section
-reproduction to the existing creation tests. Carry this recovery behaviour
-into the future preview-and-start form.
-**Resolution:**
-
 ### F-06 [P3] open - The creation screen's board-preview link opens the welcome page
 
 **File:** apps/web/src/features/games/GameCreationScreen.tsx:143
@@ -114,6 +73,20 @@ small cleanup and does not affect runtime behavior.
 **Suggested fix:** Remove the null comparison and keep the equality early
 return, or change the API/type contract if a missing status is intentionally
 supported.
+**Resolution:**
+
+### F-10 [P3] unverified - One seed rejection exposes two alert regions
+
+**File:** apps/web/src/features/games/GameCreationScreen.tsx:328, 467
+**Found:** 2026-10-19 by /audit (scope: current)
+**Why it matters:** A seed 422 updates both the setup callout and the board
+failure panel, each with `role="alert"`. The browser confirms both alert
+regions are present for the same failure. Screen readers may announce the
+generic board error and the detailed seed error back-to-back; the exact impact
+varies by assistive technology and was not tested with a screen reader.
+**Suggested fix:** Verify the flow with a screen reader. If the two alerts are
+announced redundantly, keep the exact setup error as the alert and expose the
+board-panel status as a polite status update for seed validation failures.
 **Resolution:**
 
 ## Product and visual direction to preserve for subsequent specs
