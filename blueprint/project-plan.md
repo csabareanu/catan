@@ -53,6 +53,34 @@ Anonymous users may generate a stateless board preview from a supplied seed.
 It creates no game or user data and is not persisted. Authentication is required
 for stored games, simulations, histories, results, and seat-private views.
 
+### Deferred expansion directions
+
+These are possibilities to revisit after the base-game mechanics and the initial
+human-versus-AI experience are substantially complete. They are recorded for
+future product discovery only and are not approved MVP features or build-plan
+items.
+
+- **Online human multiplayer** - support games with one, two, three, or four
+  human-controlled seats on the current map. Whether remaining seats can be
+  filled by AI, and how invitations, synchronization, reconnection, and turn
+  timeouts work, remain future design decisions.
+- **Multiple maps and scenarios** - add official alternatives to the current
+  map, including larger boards or different topologies such as islands and
+  lakes.
+- **Account-owned custom maps** - let a player create or configure a map and
+  save it in their account for later games. Validation, versioning, and any
+  sharing model require a later design.
+- **Scenario rules** - support optional rules that change the normal match over
+  time. A possible example is a scheduled hex removal that also resolves the
+  settlements, cities, and roads on that hex. This is an illustration of the
+  kind of extension, not a requested mechanic.
+- **Map and scenario compatibility** - maps should expose capabilities and
+  scenarios should declare their requirements. For example, a water-travel
+  scenario may require multiple islands and navigable sea routes, making it
+  invalid for a land-only map. Compatibility must be checked before a game
+  starts, with the API and Go engine enforcing the boundary rather than relying
+  only on frontend controls.
+
 ## 3. Features - What does the MVP need?
 
 ### Delivery strategy
@@ -140,7 +168,7 @@ The React web application must provide:
 
 The frontend may improve usability by showing legal actions supplied by the API, but it must not become a second rules engine.
 
-### Explicit non-goals
+### MVP explicit non-goals
 
 The MVP does not include:
 

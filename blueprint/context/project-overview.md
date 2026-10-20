@@ -58,6 +58,30 @@ results, and seat-private views require authentication and are owner-scoped.
 - Future rulesets, maps, and multiple human seats need clear seams, but the MVP
   does not include a generic plugin framework.
 
+### Deferred expansion directions
+
+These possibilities should be revisited after the base-game mechanics and the
+initial human-versus-AI experience are substantially complete. They are future
+product direction only, not approved features or build-plan items.
+
+- **Online human multiplayer** - games with one, two, three, or four
+  human-controlled seats on the current map. Whether remaining seats can be AI,
+  along with invitations, synchronization, reconnection, and turn timeouts,
+  remains undecided.
+- **Multiple maps and scenarios** - official alternatives to the current map,
+  including larger boards or different topologies such as islands and lakes.
+- **Account-owned custom maps** - player-created or configured maps saved in an
+  account for later games. Validation, versioning, and sharing need a later
+  design.
+- **Scenario rules** - optional rules that change the normal match over time.
+  A scheduled hex removal that also resolves structures on that hex is one
+  possible example only, not a committed mechanic.
+- **Map and scenario compatibility** - maps should expose capabilities and
+  scenarios should declare their requirements. A water-travel scenario, for
+  example, may require multiple islands and navigable sea routes and therefore
+  cannot run on a land-only map. The API and Go engine should validate this
+  before a game starts; the frontend should not be the only enforcement layer.
+
 ## Features
 
 The ordered roadmap is defined by blueprint/build-plan.md. Completed items are
@@ -408,7 +432,7 @@ test, dependency-refresh, and smoke commands are documented in the root
 `AGENTS.md` and `README.md`; no combined root Verify command or CI exists.
 Docker Desktop with WSL integration provides the current local runtime.
 
-## Explicit non-goals
+## MVP explicit non-goals
 
 - Human-only internet multiplayer or multiple human-controlled seats.
 - Real-time synchronization between remote players.
