@@ -69,17 +69,66 @@ export type ReplayResponse = {
   frame: ReplayFrame | null
 }
 
+export type ReplayRequestOptions = {
+  atCommandSequence?: string
+  afterEventSequence?: string
+  limit?: number
+}
+
+type GetGameReplayOptions = ReplayRequestOptions & {
+  onUnauthorized?: () => void
+  signal?: AbortSignal
+}
+
 export async function getGameReplay(
   token: string,
   gameID: number,
-  onUnauthorized?: () => void,
-  signal?: AbortSignal,
+  {
+    atCommandSequence,
+    afterEventSequence,
+    limit,
+    onUnauthorized,
+    signal,
+  }: GetGameReplayOptions = {},
 ): Promise<ReplayResponse> {
+  if (isMultiEventReplayMockEnabled()) {
+    const { getMultiEventReplay } = await import('./replayMock')
+
+    return getMultiEventReplay(gameID, {
+      atCommandSequence,
+      afterEventSequence,
+      signal,
+    })
+  }
+
+  const query = new URLSearchParams()
+
+  if (atCommandSequence !== undefined) {
+    query.set('at_command_sequence', atCommandSequence)
+  }
+
+  if (afterEventSequence !== undefined) {
+    query.set('after_event_sequence', afterEventSequence)
+  }
+
+  if (limit !== undefined) {
+    query.set('limit', String(limit))
+  }
+
+  const queryString = query.toString()
+  const replayPath = `/api/v1/games/${gameID}/replay${queryString === '' ? '' : `?${queryString}`}`
+
   return requestJson(
-    `/api/v1/games/${gameID}/replay`,
+    replayPath,
     isReplayResponse,
     { token, onUnauthorized, signal },
   )
+}
+
+function isMultiEventReplayMockEnabled(): boolean {
+  return import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('mock') === 'multi-events'
 }
 
 function isReplayResponse(value: unknown): value is ReplayResponse {

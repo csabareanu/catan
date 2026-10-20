@@ -27,6 +27,22 @@ them now.
 - React build: `cd apps/web && npm run build`
 - React preview: `cd apps/web && npm run preview`
 
+### Replay UI fixture
+
+The development Vite server includes a local-only multi-event replay fixture
+for reviewing the observer before the game engine emits a longer history. Sign
+in normally, then open:
+
+```text
+http://127.0.0.1:5173/games/999/observe?mock=multi-events
+```
+
+The fixture contains three replay pages and three saved positions. On desktop,
+use the History sidebar; on a phone, open `Overview`. Select Command 4, 8, or
+12 to reset the visible history to that checkpoint, then press `Load more
+history` until it disappears. This fixture is available only through the Vite
+development server and does not create a database game.
+
 ## Local Docker Compose stack
 
 The complete local stack runs the API, queue worker, Go engine, PostgreSQL,

@@ -112,6 +112,93 @@ test('renders the board, players, and visible history', async ({ page }) => {
 })
 
 for (const viewport of [
+  { width: 1440, height: 900, opensOverview: false },
+  { width: 390, height: 844, opensOverview: true },
+]) {
+  test(`navigates saved replay positions at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    const requestedPositions: Array<string | null> = []
+
+    await page.route('**/api/v1/games/42/replay**', async (route) => {
+      const requestedPosition = new URL(route.request().url()).searchParams.get('at_command_sequence')
+      requestedPositions.push(requestedPosition)
+      await route.fulfill({
+        status: 200,
+        json: replayResponseAt(requestedPosition ?? '9'),
+      })
+    })
+
+    await page.goto('/games/42/observe')
+
+    if (viewport.opensOverview) {
+      await page.getByRole('button', { name: 'Overview', exact: true }).click()
+    }
+
+    await expect(page.getByRole('heading', { name: 'Replay position', exact: true })).toBeVisible()
+    await expect(page.getByText('Latest saved position', { exact: true })).toBeVisible()
+    await expect(page.getByText('Command 9 · Event 11', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Latest', exact: true })).toBeDisabled()
+    const boardHexIDs = await page.locator('.board-hex').evaluateAll((hexes) =>
+      hexes.map((hex) => hex.getAttribute('data-hex-id')),
+    )
+
+    await page.getByRole('button', { name: 'Previous', exact: true }).click()
+
+    await expect(page.getByText('Saved position 2 of 3', { exact: true })).toBeVisible()
+    await expect(page.getByText('Command 6 · Event 8', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', {
+      name: 'Replay position command 6, event 8',
+      exact: true,
+    })).toHaveAttribute('aria-current', 'step')
+    await expect(page.locator('.observer-player').filter({ hasText: 'Ada Player' })).toContainText('3 points')
+    await expect(page.locator('.board-hex')).toHaveCount(19)
+    await expect(page.locator('.board-port')).toHaveCount(9)
+    await expect.poll(() => page.locator('.board-hex').evaluateAll((hexes) =>
+      hexes.map((hex) => hex.getAttribute('data-hex-id')),
+    )).toEqual(boardHexIDs)
+
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
+    await expect(page.getByText('Saved position 3 of 3', { exact: true })).toBeVisible()
+    await expect(page.getByText('Command 9 · Event 11', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Latest', exact: true })).toBeEnabled()
+
+    await page.getByRole('button', { name: 'Latest', exact: true }).click()
+    await expect(page.getByText('Latest saved position', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Latest', exact: true })).toBeDisabled()
+    await expect.poll(() => requestedPositions.slice(-4)).toEqual([null, '6', '9', null])
+  })
+}
+
+test('keeps an explicit replay position while a queued game refreshes', async ({ page }) => {
+  let requestCount = 0
+  const requestedPositions: Array<string | null> = []
+
+  await page.route('**/api/v1/games/46/replay**', async (route) => {
+    requestCount += 1
+    const requestedPosition = new URL(route.request().url()).searchParams.get('at_command_sequence')
+    requestedPositions.push(requestedPosition)
+    await route.fulfill({
+      status: 200,
+      json: replayResponseAt(requestedPosition ?? '9', requestCount > 3 ? 'completed' : 'queued'),
+    })
+  })
+
+  await page.goto('/games/46/observe')
+  await expect(page.locator('.observer-header-actions').getByText('Run queued', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Previous', exact: true }).click()
+  await expect(page.getByText('Command 6 · Event 8', { exact: true })).toBeVisible()
+
+  await page.clock.runFor(4000)
+
+  await expect(page.locator('.observer-header-actions').getByText('Run complete', { exact: true })).toBeVisible()
+  await expect(page.getByText('Saved position 2 of 3', { exact: true })).toBeVisible()
+  await expect(page.getByText('Command 6 · Event 8', { exact: true })).toBeVisible()
+  expect(requestedPositions.filter((position) => position !== null)).toEqual(['6', '6'])
+})
+
+for (const viewport of [
   { width: 1024, height: 768 },
   { width: 1366, height: 680 },
   { width: 1366, height: 768 },
@@ -489,6 +576,7 @@ test('explains a replay without a persisted frame', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Game 43', exact: true })).toBeVisible()
   await expect(page.locator('.observer-board .board-svg')).toBeVisible()
   await expect(page.getByText('No visible history is available yet.', { exact: true })).toBeVisible()
+  await expect(page.getByText('No saved replay positions are available yet.', { exact: true })).toBeVisible()
 })
 
 test('handles a frame without public status fields', async ({ page }) => {
@@ -501,6 +589,166 @@ test('handles a frame without public status fields', async ({ page }) => {
   await expect(page.locator('.observer-status-panel')).toBeVisible()
   await expect(page.locator('.observer-status-panel')).toContainText('Public status is not available yet.')
   await expect(page.locator('.observer-player').first()).toBeVisible()
+})
+
+test('loads visible history pages in order without duplicates on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const requestedCursors: Array<string | null> = []
+
+  await page.route('**/api/v1/games/47/replay**', async (route) => {
+    const url = new URL(route.request().url())
+    const afterEventSequence = url.searchParams.get('after_event_sequence')
+    requestedCursors.push(afterEventSequence)
+
+    await route.fulfill({
+      status: 200,
+      json: afterEventSequence === '5'
+        ? replayResponsePage(
+            [
+              { sequence: '5', eventType: 'turn_started.v1' },
+              { sequence: '8', eventType: 'roll_resolved.v1' },
+              { sequence: '10', eventType: 'construction.v1' },
+            ],
+            '10',
+            false,
+            null,
+          )
+        : replayResponsePage(
+            [
+              { sequence: '3', eventType: 'game_initialized.v1' },
+              { sequence: '5', eventType: 'turn_started.v1' },
+            ],
+            '5',
+            true,
+            '5',
+          ),
+    })
+  })
+
+  await page.goto('/games/47/observe')
+  await page.getByRole('button', { name: 'Overview', exact: true }).click()
+
+  const detailsDialog = page.getByRole('dialog', { name: 'Game details' })
+  const loadMore = detailsDialog.getByRole('button', { name: 'Load more history', exact: true })
+  await expect(loadMore).toBeVisible()
+
+  await loadMore.focus()
+  await page.keyboard.press('Enter')
+
+  await expect(detailsDialog.getByText('Construction', { exact: true })).toBeVisible()
+  await expect(detailsDialog.getByRole('button', { name: 'Load more history', exact: true })).toBeHidden()
+  await expect(detailsDialog.locator('.observer-history-event strong')).toHaveText([
+    'Game initialized',
+    'Turn Started',
+    'Roll Resolved',
+    'Construction',
+  ])
+  expect(requestedCursors.slice(-2)).toEqual([null, '5'])
+  expect(requestedCursors.filter((cursor) => cursor === '5')).toHaveLength(1)
+  await expect(detailsDialog.getByText('Private resource change', { exact: true })).toHaveCount(0)
+})
+
+test('keeps the first history page and retries a failed next page', async ({ page }) => {
+  let nextPageAttempts = 0
+
+  await page.route('**/api/v1/games/48/replay**', async (route) => {
+    const afterEventSequence = new URL(route.request().url()).searchParams.get('after_event_sequence')
+
+    if (afterEventSequence === '5') {
+      nextPageAttempts += 1
+
+      if (nextPageAttempts === 1) {
+        await route.abort('failed')
+        return
+      }
+
+      await route.fulfill({
+        status: 200,
+        json: replayResponsePage(
+          [{ sequence: '8', eventType: 'roll_resolved.v1' }],
+          '8',
+          false,
+          null,
+        ),
+      })
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      json: replayResponsePage(
+        [
+          { sequence: '3', eventType: 'game_initialized.v1' },
+          { sequence: '5', eventType: 'turn_started.v1' },
+        ],
+        '5',
+        true,
+        '5',
+      ),
+    })
+  })
+
+  await page.goto('/games/48/observe')
+  const loadMore = page.getByRole('button', { name: 'Load more history', exact: true })
+  await loadMore.click()
+
+  const historyError = page.getByRole('alert')
+  await expect(historyError).toContainText('The replay could not be reached. Check the connection and try again.')
+  await expect(historyError.getByRole('button', { name: 'Try again', exact: true })).toBeVisible()
+  await expect(page.getByText('Game initialized', { exact: true })).toBeVisible()
+  await expect(page.getByText('Turn Started', { exact: true })).toBeVisible()
+
+  await historyError.getByRole('button', { name: 'Try again', exact: true }).click()
+
+  await expect(page.getByText('Roll Resolved', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Load more history', exact: true })).toBeHidden()
+  expect(nextPageAttempts).toBe(2)
+})
+
+test('shows a recoverable error for a malformed replay response', async ({ page }) => {
+  await page.route('**/api/v1/games/49/replay**', (route) =>
+    route.fulfill({ status: 200, json: { schema_version: 'replay-v1' } }),
+  )
+
+  await page.goto('/games/49/observe')
+
+  await expect(page.getByRole('alert')).toContainText(
+    'The replay service returned an invalid response. Please try again.',
+  )
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible()
+})
+
+test('shows a recoverable error when the replay request cannot reach the server', async ({ page }) => {
+  await page.route('**/api/v1/games/50/replay**', (route) => route.abort('failed'))
+
+  await page.goto('/games/50/observe')
+
+  await expect(page.getByRole('alert')).toContainText(
+    'The replay could not be reached. Check the connection and try again.',
+  )
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible()
+})
+
+test('serves the local multi-event fixture for manual observer review', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.clock.resume()
+  await page.goto('/games/999/observe?mock=multi-events')
+
+  await expect(page.getByRole('heading', { name: 'Game 999', exact: true })).toBeVisible()
+  await page.waitForTimeout(500)
+  await expect(page.getByText('Command 12 · Event 12', { exact: true })).toBeVisible()
+  await expect(page.locator('.observer-history-event')).toHaveCount(4)
+
+  const loadMore = page.getByRole('button', { name: 'Load more history', exact: true })
+  await loadMore.click()
+  await page.waitForTimeout(500)
+  await expect(page.locator('.observer-history-event')).toHaveCount(8)
+
+  await page.getByRole('button', { name: 'Replay position command 8, event 8', exact: true }).click()
+  await page.waitForTimeout(500)
+
+  await expect(page.getByText('Command 8 · Event 8', { exact: true })).toBeVisible()
+  await expect(page.locator('.observer-history-event')).toHaveCount(4)
 })
 
 test('refreshes a queued replay until it reaches a stable status', async ({ page }) => {
@@ -636,6 +884,80 @@ function replayResponse(
         }
       : null,
   }
+}
+
+function replayResponseAt(
+  commandSequence: string,
+  lifecycleStatus: ReplayResponse['context']['game']['lifecycle_status'] = 'completed',
+): ReplayResponse {
+  const response = replayResponse(lifecycleStatus, true)
+  const snapshotIndex = [
+    { command_sequence: '3', event_sequence: '5' },
+    { command_sequence: '6', event_sequence: '8' },
+    { command_sequence: '9', event_sequence: '11' },
+  ].map((position) => ({
+    ...position,
+    state_schema_version: 'state-v1',
+    created_at: user.created_at,
+  }))
+  const selectedPosition = snapshotIndex.find((position) => position.command_sequence === commandSequence)
+    ?? snapshotIndex[snapshotIndex.length - 1]
+
+  if (!selectedPosition || response.frame === null) {
+    throw new Error('The replay fixture must contain the selected frame and snapshot position.')
+  }
+
+  response.snapshot_index = snapshotIndex
+  response.events = [{
+    sequence: selectedPosition.event_sequence,
+    event_type: 'game_initialized.v1',
+    payload: {},
+    occurred_at: user.created_at,
+  }]
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: selectedPosition.event_sequence,
+    has_more: false,
+    next_after_sequence: null,
+  }
+  response.frame = {
+    ...response.frame,
+    command_sequence: selectedPosition.command_sequence,
+    event_sequence: selectedPosition.event_sequence,
+    public_state: {
+      ...response.frame.public_state,
+      public_scores: {
+        '1': selectedPosition.command_sequence === '6' ? 3 : 2,
+        '2': 1,
+      },
+    },
+  }
+
+  return response
+}
+
+function replayResponsePage(
+  eventDefinitions: Array<{ sequence: string; eventType: string }>,
+  returnedThroughSequence: string | null,
+  hasMore: boolean,
+  nextAfterSequence: string | null,
+): ReplayResponse {
+  const response = replayResponse('completed', true)
+
+  response.events = eventDefinitions.map(({ sequence, eventType }) => ({
+    sequence,
+    event_type: eventType,
+    payload: {},
+    occurred_at: user.created_at,
+  }))
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: returnedThroughSequence,
+    has_more: hasMore,
+    next_after_sequence: nextAfterSequence,
+  }
+
+  return response
 }
 
 function boardData() {

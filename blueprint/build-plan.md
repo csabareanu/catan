@@ -16,10 +16,10 @@
   - [x] 3c. **Queued game orchestration** - let an owner start a run through a retry-safe Laravel job that calls Go and persists lifecycle, state, events, and failures.
   - [x] 3d. **Local Docker Compose runtime** - run the API, worker, Go engine, PostgreSQL, and Redis together with documented health checks and smoke verification.
   - [x] 3e. **Fast local development workflow** - add a development Compose override with source bind mounts, container-managed dependency volumes, and reload-friendly API, worker, Go, and Vite commands so ordinary source edits do not require image rebuilds while dependency or Dockerfile changes still do.
-- [ ] 4. **Replayable simulation observer** - users can inspect a game's status and event history in the API and step through its evolving board state in the browser.
+- [x] 4. **Replayable simulation observer** - users can inspect a game's status and event history in the API and step through its evolving board state in the browser.
   - [x] 4a. **Owner-scoped replay API** - expose versioned public game status, visible ordered events, and replay snapshots through an authenticated owner-scoped API contract.
   - [x] 4b. **Browser game observer** - add the browser access seam and game observer screen that loads a persisted replay frame and renders it with the existing board renderer.
-  - [ ] 4c. **Replay timeline and state stepping** - let users move through visible events and available snapshot frames without duplicating game rules in React.
+  - [x] 4c. **Replay timeline and state stepping** - let users move through visible events and available snapshot frames without duplicating game rules in React.
 - [ ] 5. **Initial placement phase** - three- or four-seat games enforce deterministic turn order and legal settlement and road placement, while AI seats can complete setup and the observer renders every event.
 - [ ] 6. **Core turn economy** - deterministic dice rolls, resource production, private seat views, roads, settlements, cities, and bank or port trading form a legal replayable turn loop.
 - [ ] 7. **Robber interactions** - rolling seven, required discards, robber movement, blocked production, and resource stealing work for AI seats and appear correctly in replay.

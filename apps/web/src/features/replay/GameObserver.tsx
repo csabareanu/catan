@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError } from '../../lib/apiClient'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
 import { BoardHelp, BoardSvg } from '../board/BoardSvg'
@@ -7,10 +6,8 @@ import {
   readPublicReplayState,
   type PublicReplayState,
 } from './publicReplayState'
-import { getGameReplay, type ReplayResponse } from './replayApi'
-
-const POLL_INTERVAL_MS = 2000
-const REFRESHABLE_LIFECYCLE_STATUSES = new Set(['queued', 'running'])
+import type { ReplayResponse } from './replayApi'
+import { useReplayNavigation } from './useReplayNavigation'
 
 type GameObserverProps = {
   isLoggingOut: boolean
@@ -21,8 +18,6 @@ type GameObserverProps = {
   onUnauthorized: () => void
 }
 
-type ReplayLoadState = 'loading' | 'success' | 'error'
-
 export function GameObserver({
   isLoggingOut,
   onLogout,
@@ -31,73 +26,19 @@ export function GameObserver({
   gameID,
   onUnauthorized,
 }: GameObserverProps) {
-  const [replay, setReplay] = useState<ReplayResponse | null>(null)
-  const [loadState, setLoadState] = useState<ReplayLoadState>('loading')
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-
-  useEffect(() => {
-    let isActive = true
-    let timeoutID: number | null = null
-    let activeController: AbortController | null = null
-
-    const loadReplay = async (): Promise<void> => {
-      const controller = new AbortController()
-      activeController = controller
-
-      try {
-        const response = await getGameReplay(
-          token,
-          gameID,
-          onUnauthorized,
-          controller.signal,
-        )
-
-        if (!isActive) {
-          return
-        }
-
-        setReplay(response)
-        setLoadState('success')
-        setErrorMessage(null)
-
-        if (shouldRefreshReplay(response.context.game.lifecycle_status)) {
-          timeoutID = window.setTimeout(() => {
-            void loadReplay()
-          }, POLL_INTERVAL_MS)
-        }
-      } catch (caught: unknown) {
-        if (
-          !isActive ||
-          controller.signal.aborted ||
-          (caught instanceof ApiError && caught.status === 401)
-        ) {
-          return
-        }
-
-        setLoadState('error')
-        setErrorMessage(toReplayErrorMessage(caught))
-      }
-    }
-
-    void loadReplay()
-
-    return () => {
-      isActive = false
-
-      if (timeoutID !== null) {
-        window.clearTimeout(timeoutID)
-      }
-
-      activeController?.abort()
-    }
-  }, [gameID, onUnauthorized, reloadKey, token])
-
-  const retry = () => {
-    setErrorMessage(null)
-    setLoadState('loading')
-    setReloadKey((currentKey) => currentKey + 1)
-  }
+  const {
+    errorMessage,
+    isFollowingLatest,
+    isLoadingMoreEvents,
+    loadState,
+    loadMoreErrorMessage,
+    loadMoreEvents,
+    replay,
+    retry,
+    selectedCommandSequence,
+    selectCheckpoint,
+    selectLatest,
+  } = useReplayNavigation({ gameID, onUnauthorized, token })
 
   return (
     <AccessShell
@@ -169,12 +110,46 @@ export function GameObserver({
         </div>
       )}
 
-      {replay && <ObserverContent replay={replay} />}
+      {replay && (
+        <ObserverContent
+          replay={replay}
+          isFollowingLatest={isFollowingLatest}
+          isLoadingMoreEvents={isLoadingMoreEvents}
+          isNavigationLoading={loadState === 'loading'}
+          loadMoreErrorMessage={loadMoreErrorMessage}
+          loadMoreEvents={loadMoreEvents}
+          selectedCommandSequence={selectedCommandSequence}
+          selectCheckpoint={selectCheckpoint}
+          selectLatest={selectLatest}
+        />
+      )}
     </AccessShell>
   )
 }
 
-function ObserverContent({ replay }: { replay: ReplayResponse }) {
+type ObserverContentProps = {
+  replay: ReplayResponse
+  isFollowingLatest: boolean
+  isLoadingMoreEvents: boolean
+  isNavigationLoading: boolean
+  loadMoreErrorMessage: string | null
+  loadMoreEvents: () => void
+  selectedCommandSequence: string | null
+  selectCheckpoint: (commandSequence: string) => void
+  selectLatest: () => void
+}
+
+function ObserverContent({
+  replay,
+  isFollowingLatest,
+  isLoadingMoreEvents,
+  isNavigationLoading,
+  loadMoreErrorMessage,
+  loadMoreEvents,
+  selectedCommandSequence,
+  selectCheckpoint,
+  selectLatest,
+}: ObserverContentProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const sidebarToggleRef = useRef<HTMLButtonElement>(null)
   const sidebarCloseRef = useRef<HTMLButtonElement>(null)
@@ -363,6 +338,15 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
             <h2 id="observer-history-title">History</h2>
             <span>{eventCountLabel(events.length)}</span>
           </div>
+          <ReplayPositionControls
+            frame={frame}
+            isFollowingLatest={isFollowingLatest}
+            isLoading={isNavigationLoading}
+            selectedCommandSequence={selectedCommandSequence}
+            snapshotIndex={replay.snapshot_index}
+            selectCheckpoint={selectCheckpoint}
+            selectLatest={selectLatest}
+          />
           {events.length > 0 ? (
             <ol className="observer-history-list">
               {events.map((event) => (
@@ -383,7 +367,28 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
             <p className="observer-note">No visible history is available yet.</p>
           )}
           {eventCursor.has_more && (
-            <p className="observer-note">More history is available for replay.</p>
+            <div className="observer-history-pagination" aria-live="polite">
+              <button
+                className="observer-history-more"
+                type="button"
+                onClick={loadMoreEvents}
+                disabled={isLoadingMoreEvents}
+              >
+                {isLoadingMoreEvents ? 'Loading more history' : 'Load more history'}
+              </button>
+              {loadMoreErrorMessage && (
+                <p className="observer-history-error" role="alert">
+                  <span>{loadMoreErrorMessage}</span>
+                  <button
+                    className="observer-history-retry"
+                    type="button"
+                    onClick={loadMoreEvents}
+                  >
+                    Try again
+                  </button>
+                </p>
+              )}
+            </div>
           )}
           {frame && (
             <p className="observer-note">The current board view is ready for replay.</p>
@@ -419,6 +424,138 @@ function ObserverContent({ replay }: { replay: ReplayResponse }) {
 
         <p className="observer-sidebar-footer">History and board data are supplied by the server.</p>
       </aside>
+    </div>
+  )
+}
+
+type ReplayPositionControlsProps = {
+  frame: ReplayResponse['frame']
+  isFollowingLatest: boolean
+  isLoading: boolean
+  selectedCommandSequence: string | null
+  snapshotIndex: ReplayResponse['snapshot_index']
+  selectCheckpoint: (commandSequence: string) => void
+  selectLatest: () => void
+}
+
+function ReplayPositionControls({
+  frame,
+  isFollowingLatest,
+  isLoading,
+  selectedCommandSequence,
+  snapshotIndex,
+  selectCheckpoint,
+  selectLatest,
+}: ReplayPositionControlsProps) {
+  const frameIndex = frame === null
+    ? -1
+    : snapshotIndex.findIndex((entry) => entry.command_sequence === frame.command_sequence)
+  const selectedIndex = selectedCommandSequence === null
+    ? frameIndex
+    : snapshotIndex.findIndex((entry) => entry.command_sequence === selectedCommandSequence)
+  const currentIndex = isLoading && selectedCommandSequence !== null
+    ? selectedIndex
+    : frameIndex >= 0
+      ? frameIndex
+      : selectedIndex
+  const latestIndex = snapshotIndex.length - 1
+  const hasSnapshots = snapshotIndex.length > 0
+  const positionLabel = isLoading
+    ? 'Loading saved position'
+    : frame === null
+      ? 'No board frame is available'
+      : isFollowingLatest
+        ? 'Latest saved position'
+        : `Saved position ${Math.max(currentIndex + 1, 1)} of ${snapshotIndex.length}`
+  const frameLabel = frame === null
+    ? 'The board frame will appear when a saved position is available.'
+    : `Command ${frame.command_sequence} · Event ${frame.event_sequence}`
+
+  if (!hasSnapshots) {
+    return (
+      <div className="observer-replay-controls observer-replay-empty" aria-labelledby="observer-replay-title">
+        <div className="observer-section-heading">
+          <h3 id="observer-replay-title">Replay position</h3>
+          <span>No saved positions</span>
+        </div>
+        <p className="observer-note">No saved replay positions are available yet.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="observer-replay-controls"
+      aria-labelledby="observer-replay-title"
+      aria-busy={isLoading}
+    >
+      <div className="observer-section-heading">
+        <h3 id="observer-replay-title">Replay position</h3>
+        <span>{snapshotIndex.length} saved</span>
+      </div>
+      <div className="observer-replay-position" role="status" aria-live="polite">
+        <strong>{positionLabel}</strong>
+        <span>{frameLabel}</span>
+      </div>
+      <div className="observer-replay-actions" role="group" aria-label="Replay position controls">
+        <button
+          className="observer-replay-button"
+          type="button"
+          onClick={() => {
+            const previous = snapshotIndex[currentIndex - 1]
+
+            if (previous) {
+              selectCheckpoint(previous.command_sequence)
+            }
+          }}
+          disabled={currentIndex <= 0}
+        >
+          Previous
+        </button>
+        <button
+          className="observer-replay-button"
+          type="button"
+          onClick={() => {
+            const next = snapshotIndex[currentIndex + 1]
+
+            if (next) {
+              selectCheckpoint(next.command_sequence)
+            }
+          }}
+          disabled={currentIndex < 0 || currentIndex >= latestIndex}
+        >
+          Next
+        </button>
+        <button
+          className="observer-replay-button observer-replay-latest"
+          type="button"
+          onClick={selectLatest}
+          disabled={isFollowingLatest}
+        >
+          Latest
+        </button>
+      </div>
+      <div className="observer-replay-checkpoints" aria-label="Saved replay positions">
+        {snapshotIndex.map((entry, index) => {
+          const isCurrent = isLoading && selectedCommandSequence !== null
+            ? entry.command_sequence === selectedCommandSequence
+            : index === frameIndex
+
+          return (
+            <button
+              className="observer-replay-checkpoint"
+              type="button"
+              key={entry.command_sequence}
+              aria-current={isCurrent ? 'step' : undefined}
+              aria-label={`Replay position command ${entry.command_sequence}, event ${entry.event_sequence}`}
+              onClick={() => selectCheckpoint(entry.command_sequence)}
+            >
+              <span>Command {entry.command_sequence}</span>
+              <small>Event {entry.event_sequence}</small>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -505,38 +642,6 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
       element.getClientRects().length > 0
     )
   })
-}
-
-function shouldRefreshReplay(lifecycleStatus: string): boolean {
-  return REFRESHABLE_LIFECYCLE_STATUSES.has(lifecycleStatus)
-}
-
-function toReplayErrorMessage(caught: unknown): string {
-  if (!(caught instanceof ApiError)) {
-    return 'The replay could not be loaded. Check the connection and try again.'
-  }
-
-  if (caught.status === 404) {
-    return caught.message
-  }
-
-  if (caught.status === 422) {
-    return caught.message
-  }
-
-  if (caught.status === 503) {
-    return 'The replay service is unavailable right now. Please try again.'
-  }
-
-  if (caught.status === 0) {
-    return 'The replay could not be reached. Check the connection and try again.'
-  }
-
-  if (caught.code === 'invalid_response') {
-    return 'The replay service returned an invalid response. Please try again.'
-  }
-
-  return caught.message
 }
 
 function lifecycleStatusLabel(status: string): string {
