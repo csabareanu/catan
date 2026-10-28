@@ -7,10 +7,19 @@ import (
 )
 
 const (
-	ExecutionSchemaVersion   = "1"
-	StateSchemaVersion       = "state-v1"
-	PhaseInitialized         = "initialized"
-	GameInitializedEventType = "game_initialized.v1"
+	ExecutionSchemaVersion             = "1"
+	StateSchemaVersion                 = "state-v1"
+	PlacementStateSchemaVersion        = "state-v2"
+	PhaseInitialized                   = "initialized"
+	PhaseInitialPlacement              = "initial_placement"
+	PhaseTurnReady                     = "turn_ready"
+	InitialPlacementStep               = "place_initial_settlement_and_road"
+	GameInitializedEventType           = "game_initialized.v1"
+	InitialPlacementStartedEventType   = "initial_placement_started.v1"
+	InitialSettlementPlacedEventType   = "initial_settlement_placed.v1"
+	InitialRoadPlacedEventType         = "initial_road_placed.v1"
+	InitialResourcesGrantedEventType   = "initial_resources_granted.v1"
+	InitialPlacementCompletedEventType = "initial_placement_completed.v1"
 )
 
 var (
@@ -52,7 +61,8 @@ type BootstrapState struct {
 type Visibility string
 
 const (
-	VisibilityPublic Visibility = "public"
+	VisibilityPublic      Visibility = "public"
+	VisibilitySeatPrivate Visibility = "seat_private"
 )
 
 // Event is an ordered domain event emitted while creating the bootstrap state.
@@ -69,6 +79,97 @@ type InitializationPayload struct {
 	Seed      string
 	SeatCount int
 }
+
+// PlayerState contains the canonical state belonging to one seat. Resources
+// are filtered by the caller before this state is exposed to another seat.
+type PlayerState struct {
+	SeatNumber  int
+	Resources   ResourceCounts
+	Settlements []string
+	Roads       []string
+}
+
+// ResourceCounts is the fixed base-game resource inventory for one seat.
+type ResourceCounts struct {
+	Lumber int
+	Wool   int
+	Grain  int
+	Brick  int
+	Ore    int
+}
+
+// PlacementState is the canonical state while the initial placement phase is
+// active or has just completed.
+type PlacementState struct {
+	Phase            string
+	SeatOrder        []int
+	Round            int
+	ActiveSeatNumber int
+	Step             string
+	Board            board.Board
+	Seats            []Seat
+	Players          []PlayerState
+}
+
+// PlacementEvent is an ordered event emitted by the initial placement
+// transition. It is separate from the existing bootstrap Event so the stable
+// bootstrap event adapter does not need to change in this slice.
+type PlacementEvent struct {
+	Sequence            int
+	EventType           string
+	Payload             PlacementEventPayload
+	Visibility          Visibility
+	VisibleToSeatNumber *int
+}
+
+// PlacementEventPayload is the versioned payload union for setup events.
+type PlacementEventPayload interface {
+	placementEventPayload()
+}
+
+// InitialPlacementStartedPayload announces the established setup order.
+type InitialPlacementStartedPayload struct {
+	SeatOrder        []int
+	Round            int
+	ActiveSeatNumber int
+}
+
+func (InitialPlacementStartedPayload) placementEventPayload() {}
+
+// InitialSettlementPlacedPayload identifies a newly placed settlement.
+type InitialSettlementPlacedPayload struct {
+	SeatNumber         int
+	SettlementVertexID string
+}
+
+func (InitialSettlementPlacedPayload) placementEventPayload() {}
+
+// InitialRoadPlacedPayload identifies the road paired with a settlement.
+type InitialRoadPlacedPayload struct {
+	SeatNumber         int
+	SettlementVertexID string
+	RoadEdgeID         string
+}
+
+func (InitialRoadPlacedPayload) placementEventPayload() {}
+
+// InitialResourcesGrantedPayload contains the publicly derivable
+// second-settlement grant for its receiving seat. The current resource
+// inventory remains private in state projections.
+type InitialResourcesGrantedPayload struct {
+	SeatNumber int
+	Resources  ResourceCounts
+}
+
+func (InitialResourcesGrantedPayload) placementEventPayload() {}
+
+// InitialPlacementCompletedPayload identifies the handoff to normal turns.
+type InitialPlacementCompletedPayload struct {
+	SeatOrder []int
+	NextPhase string
+}
+
+func (InitialPlacementCompletedPayload) placementEventPayload() {}
 
 // BootstrapResult contains the deterministic state and events for one run.
 type BootstrapResult struct {

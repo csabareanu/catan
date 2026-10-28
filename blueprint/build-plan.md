@@ -21,6 +21,9 @@
   - [x] 4b. **Browser game observer** - add the browser access seam and game observer screen that loads a persisted replay frame and renders it with the existing board renderer.
   - [x] 4c. **Replay timeline and state stepping** - let users move through visible events and available snapshot frames without duplicating game rules in React.
 - [ ] 5. **Initial placement phase** - three- or four-seat games enforce deterministic turn order and legal settlement and road placement, while AI seats can complete setup and the observer renders every event.
+  - [x] 5a. **Initial placement rules contract** - the Go engine establishes a seeded, persisted setup order, models legal settlement and road placement, setup resources, and versioned placement events behind a future AI policy boundary without auto-assigning human placements.
+  - [ ] 5b. **Deterministic AI setup execution** - Laravel and Go can run all AI placement turns through the retry-safe execution pipeline and persist the resulting commands, events, snapshots, and lifecycle state.
+  - [ ] 5c. **Setup observer projection** - the API and browser observer render setup phases, active seats, structures, viewer-appropriate setup resources, and every authorized placement event.
 - [ ] 6. **Core turn economy** - deterministic dice rolls, resource production, private seat views, roads, settlements, cities, and bank or port trading form a legal replayable turn loop.
 - [ ] 7. **Robber interactions** - rolling seven, required discards, robber movement, blocked production, and resource stealing work for AI seats and appear correctly in replay.
 - [ ] 8. **Development cards** - buying, privately holding, timing, and playing every base-game development card produces deterministic state transitions and visible events.

@@ -80,6 +80,19 @@ items.
   invalid for a land-only map. Compatibility must be checked before a game
   starts, with the API and Go engine enforcing the boundary rather than relying
   only on frontend controls.
+- **AI training and evaluation** - after the base-game mechanics and complete
+  headless AI games exist, deterministic games may become reproducible training
+  and evaluation episodes for a future game policy model. Prefer a small
+  structured policy or policy/value model that consumes game observations and
+  proposes legal actions; the Go engine remains authoritative for legality and
+  state transitions. Preserve seeds, ruleset and map versions, commands,
+  events, snapshots, policy versions, and results so a later exporter can build
+  datasets. Initial experiments can use the current Acer Nitro Lite 16
+  NL16-71G-57M9 development laptop with an Intel Core i5-13420H, 16 GB RAM,
+  GeForce RTX 3050 with 6 GB GDDR6, and 512 GB NVMe storage, as documented in
+  the [Acer technical specifications](https://www.acer.com/ro-ro/laptops/nitro/nitro-lite/pdp/NH.DAAEX.002).
+  This direction does not add model training, fine-tuning, GPU infrastructure,
+  or dataset export to the MVP.
 
 ## 3. Features - What does the MVP need?
 

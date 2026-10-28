@@ -81,6 +81,20 @@ product direction only, not approved features or build-plan items.
   example, may require multiple islands and navigable sea routes and therefore
   cannot run on a land-only map. The API and Go engine should validate this
   before a game starts; the frontend should not be the only enforcement layer.
+- **AI training and evaluation** - after the base-game mechanics and complete
+  headless AI games exist, deterministic games may become reproducible training
+  and evaluation episodes for a future game policy model. Prefer a small
+  structured policy or policy/value model that consumes game observations and
+  proposes legal actions; the Go engine remains authoritative for legality and
+  state transitions. Keep phase-specific policy seams for initial placement and
+  normal turns so they can be trained and evaluated separately; sharing an
+  encoder or model weights can be considered later. Preserve seeds, ruleset and
+  map versions, commands, events, snapshots, policy versions, and results so a
+  later exporter can build datasets. Initial experiments can use the current Acer Nitro Lite 16
+  NL16-71G-57M9 development laptop with an Intel Core i5-13420H, 16 GB RAM,
+  GeForce RTX 3050 with 6 GB GDDR6, and 512 GB NVMe storage. This direction
+  does not add model training, fine-tuning, GPU infrastructure, or dataset
+  export to the MVP.
 
 ## Features
 
@@ -111,18 +125,18 @@ marked complete here; unchecked items remain planned.
      PostgreSQL, and Redis run together with health checks and smoke verification.
    - **3e. Fast local development workflow** - complete. Source bind mounts and
      reload-friendly processes support ordinary edits without image rebuilds.
-4. **Replayable simulation observer** - active. The API and browser expose
-   persisted history and a viewer-safe board frame; timeline stepping remains
-   in 4c.
+4. **Replayable simulation observer** - complete. The API and browser expose
+   persisted history, viewer-safe board frames, event pagination, and
+   checkpoint navigation without applying game rules in React.
    - **4a. Owner-scoped replay API** - complete. An authenticated owner receives
      safe game context, visible ordered events, snapshot positions, and a
      viewer-safe replay frame.
    - **4b. Browser game observer** - complete. The React client provides
      authentication, game creation, the private library, confirmed deletion,
      run status, and a persisted replay frame using the existing board renderer.
-   - **4c. Replay timeline and state stepping** - next. Users will move
-     through visible events and available snapshot frames without duplicating game
-     rules in React.
+   - **4c. Replay timeline and state stepping** - complete. Owners can move
+     through visible event pages and persisted snapshot frames without
+     duplicating game rules in React.
 5. **Initial placement phase** - planned. Three- or four-seat games enforce
    deterministic legal setup while AI seats complete placement visibly.
 6. **Core turn economy** - planned. Dice, resource production, roads, settlements,
@@ -142,7 +156,7 @@ marked complete here; unchecked items remain planned.
 13. **Completed match experience** - planned. The browser delivers a clear,
     responsive, animated human-versus-AI match with scoring, victory, privacy,
     and full post-game replay.
-14. **Selectable board appearance** - planned. Players can keep the current
+14. **Selectable board appearance** - complete. Players can keep the current
    Classic board or choose the approved Illustrated terrain artwork. The choice
    is remembered in the browser and applies across shared board views without
    changing game data or controls.
@@ -359,8 +373,9 @@ Current browser routes:
 - `/games` - authenticated home, owner-scoped game library, run status, and
   confirmed deletion. Older games load through the existing paginated API.
 - `/games/new` - seeded game creation with two or three AI opponents.
-- `/games/:gameId/observe` - read-only persisted replay frame and visible
-  history metadata. Timeline controls remain planned in 4c.
+- `/games/:gameId/observe` - read-only persisted replay frames, visible history,
+  event pagination, and checkpoint navigation. It remains the shared observer
+  destination while the engine is still in its bootstrap stage.
 
 The browser currently uses lightweight routing, native browser controls, and
 Playwright coverage. React renders API state and never applies game rules.
@@ -374,12 +389,11 @@ My games, Board demo, and the account menu. A gold underline near the navigation
 label identifies the active page.
 
 The approved library design reference lives in `blueprint/reference/`, with
-desktop and mobile images there. Its dark teal, gold, typography,
-and centered frame guide the active UI fix. The full UI audit in
-`blueprint/context/findings.md` records remaining refinements and the agreed
-future board direction: fill the available window, use a desktop side panel
-and phone drawers or bottom sheets, and combine resource symbols with subtle
-terrain art. These board refinements require their own reviewed slices.
+desktop and mobile images there. Its dark teal, gold, typography, and centered
+frame guide the browser shell. The agreed future board direction is to fill the
+available window, use a desktop side panel and phone drawers or bottom sheets,
+and combine resource symbols with subtle terrain art. Further board refinements
+require their own reviewed slices.
 
 The Illustrated board artwork and coastline treatment are approved for
 Feature 14. The existing Classic rendering remains available; both appearances
@@ -398,13 +412,14 @@ current bootstrap stage, including the F-01 preview/start fix. Future human
 play uses current state, legal actions, and bounded recent activity; active
 AI-only games use a spectator Watch experience with recent activity. Reserve
 full player-facing replay navigation for finished matches, while continuing
-to persist the complete history. Laravel must enforce the historical-access
-policy when it is introduced; existing endpoints remain unchanged for now.
+to persist the complete history. Feature 4c now provides persisted checkpoint
+navigation in the shared observer; the later historical-access policy still
+needs to be enforced by Laravel when it is introduced.
 
 AI-only simulations may finish without being watched. Replay pause and speed
 control presentation rather than engine execution. Replay remains seat-safe
 for human games and public for AI-only spectators. A completed bootstrap job
-is not an actual finished match. Revisit these boundaries for 4c and later
+is not an actual finished match. Revisit these boundaries for later
 human gameplay work. The durable decision and details are in
 [Project plan: Play, Watch, and Replay direction](../project-plan.md#play-watch-and-replay-direction).
 
@@ -461,3 +476,7 @@ Docker Desktop with WSL integration provides the current local runtime.
 - **Administrator inspection** - the project plan permits debugging access,
   but the build plan defines no admin role or product interface. Treat it as
   out-of-band developer access until both plans approve more.
+- **Feature-list alignment** - the build plan contains completed Feature 14,
+  Selectable board appearance, but the project plan's feature section does not
+  list it. Keep the two user-owned plans aligned when the roadmap is next
+  revised.
