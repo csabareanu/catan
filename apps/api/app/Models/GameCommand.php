@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'acting_seat_number',
     'command_type',
     'payload',
+    'decision_metadata',
     'accepted_at',
 ])]
 class GameCommand extends Model
@@ -56,6 +57,7 @@ class GameCommand extends Model
             'sequence' => 'integer',
             'acting_seat_number' => 'integer',
             'payload' => 'array',
+            'decision_metadata' => 'array',
             'accepted_at' => 'immutable_datetime',
         ];
     }

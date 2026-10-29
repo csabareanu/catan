@@ -288,7 +288,7 @@ if [[ "$repeat_lifecycle" != "queued" && "$repeat_lifecycle" != "running" ]]; th
 fi
 printf '  repeated start: no new active bootstrap requested (status %s)\n' "$repeat_lifecycle"
 
-printf 'Waiting for game %s to reach running' "$game_id"
+printf 'Waiting for game %s to reach awaiting human input' "$game_id"
 poll_deadline=$((SECONDS + POLL_TIMEOUT))
 game_lifecycle=""
 while (( SECONDS < poll_deadline )); do
@@ -302,8 +302,8 @@ while (( SECONDS < poll_deadline )); do
     fi
 
     game_lifecycle="$(json_value "$TEMP_DIR/show.json" data.lifecycle_status)"
-    if [[ "$game_lifecycle" == "running" ]]; then
-        printf ' running.\n'
+    if [[ "$game_lifecycle" == "awaiting human input" ]]; then
+        printf ' done.\n'
         break
     fi
     if [[ "$game_lifecycle" == "failed" ]]; then
@@ -316,9 +316,9 @@ while (( SECONDS < poll_deadline )); do
     sleep 1
 done
 
-if [[ "$game_lifecycle" != "running" ]]; then
+if [[ "$game_lifecycle" != "awaiting human input" ]]; then
     printf '\n'
-    fail_with_diagnostics "game did not reach running within ${POLL_TIMEOUT}s."
+    fail_with_diagnostics "game did not reach awaiting human input within ${POLL_TIMEOUT}s."
 fi
 
 db_counts="$("${COMPOSE[@]}" exec -T postgres sh -c 'psql -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -F "|" -c "$1"' sh "
@@ -328,32 +328,75 @@ db_counts="$("${COMPOSE[@]}" exec -T postgres sh -c 'psql -qAt -U "$POSTGRES_USE
           WHERE game_id = ${game_id}
             AND command_type = 'bootstrap.v1'),
         (SELECT count(*)
+           FROM game_commands
+          WHERE game_id = ${game_id}
+            AND command_type = 'begin_initial_placement.v1'),
+        (SELECT count(*)
+           FROM game_commands
+          WHERE game_id = ${game_id}
+            AND command_type = 'place_initial_settlement_and_road.v1'),
+        (SELECT count(*)
+           FROM game_commands
+          WHERE game_id = ${game_id}),
+        (SELECT count(*)
            FROM game_events AS event
            JOIN game_commands AS command ON command.id = event.command_id
           WHERE event.game_id = ${game_id}
-            AND command.game_id = ${game_id}
-            AND command.command_type = 'bootstrap.v1'
-            AND event.sequence > 0),
+            AND command.game_id = ${game_id}),
         (SELECT coalesce(min(event.sequence), 0)
            FROM game_events AS event
-           JOIN game_commands AS command ON command.id = event.command_id
-          WHERE event.game_id = ${game_id}
-            AND command.game_id = ${game_id}
-            AND command.command_type = 'bootstrap.v1'),
+          WHERE event.game_id = ${game_id}),
+        (SELECT coalesce(max(event.sequence), 0)
+           FROM game_events AS event
+          WHERE event.game_id = ${game_id}),
+        (SELECT count(*)
+           FROM game_events
+          WHERE game_id = ${game_id}
+            AND command_id IS NOT NULL),
+        (SELECT count(*)
+           FROM game_snapshots
+          WHERE game_id = ${game_id}),
         (SELECT count(*)
            FROM game_snapshots
           WHERE game_id = ${game_id}
-            AND command_sequence = 1);
+            AND command_sequence = 1
+            AND state_schema_version = 'state-v1'),
+        (SELECT count(*)
+           FROM game_snapshots
+          WHERE game_id = ${game_id}
+            AND command_sequence > 1
+            AND state_schema_version = 'state-v2'),
+        (SELECT count(*)
+           FROM game_commands
+          WHERE game_id = ${game_id}
+            AND command_type = 'place_initial_settlement_and_road.v1'
+            AND decision_metadata ->> 'policy_version' = 'random_placement.v1'
+            AND decision_metadata ->> 'option_id' IS NOT NULL
+            AND payload::jsonb ? 'settlement_vertex_id'
+            AND payload::jsonb ? 'road_edge_id'),
+        (SELECT count(*)
+           FROM games AS game
+           JOIN game_seats AS seat ON seat.game_id = game.id
+          WHERE game.id = ${game_id}
+            AND game.lifecycle_status = 'awaiting human input'
+            AND game.current_state ->> 'phase' = 'initial_placement'
+            AND game.current_state ->> 'active_seat_number' = seat.seat_number::text
+            AND seat.controller_type = 'human'),
+        (SELECT count(*)
+           FROM games
+          WHERE id = ${game_id}
+            AND last_command_sequence = (SELECT count(*) FROM game_commands WHERE game_id = ${game_id})
+            AND last_event_sequence = (SELECT count(*) FROM game_events WHERE game_id = ${game_id}));
 " )" || fail_with_diagnostics "could not inspect PostgreSQL bootstrap history."
 
-IFS='|' read -r command_count event_count first_event_sequence snapshot_count <<< "$db_counts"
-if ! [[ "$command_count" =~ ^[0-9]+$ && "$event_count" =~ ^[0-9]+$ && "$first_event_sequence" =~ ^[0-9]+$ && "$snapshot_count" =~ ^[0-9]+$ ]]; then
-    fail_with_diagnostics "PostgreSQL returned an unreadable bootstrap history count: $db_counts"
+IFS='|' read -r bootstrap_count setup_start_count placement_count command_count event_count first_event_sequence last_event_sequence linked_event_count snapshot_count initial_snapshot_count setup_snapshot_count decision_count human_pause_count cursor_count <<< "$db_counts"
+if ! [[ "$bootstrap_count" =~ ^[0-9]+$ && "$setup_start_count" =~ ^[0-9]+$ && "$placement_count" =~ ^[0-9]+$ && "$command_count" =~ ^[0-9]+$ && "$event_count" =~ ^[0-9]+$ && "$first_event_sequence" =~ ^[0-9]+$ && "$last_event_sequence" =~ ^[0-9]+$ && "$linked_event_count" =~ ^[0-9]+$ && "$snapshot_count" =~ ^[0-9]+$ && "$initial_snapshot_count" =~ ^[0-9]+$ && "$setup_snapshot_count" =~ ^[0-9]+$ && "$decision_count" =~ ^[0-9]+$ && "$human_pause_count" =~ ^[0-9]+$ && "$cursor_count" =~ ^[0-9]+$ ]]; then
+    fail_with_diagnostics "PostgreSQL returned unreadable setup history counts: $db_counts"
 fi
-if (( command_count != 1 || event_count < 1 || first_event_sequence != 1 || snapshot_count != 1 )); then
-    fail_with_diagnostics "unexpected bootstrap history for game $game_id: commands=$command_count events=$event_count first_event_sequence=$first_event_sequence snapshots=$snapshot_count"
+if (( bootstrap_count != 1 || setup_start_count != 1 || placement_count > 2 || command_count != 2 + placement_count || event_count != 2 + 2 * placement_count || first_event_sequence != 1 || last_event_sequence != event_count || linked_event_count != event_count || snapshot_count != command_count || initial_snapshot_count != 1 || setup_snapshot_count != command_count - 1 || decision_count != placement_count || human_pause_count != 1 || cursor_count != 1 )); then
+    fail_with_diagnostics "unexpected setup history for game $game_id: bootstrap=$bootstrap_count setup_start=$setup_start_count placements=$placement_count commands=$command_count events=$event_count event_range=$first_event_sequence-$last_event_sequence linked_events=$linked_event_count snapshots=$snapshot_count initial_snapshots=$initial_snapshot_count setup_snapshots=$setup_snapshot_count decisions=$decision_count human_pause=$human_pause_count cursors=$cursor_count"
 fi
 
 write_state_file
-printf 'PostgreSQL history: 1 bootstrap command, %s linked ordered event(s), 1 initial snapshot.\n' "$event_count"
-printf 'Compose smoke test passed: game %s is running.\n' "$game_id"
+printf 'PostgreSQL history: bootstrap + setup-start + %s AI placement command(s), %s linked ordered event(s), %s snapshots.\n' "$placement_count" "$event_count" "$snapshot_count"
+printf 'Compose smoke test passed: game %s is awaiting human input.\n' "$game_id"

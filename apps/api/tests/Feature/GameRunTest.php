@@ -94,8 +94,9 @@ class GameRunTest extends TestCase
     {
         $game = $this->gameWithSeats([
             'lifecycle_status' => 'queued',
-        ]);
-        $engineResponse = $this->bootstrapResponse($game);
+            'human_seat_number' => 2,
+        ], ['ai', 'human', 'ai']);
+        $engineResponse = $this->initialPlacementRunResponse($game);
         Http::fake([
             '*' => Http::response($engineResponse, 200),
         ]);
@@ -103,42 +104,99 @@ class GameRunTest extends TestCase
         $this->runBootstrapJob($game);
 
         $game->refresh();
-        $command = GameCommand::query()->where('game_id', $game->id)->sole();
-        $event = GameEvent::query()->where('game_id', $game->id)->sole();
-        $snapshot = GameSnapshot::query()->where('game_id', $game->id)->sole();
+        $commands = GameCommand::query()->where('game_id', $game->id)->orderBy('sequence')->get();
+        $events = GameEvent::query()->where('game_id', $game->id)->orderBy('sequence')->get();
+        $snapshots = GameSnapshot::query()->where('game_id', $game->id)->orderBy('command_sequence')->get();
+        $transitions = $engineResponse['data']['transitions'];
 
-        $this->assertSame('running', $game->lifecycle_status);
+        $this->assertSame('awaiting human input', $game->lifecycle_status);
         $this->assertSame(1, $game->run_attempts);
         $this->assertNotNull($game->started_at);
         $this->assertNull($game->completed_at);
         $this->assertNull($game->result);
-        $this->assertSame('state-v1', $game->state_schema_version);
-        $this->assertSame($engineResponse['data']['state'], $game->current_state);
-        $this->assertSame(1, $game->last_command_sequence);
-        $this->assertSame(1, $game->last_event_sequence);
-
-        $this->assertSame(1, $command->sequence);
-        $this->assertSame(BootstrapGameRun::idempotencyKey($game->id), $command->idempotency_key);
-        $this->assertNull($command->acting_seat_number);
-        $this->assertSame('bootstrap.v1', $command->command_type);
-        $this->assertSame($this->bootstrapPayload($game), $command->payload);
-
-        $this->assertSame($command->id, $event->command_id);
-        $this->assertSame(1, $event->sequence);
-        $this->assertSame('game_initialized.v1', $event->event_type);
-        $this->assertSame($engineResponse['data']['events'][0]['payload'], $event->payload);
-        $this->assertSame('public', $event->visibility);
-        $this->assertNull($event->visible_to_seat_number);
-        $this->assertNotNull($event->occurred_at);
-
-        $this->assertSame(1, $snapshot->command_sequence);
-        $this->assertSame(1, $snapshot->event_sequence);
-        $this->assertSame('state-v1', $snapshot->state_schema_version);
-        $this->assertSame($engineResponse['data']['state'], $snapshot->state);
+        $this->assertSame('state-v2', $game->state_schema_version);
+        $this->assertSame($transitions[3]['state'], $game->current_state);
+        $this->assertSame(4, $game->last_command_sequence);
+        $this->assertSame(6, $game->last_event_sequence);
+        $this->assertSame([1, 2, 3, 4], $commands->pluck('sequence')->all());
+        $this->assertSame([
+            'bootstrap.v1',
+            'begin_initial_placement.v1',
+            'place_initial_settlement_and_road.v1',
+            'place_initial_settlement_and_road.v1',
+        ], $commands->pluck('command_type')->all());
+        $this->assertSame([
+            BootstrapGameRun::idempotencyKey($game->id),
+            'initial-placement:start',
+            'initial-placement:1:1',
+            'initial-placement:1:3',
+        ], $commands->pluck('idempotency_key')->all());
+        $this->assertSame([null, null, 1, 3], $commands->pluck('acting_seat_number')->all());
+        $this->assertSame($this->bootstrapPayload($game), $commands[0]->payload);
+        $this->assertSame([], $commands[1]->payload);
+        $this->assertSame($transitions[2]['payload'], $commands[2]->payload);
+        $this->assertSame($transitions[3]['payload'], $commands[3]->payload);
+        $this->assertNull($commands[0]->decision_metadata);
+        $this->assertNull($commands[1]->decision_metadata);
+        $this->assertSame($transitions[2]['decision_metadata'], $commands[2]->decision_metadata);
+        $this->assertSame($transitions[3]['decision_metadata'], $commands[3]->decision_metadata);
+        $this->assertSame([1, 2, 3, 4, 5, 6], $events->pluck('sequence')->all());
+        $this->assertSame([
+            'game_initialized.v1',
+            'initial_placement_started.v1',
+            'initial_settlement_placed.v1',
+            'initial_road_placed.v1',
+            'initial_settlement_placed.v1',
+            'initial_road_placed.v1',
+        ], $events->pluck('event_type')->all());
+        $this->assertSame([
+            $commands[0]->id,
+            $commands[1]->id,
+            $commands[2]->id,
+            $commands[2]->id,
+            $commands[3]->id,
+            $commands[3]->id,
+        ], $events->pluck('command_id')->all());
+        $this->assertSame([1, 2, 3, 4], $snapshots->pluck('command_sequence')->all());
+        $this->assertSame([1, 2, 4, 6], $snapshots->pluck('event_sequence')->all());
+        $this->assertSame(['state-v1', 'state-v2', 'state-v2', 'state-v2'], $snapshots->pluck('state_schema_version')->all());
+        $this->assertSame(array_column($transitions, 'state'), $snapshots->pluck('state')->all());
+        $this->assertSame('initial_placement', $game->current_state['phase']);
+        $this->assertSame(2, $game->current_state['active_seat_number']);
 
         Http::assertSent(function (ClientRequest $request) use ($game): bool {
-            return $request->data() === $this->bootstrapPayload($game);
+            return str_ends_with($request->url(), '/v1/runs/initial-placement')
+                && $request->data() === $this->bootstrapPayload($game);
         });
+    }
+
+    public function test_ai_only_setup_persists_through_turn_ready_and_remains_running(): void
+    {
+        $game = $this->gameWithSeats([
+            'lifecycle_status' => 'queued',
+            'human_seat_number' => null,
+            'mode' => 'ai_only',
+        ], ['ai', 'ai', 'ai']);
+        $engineResponse = $this->initialPlacementRunResponse($game);
+        Http::fake([
+            '*' => Http::response($engineResponse, 200),
+        ]);
+
+        $this->runBootstrapJob($game);
+
+        $game->refresh();
+        $this->assertSame('running', $game->lifecycle_status);
+        $this->assertSame('turn_ready', $game->current_state['phase']);
+        $this->assertSame(8, $game->last_command_sequence);
+        $this->assertSame(18, $game->last_event_sequence);
+        $this->assertDatabaseCount('game_commands', 8);
+        $this->assertDatabaseCount('game_events', 18);
+        $this->assertDatabaseCount('game_snapshots', 8);
+        $this->assertDatabaseHas('game_events', [
+            'game_id' => $game->id,
+            'event_type' => 'initial_placement_completed.v1',
+            'sequence' => 18,
+        ]);
     }
 
     public function test_bootstrap_job_can_resume_a_running_game_without_history(): void
@@ -150,7 +208,7 @@ class GameRunTest extends TestCase
             'started_at' => $startedAt,
         ]);
         Http::fake([
-            '*' => Http::response($this->bootstrapResponse($game), 200),
+            '*' => Http::response($this->initialPlacementRunResponse($game), 200),
         ]);
 
         $this->runBootstrapJob($game);
@@ -158,10 +216,10 @@ class GameRunTest extends TestCase
         $game->refresh();
         $this->assertSame(4, $game->run_attempts);
         $this->assertSame($startedAt->timestamp, $game->started_at->timestamp);
-        $this->assertSame('running', $game->lifecycle_status);
-        $this->assertDatabaseCount('game_commands', 1);
-        $this->assertDatabaseCount('game_events', 1);
-        $this->assertDatabaseCount('game_snapshots', 1);
+        $this->assertSame('awaiting human input', $game->lifecycle_status);
+        $this->assertDatabaseCount('game_commands', 2);
+        $this->assertDatabaseCount('game_events', 2);
+        $this->assertDatabaseCount('game_snapshots', 2);
     }
 
     public function test_duplicate_bootstrap_delivery_does_not_call_engine_or_duplicate_history(): void
@@ -170,21 +228,21 @@ class GameRunTest extends TestCase
             'lifecycle_status' => 'queued',
         ]);
         Http::fake([
-            '*' => Http::response($this->bootstrapResponse($game), 200),
+            '*' => Http::response($this->initialPlacementRunResponse($game), 200),
         ]);
 
         $this->runBootstrapJob($game);
         $this->runBootstrapJob($game);
 
         Http::assertSentCount(1);
-        $this->assertDatabaseCount('game_commands', 1);
-        $this->assertDatabaseCount('game_events', 1);
-        $this->assertDatabaseCount('game_snapshots', 1);
+        $this->assertDatabaseCount('game_commands', 2);
+        $this->assertDatabaseCount('game_events', 2);
+        $this->assertDatabaseCount('game_snapshots', 2);
         $this->assertDatabaseHas('games', [
             'id' => $game->id,
             'run_attempts' => 1,
-            'last_command_sequence' => 1,
-            'last_event_sequence' => 1,
+            'last_command_sequence' => 2,
+            'last_event_sequence' => 2,
         ]);
     }
 
@@ -329,8 +387,8 @@ class GameRunTest extends TestCase
         $game = $this->gameWithSeats([
             'lifecycle_status' => 'queued',
         ]);
-        $engineResponse = $this->bootstrapResponse($game);
-        unset($engineResponse['data']['state']);
+        $engineResponse = $this->initialPlacementRunResponse($game);
+        unset($engineResponse['data']['transitions']);
         Http::fake([
             '*' => Http::response($engineResponse, 200),
         ]);
@@ -363,9 +421,12 @@ class GameRunTest extends TestCase
         $game = $this->gameWithSeats([
             'lifecycle_status' => 'queued',
         ]);
-        $engineResponse = $this->bootstrapResponse($game);
+        $engineResponse = $this->initialPlacementRunResponse($game);
         $engineResponse['data']['ruleset']['version'] = '9.9.9';
-        $engineResponse['data']['state']['board']['ruleset']['version'] = '9.9.9';
+        foreach ($engineResponse['data']['transitions'] as &$transition) {
+            $transition['state']['board']['ruleset']['version'] = '9.9.9';
+        }
+        unset($transition);
         Http::fake([
             '*' => Http::response($engineResponse, 200),
         ]);
@@ -423,14 +484,17 @@ class GameRunTest extends TestCase
     {
         $game = $this->gameWithSeats([
             'lifecycle_status' => 'queued',
-        ]);
-        $engineResponse = $this->bootstrapResponse($game);
+            'human_seat_number' => 2,
+        ], ['ai', 'human', 'ai']);
+        $engineResponse = $this->initialPlacementRunResponse($game);
         Http::fake([
             '*' => Http::response($engineResponse, 200),
         ]);
 
-        GameSnapshot::creating(static function (): never {
-            throw new RuntimeException('snapshot persistence unavailable');
+        GameSnapshot::creating(static function (GameSnapshot $snapshot): void {
+            if ($snapshot->command_sequence === 3) {
+                throw new RuntimeException('snapshot persistence unavailable');
+            }
         });
 
         try {
@@ -458,7 +522,7 @@ class GameRunTest extends TestCase
             'lifecycle_status' => 'queued',
         ]);
         Http::fake([
-            '*' => Http::response($this->bootstrapResponse($game), 200),
+            '*' => Http::response($this->initialPlacementRunResponse($game), 200),
         ]);
 
         $this->runBootstrapJob($game);
@@ -466,13 +530,13 @@ class GameRunTest extends TestCase
         $job->failed(new GameEngineProtocolException('late failure'));
 
         $game->refresh();
-        $this->assertSame('running', $game->lifecycle_status);
+        $this->assertSame('awaiting human input', $game->lifecycle_status);
         $this->assertNull($game->failure_code);
         $this->assertNull($game->failure_message);
         $this->assertNull($game->completed_at);
-        $this->assertDatabaseCount('game_commands', 1);
-        $this->assertDatabaseCount('game_events', 1);
-        $this->assertDatabaseCount('game_snapshots', 1);
+        $this->assertDatabaseCount('game_commands', 2);
+        $this->assertDatabaseCount('game_events', 2);
+        $this->assertDatabaseCount('game_snapshots', 2);
     }
 
     public function test_repeated_start_requests_do_not_queue_duplicate_jobs(): void
@@ -637,28 +701,37 @@ class GameRunTest extends TestCase
 
     /**
      * @param  array<string, mixed>  $attributes
+     * @param  list<'human'|'ai'>  $controllerTypes
      */
-    private function gameWithSeats(array $attributes = []): Game
+    private function gameWithSeats(array $attributes = [], array $controllerTypes = ['human', 'ai', 'ai']): Game
     {
-        $game = Game::factory()->create($attributes);
-        $game->seats()->create([
-            'seat_number' => 1,
-            'controller_type' => 'human',
-            'user_id' => $game->owner_id,
-            'label' => 'Human',
-        ]);
-        $game->seats()->create([
-            'seat_number' => 2,
-            'controller_type' => 'ai',
-            'user_id' => null,
-            'label' => 'AI 1',
-        ]);
-        $game->seats()->create([
-            'seat_number' => 3,
-            'controller_type' => 'ai',
-            'user_id' => null,
-            'label' => 'AI 2',
-        ]);
+        $fixture = $this->initialPlacementFixture();
+        $board = $fixture['data']['transitions'][0]['state']['board'];
+        $humanSeatIndex = array_search('human', $controllerTypes, true);
+        $game = Game::factory()->create(array_merge([
+            'seed' => $board['seed'],
+            'ruleset_key' => $board['ruleset']['key'],
+            'ruleset_version' => $board['ruleset']['version'],
+            'seat_count' => count($controllerTypes),
+            'human_seat_number' => $humanSeatIndex === false ? null : $humanSeatIndex + 1,
+            'configuration' => [
+                'ai_count' => count(array_filter($controllerTypes, fn (string $type): bool => $type === 'ai')),
+                'map_key' => $board['map']['key'],
+                'map_version' => $board['map']['version'],
+                'board_schema_version' => $board['board_schema_version'],
+            ],
+            'board_configuration' => $board,
+        ], $attributes));
+
+        foreach ($controllerTypes as $index => $controllerType) {
+            $seatNumber = $index + 1;
+            $game->seats()->create([
+                'seat_number' => $seatNumber,
+                'controller_type' => $controllerType,
+                'user_id' => $controllerType === 'human' ? $game->owner_id : null,
+                'label' => $controllerType === 'human' ? 'Human' : 'AI '.($seatNumber - 1),
+            ]);
+        }
 
         return $game->load('seats');
     }
@@ -677,49 +750,64 @@ class GameRunTest extends TestCase
             'seed' => $game->seed,
             'ruleset_key' => $game->ruleset_key,
             'map_key' => $game->configuration['map_key'],
-            'seats' => [
-                ['seat_number' => 1, 'controller_type' => 'human'],
-                ['seat_number' => 2, 'controller_type' => 'ai'],
-                ['seat_number' => 3, 'controller_type' => 'ai'],
-            ],
+            'seats' => $game->seats
+                ->map(fn ($seat): array => [
+                    'seat_number' => (int) $seat->seat_number,
+                    'controller_type' => (string) $seat->controller_type,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 
     /**
      * @return array{data: array<string, mixed>}
      */
-    private function bootstrapResponse(Game $game): array
+    private function initialPlacementRunResponse(Game $game): array
     {
-        $board = $game->board_configuration;
+        $response = $this->initialPlacementFixture();
+        $payload = $this->bootstrapPayload($game);
+        $transitions = $response['data']['transitions'];
+        $transitionCount = count($transitions);
 
-        return [
-            'data' => [
-                'execution_schema_version' => '1',
-                'state_schema_version' => 'state-v1',
-                'seed' => $game->seed,
-                'ruleset' => [
-                    'key' => $game->ruleset_key,
-                    'version' => $game->ruleset_version,
-                ],
-                'map' => $board['map'],
-                'state' => [
-                    'phase' => 'initialized',
-                    'board' => $board,
-                    'seats' => $this->bootstrapPayload($game)['seats'],
-                ],
-                'events' => [
-                    [
-                        'sequence' => 1,
-                        'event_type' => 'game_initialized.v1',
-                        'payload' => [
-                            'seed' => $game->seed,
-                            'seat_count' => $game->seat_count,
-                        ],
-                        'visibility' => 'public',
-                        'visible_to_seat_number' => null,
-                    ],
-                ],
-            ],
-        ];
+        for ($index = 2; $index < count($transitions); $index++) {
+            $actingSeatNumber = $transitions[$index]['acting_seat_number'];
+            $actingSeat = $payload['seats'][$actingSeatNumber - 1] ?? null;
+
+            if (($actingSeat['controller_type'] ?? null) === 'human') {
+                $transitionCount = $index;
+                break;
+            }
+        }
+
+        $transitions = array_slice($transitions, 0, $transitionCount);
+        $board = $transitions[0]['state']['board'];
+
+        foreach ($transitions as $index => &$transition) {
+            $transition['state']['board'] = $board;
+            $transition['state']['seats'] = $payload['seats'];
+
+            if ($index === 0) {
+                $transition['payload']['seats'] = $payload['seats'];
+            }
+        }
+
+        unset($transition);
+        $response['data']['transitions'] = $transitions;
+        $response['data']['stop_reason'] = $transitions[array_key_last($transitions)]['state']['phase'] === 'turn_ready'
+            ? 'turn_ready'
+            : 'human_input_required';
+
+        return $response;
+    }
+
+    /**
+     * @return array{data: array<string, mixed>}
+     */
+    private function initialPlacementFixture(): array
+    {
+        $fixturePath = __DIR__.'/../Fixtures/initial-placement-ai-run.json';
+
+        return json_decode((string) file_get_contents($fixturePath), true, 512, JSON_THROW_ON_ERROR);
     }
 }

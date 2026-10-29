@@ -1,0 +1,2021 @@
+{
+  "data": {
+    "setup_run_schema_version": "1",
+    "seed": "894177203164",
+    "ruleset": {
+      "key": "base",
+      "version": "1.0.0"
+    },
+    "map": {
+      "key": "standard",
+      "version": "1.0.0",
+      "orientation": "pointy"
+    },
+    "stop_reason": "turn_ready",
+    "transitions": [
+      {
+        "command_type": "bootstrap.v1",
+        "acting_seat_number": null,
+        "payload": {
+          "seed": "894177203164",
+          "ruleset_key": "base",
+          "map_key": "standard",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ]
+        },
+        "decision_metadata": null,
+        "state_schema_version": "state-v1",
+        "state": {
+          "phase": "initialized",
+          "board": {
+            "board_schema_version": "1",
+            "seed": "894177203164",
+            "ruleset": {
+              "key": "base",
+              "version": "1.0.0"
+            },
+            "map": {
+              "key": "standard",
+              "version": "1.0.0",
+              "orientation": "pointy"
+            },
+            "hexes": [
+              {
+                "id": "hex:0:-2",
+                "q": 0,
+                "r": -2,
+                "terrain": "desert",
+                "number_token": null,
+                "vertex_ids": [
+                  "vertex:-2:-8",
+                  "vertex:-1:-7",
+                  "vertex:-1:-5",
+                  "vertex:-2:-4",
+                  "vertex:-3:-5",
+                  "vertex:-3:-7"
+                ]
+              },
+              {
+                "id": "hex:1:-2",
+                "q": 1,
+                "r": -2,
+                "terrain": "fields",
+                "number_token": 6,
+                "vertex_ids": [
+                  "vertex:0:-8",
+                  "vertex:1:-7",
+                  "vertex:1:-5",
+                  "vertex:0:-4",
+                  "vertex:-1:-5",
+                  "vertex:-1:-7"
+                ]
+              },
+              {
+                "id": "hex:2:-2",
+                "q": 2,
+                "r": -2,
+                "terrain": "mountains",
+                "number_token": 9,
+                "vertex_ids": [
+                  "vertex:2:-8",
+                  "vertex:3:-7",
+                  "vertex:3:-5",
+                  "vertex:2:-4",
+                  "vertex:1:-5",
+                  "vertex:1:-7"
+                ]
+              },
+              {
+                "id": "hex:-1:-1",
+                "q": -1,
+                "r": -1,
+                "terrain": "fields",
+                "number_token": 11,
+                "vertex_ids": [
+                  "vertex:-3:-5",
+                  "vertex:-2:-4",
+                  "vertex:-2:-2",
+                  "vertex:-3:-1",
+                  "vertex:-4:-2",
+                  "vertex:-4:-4"
+                ]
+              },
+              {
+                "id": "hex:0:-1",
+                "q": 0,
+                "r": -1,
+                "terrain": "mountains",
+                "number_token": 5,
+                "vertex_ids": [
+                  "vertex:-1:-5",
+                  "vertex:0:-4",
+                  "vertex:0:-2",
+                  "vertex:-1:-1",
+                  "vertex:-2:-2",
+                  "vertex:-2:-4"
+                ]
+              },
+              {
+                "id": "hex:1:-1",
+                "q": 1,
+                "r": -1,
+                "terrain": "pasture",
+                "number_token": 5,
+                "vertex_ids": [
+                  "vertex:1:-5",
+                  "vertex:2:-4",
+                  "vertex:2:-2",
+                  "vertex:1:-1",
+                  "vertex:0:-2",
+                  "vertex:0:-4"
+                ]
+              },
+              {
+                "id": "hex:2:-1",
+                "q": 2,
+                "r": -1,
+                "terrain": "pasture",
+                "number_token": 11,
+                "vertex_ids": [
+                  "vertex:3:-5",
+                  "vertex:4:-4",
+                  "vertex:4:-2",
+                  "vertex:3:-1",
+                  "vertex:2:-2",
+                  "vertex:2:-4"
+                ]
+              },
+              {
+                "id": "hex:-2:0",
+                "q": -2,
+                "r": 0,
+                "terrain": "fields",
+                "number_token": 8,
+                "vertex_ids": [
+                  "vertex:-4:-2",
+                  "vertex:-3:-1",
+                  "vertex:-3:1",
+                  "vertex:-4:2",
+                  "vertex:-5:1",
+                  "vertex:-5:-1"
+                ]
+              },
+              {
+                "id": "hex:-1:0",
+                "q": -1,
+                "r": 0,
+                "terrain": "hills",
+                "number_token": 2,
+                "vertex_ids": [
+                  "vertex:-2:-2",
+                  "vertex:-1:-1",
+                  "vertex:-1:1",
+                  "vertex:-2:2",
+                  "vertex:-3:1",
+                  "vertex:-3:-1"
+                ]
+              },
+              {
+                "id": "hex:0:0",
+                "q": 0,
+                "r": 0,
+                "terrain": "pasture",
+                "number_token": 10,
+                "vertex_ids": [
+                  "vertex:0:-2",
+                  "vertex:1:-1",
+                  "vertex:1:1",
+                  "vertex:0:2",
+                  "vertex:-1:1",
+                  "vertex:-1:-1"
+                ]
+              },
+              {
+                "id": "hex:1:0",
+                "q": 1,
+                "r": 0,
+                "terrain": "fields",
+                "number_token": 4,
+                "vertex_ids": [
+                  "vertex:2:-2",
+                  "vertex:3:-1",
+                  "vertex:3:1",
+                  "vertex:2:2",
+                  "vertex:1:1",
+                  "vertex:1:-1"
+                ]
+              },
+              {
+                "id": "hex:2:0",
+                "q": 2,
+                "r": 0,
+                "terrain": "forest",
+                "number_token": 8,
+                "vertex_ids": [
+                  "vertex:4:-2",
+                  "vertex:5:-1",
+                  "vertex:5:1",
+                  "vertex:4:2",
+                  "vertex:3:1",
+                  "vertex:3:-1"
+                ]
+              },
+              {
+                "id": "hex:-2:1",
+                "q": -2,
+                "r": 1,
+                "terrain": "hills",
+                "number_token": 3,
+                "vertex_ids": [
+                  "vertex:-3:1",
+                  "vertex:-2:2",
+                  "vertex:-2:4",
+                  "vertex:-3:5",
+                  "vertex:-4:4",
+                  "vertex:-4:2"
+                ]
+              },
+              {
+                "id": "hex:-1:1",
+                "q": -1,
+                "r": 1,
+                "terrain": "forest",
+                "number_token": 4,
+                "vertex_ids": [
+                  "vertex:-1:1",
+                  "vertex:0:2",
+                  "vertex:0:4",
+                  "vertex:-1:5",
+                  "vertex:-2:4",
+                  "vertex:-2:2"
+                ]
+              },
+              {
+                "id": "hex:0:1",
+                "q": 0,
+                "r": 1,
+                "terrain": "forest",
+                "number_token": 6,
+                "vertex_ids": [
+                  "vertex:1:1",
+                  "vertex:2:2",
+                  "vertex:2:4",
+                  "vertex:1:5",
+                  "vertex:0:4",
+                  "vertex:0:2"
+                ]
+              },
+              {
+                "id": "hex:1:1",
+                "q": 1,
+                "r": 1,
+                "terrain": "mountains",
+                "number_token": 9,
+                "vertex_ids": [
+                  "vertex:3:1",
+                  "vertex:4:2",
+                  "vertex:4:4",
+                  "vertex:3:5",
+                  "vertex:2:4",
+                  "vertex:2:2"
+                ]
+              },
+              {
+                "id": "hex:-2:2",
+                "q": -2,
+                "r": 2,
+                "terrain": "pasture",
+                "number_token": 10,
+                "vertex_ids": [
+                  "vertex:-2:4",
+                  "vertex:-1:5",
+                  "vertex:-1:7",
+                  "vertex:-2:8",
+                  "vertex:-3:7",
+                  "vertex:-3:5"
+                ]
+              },
+              {
+                "id": "hex:-1:2",
+                "q": -1,
+                "r": 2,
+                "terrain": "hills",
+                "number_token": 3,
+                "vertex_ids": [
+                  "vertex:0:4",
+                  "vertex:1:5",
+                  "vertex:1:7",
+                  "vertex:0:8",
+                  "vertex:-1:7",
+                  "vertex:-1:5"
+                ]
+              },
+              {
+                "id": "hex:0:2",
+                "q": 0,
+                "r": 2,
+                "terrain": "forest",
+                "number_token": 12,
+                "vertex_ids": [
+                  "vertex:2:4",
+                  "vertex:3:5",
+                  "vertex:3:7",
+                  "vertex:2:8",
+                  "vertex:1:7",
+                  "vertex:1:5"
+                ]
+              }
+            ],
+            "vertices": [
+              {
+                "id": "vertex:-2:-8",
+                "x": -2,
+                "y": -8
+              },
+              {
+                "id": "vertex:-1:-7",
+                "x": -1,
+                "y": -7
+              },
+              {
+                "id": "vertex:-1:-5",
+                "x": -1,
+                "y": -5
+              },
+              {
+                "id": "vertex:-2:-4",
+                "x": -2,
+                "y": -4
+              },
+              {
+                "id": "vertex:-3:-5",
+                "x": -3,
+                "y": -5
+              },
+              {
+                "id": "vertex:-3:-7",
+                "x": -3,
+                "y": -7
+              },
+              {
+                "id": "vertex:0:-8",
+                "x": 0,
+                "y": -8
+              },
+              {
+                "id": "vertex:1:-7",
+                "x": 1,
+                "y": -7
+              },
+              {
+                "id": "vertex:1:-5",
+                "x": 1,
+                "y": -5
+              },
+              {
+                "id": "vertex:0:-4",
+                "x": 0,
+                "y": -4
+              },
+              {
+                "id": "vertex:2:-8",
+                "x": 2,
+                "y": -8
+              },
+              {
+                "id": "vertex:3:-7",
+                "x": 3,
+                "y": -7
+              },
+              {
+                "id": "vertex:3:-5",
+                "x": 3,
+                "y": -5
+              },
+              {
+                "id": "vertex:2:-4",
+                "x": 2,
+                "y": -4
+              },
+              {
+                "id": "vertex:-2:-2",
+                "x": -2,
+                "y": -2
+              },
+              {
+                "id": "vertex:-3:-1",
+                "x": -3,
+                "y": -1
+              },
+              {
+                "id": "vertex:-4:-2",
+                "x": -4,
+                "y": -2
+              },
+              {
+                "id": "vertex:-4:-4",
+                "x": -4,
+                "y": -4
+              },
+              {
+                "id": "vertex:0:-2",
+                "x": 0,
+                "y": -2
+              },
+              {
+                "id": "vertex:-1:-1",
+                "x": -1,
+                "y": -1
+              },
+              {
+                "id": "vertex:2:-2",
+                "x": 2,
+                "y": -2
+              },
+              {
+                "id": "vertex:1:-1",
+                "x": 1,
+                "y": -1
+              },
+              {
+                "id": "vertex:4:-4",
+                "x": 4,
+                "y": -4
+              },
+              {
+                "id": "vertex:4:-2",
+                "x": 4,
+                "y": -2
+              },
+              {
+                "id": "vertex:3:-1",
+                "x": 3,
+                "y": -1
+              },
+              {
+                "id": "vertex:-3:1",
+                "x": -3,
+                "y": 1
+              },
+              {
+                "id": "vertex:-4:2",
+                "x": -4,
+                "y": 2
+              },
+              {
+                "id": "vertex:-5:1",
+                "x": -5,
+                "y": 1
+              },
+              {
+                "id": "vertex:-5:-1",
+                "x": -5,
+                "y": -1
+              },
+              {
+                "id": "vertex:-1:1",
+                "x": -1,
+                "y": 1
+              },
+              {
+                "id": "vertex:-2:2",
+                "x": -2,
+                "y": 2
+              },
+              {
+                "id": "vertex:1:1",
+                "x": 1,
+                "y": 1
+              },
+              {
+                "id": "vertex:0:2",
+                "x": 0,
+                "y": 2
+              },
+              {
+                "id": "vertex:3:1",
+                "x": 3,
+                "y": 1
+              },
+              {
+                "id": "vertex:2:2",
+                "x": 2,
+                "y": 2
+              },
+              {
+                "id": "vertex:5:-1",
+                "x": 5,
+                "y": -1
+              },
+              {
+                "id": "vertex:5:1",
+                "x": 5,
+                "y": 1
+              },
+              {
+                "id": "vertex:4:2",
+                "x": 4,
+                "y": 2
+              },
+              {
+                "id": "vertex:-2:4",
+                "x": -2,
+                "y": 4
+              },
+              {
+                "id": "vertex:-3:5",
+                "x": -3,
+                "y": 5
+              },
+              {
+                "id": "vertex:-4:4",
+                "x": -4,
+                "y": 4
+              },
+              {
+                "id": "vertex:0:4",
+                "x": 0,
+                "y": 4
+              },
+              {
+                "id": "vertex:-1:5",
+                "x": -1,
+                "y": 5
+              },
+              {
+                "id": "vertex:2:4",
+                "x": 2,
+                "y": 4
+              },
+              {
+                "id": "vertex:1:5",
+                "x": 1,
+                "y": 5
+              },
+              {
+                "id": "vertex:4:4",
+                "x": 4,
+                "y": 4
+              },
+              {
+                "id": "vertex:3:5",
+                "x": 3,
+                "y": 5
+              },
+              {
+                "id": "vertex:-1:7",
+                "x": -1,
+                "y": 7
+              },
+              {
+                "id": "vertex:-2:8",
+                "x": -2,
+                "y": 8
+              },
+              {
+                "id": "vertex:-3:7",
+                "x": -3,
+                "y": 7
+              },
+              {
+                "id": "vertex:1:7",
+                "x": 1,
+                "y": 7
+              },
+              {
+                "id": "vertex:0:8",
+                "x": 0,
+                "y": 8
+              },
+              {
+                "id": "vertex:3:7",
+                "x": 3,
+                "y": 7
+              },
+              {
+                "id": "vertex:2:8",
+                "x": 2,
+                "y": 8
+              }
+            ],
+            "edges": [
+              {
+                "id": "edge:vertex:-1:-7|vertex:-2:-8",
+                "vertex_ids": [
+                  "vertex:-1:-7",
+                  "vertex:-2:-8"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:-5|vertex:-1:-7",
+                "vertex_ids": [
+                  "vertex:-1:-5",
+                  "vertex:-1:-7"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:-5|vertex:-2:-4",
+                "vertex_ids": [
+                  "vertex:-1:-5",
+                  "vertex:-2:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:-4|vertex:-3:-5",
+                "vertex_ids": [
+                  "vertex:-2:-4",
+                  "vertex:-3:-5"
+                ]
+              },
+              {
+                "id": "edge:vertex:-3:-5|vertex:-3:-7",
+                "vertex_ids": [
+                  "vertex:-3:-5",
+                  "vertex:-3:-7"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:-8|vertex:-3:-7",
+                "vertex_ids": [
+                  "vertex:-2:-8",
+                  "vertex:-3:-7"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:-8|vertex:1:-7",
+                "vertex_ids": [
+                  "vertex:0:-8",
+                  "vertex:1:-7"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:-5|vertex:1:-7",
+                "vertex_ids": [
+                  "vertex:1:-5",
+                  "vertex:1:-7"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:-4|vertex:1:-5",
+                "vertex_ids": [
+                  "vertex:0:-4",
+                  "vertex:1:-5"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:-5|vertex:0:-4",
+                "vertex_ids": [
+                  "vertex:-1:-5",
+                  "vertex:0:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:-7|vertex:0:-8",
+                "vertex_ids": [
+                  "vertex:-1:-7",
+                  "vertex:0:-8"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:-8|vertex:3:-7",
+                "vertex_ids": [
+                  "vertex:2:-8",
+                  "vertex:3:-7"
+                ]
+              },
+              {
+                "id": "edge:vertex:3:-5|vertex:3:-7",
+                "vertex_ids": [
+                  "vertex:3:-5",
+                  "vertex:3:-7"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:-4|vertex:3:-5",
+                "vertex_ids": [
+                  "vertex:2:-4",
+                  "vertex:3:-5"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:-5|vertex:2:-4",
+                "vertex_ids": [
+                  "vertex:1:-5",
+                  "vertex:2:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:-7|vertex:2:-8",
+                "vertex_ids": [
+                  "vertex:1:-7",
+                  "vertex:2:-8"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:-2|vertex:-2:-4",
+                "vertex_ids": [
+                  "vertex:-2:-2",
+                  "vertex:-2:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:-2|vertex:-3:-1",
+                "vertex_ids": [
+                  "vertex:-2:-2",
+                  "vertex:-3:-1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-3:-1|vertex:-4:-2",
+                "vertex_ids": [
+                  "vertex:-3:-1",
+                  "vertex:-4:-2"
+                ]
+              },
+              {
+                "id": "edge:vertex:-4:-2|vertex:-4:-4",
+                "vertex_ids": [
+                  "vertex:-4:-2",
+                  "vertex:-4:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-3:-5|vertex:-4:-4",
+                "vertex_ids": [
+                  "vertex:-3:-5",
+                  "vertex:-4:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:-2|vertex:0:-4",
+                "vertex_ids": [
+                  "vertex:0:-2",
+                  "vertex:0:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:-1|vertex:0:-2",
+                "vertex_ids": [
+                  "vertex:-1:-1",
+                  "vertex:0:-2"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:-1|vertex:-2:-2",
+                "vertex_ids": [
+                  "vertex:-1:-1",
+                  "vertex:-2:-2"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:-2|vertex:2:-4",
+                "vertex_ids": [
+                  "vertex:2:-2",
+                  "vertex:2:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:-1|vertex:2:-2",
+                "vertex_ids": [
+                  "vertex:1:-1",
+                  "vertex:2:-2"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:-2|vertex:1:-1",
+                "vertex_ids": [
+                  "vertex:0:-2",
+                  "vertex:1:-1"
+                ]
+              },
+              {
+                "id": "edge:vertex:3:-5|vertex:4:-4",
+                "vertex_ids": [
+                  "vertex:3:-5",
+                  "vertex:4:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:4:-2|vertex:4:-4",
+                "vertex_ids": [
+                  "vertex:4:-2",
+                  "vertex:4:-4"
+                ]
+              },
+              {
+                "id": "edge:vertex:3:-1|vertex:4:-2",
+                "vertex_ids": [
+                  "vertex:3:-1",
+                  "vertex:4:-2"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:-2|vertex:3:-1",
+                "vertex_ids": [
+                  "vertex:2:-2",
+                  "vertex:3:-1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-3:-1|vertex:-3:1",
+                "vertex_ids": [
+                  "vertex:-3:-1",
+                  "vertex:-3:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-3:1|vertex:-4:2",
+                "vertex_ids": [
+                  "vertex:-3:1",
+                  "vertex:-4:2"
+                ]
+              },
+              {
+                "id": "edge:vertex:-4:2|vertex:-5:1",
+                "vertex_ids": [
+                  "vertex:-4:2",
+                  "vertex:-5:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-5:-1|vertex:-5:1",
+                "vertex_ids": [
+                  "vertex:-5:-1",
+                  "vertex:-5:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-4:-2|vertex:-5:-1",
+                "vertex_ids": [
+                  "vertex:-4:-2",
+                  "vertex:-5:-1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:-1|vertex:-1:1",
+                "vertex_ids": [
+                  "vertex:-1:-1",
+                  "vertex:-1:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:1|vertex:-2:2",
+                "vertex_ids": [
+                  "vertex:-1:1",
+                  "vertex:-2:2"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:2|vertex:-3:1",
+                "vertex_ids": [
+                  "vertex:-2:2",
+                  "vertex:-3:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:-1|vertex:1:1",
+                "vertex_ids": [
+                  "vertex:1:-1",
+                  "vertex:1:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:2|vertex:1:1",
+                "vertex_ids": [
+                  "vertex:0:2",
+                  "vertex:1:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:1|vertex:0:2",
+                "vertex_ids": [
+                  "vertex:-1:1",
+                  "vertex:0:2"
+                ]
+              },
+              {
+                "id": "edge:vertex:3:-1|vertex:3:1",
+                "vertex_ids": [
+                  "vertex:3:-1",
+                  "vertex:3:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:2|vertex:3:1",
+                "vertex_ids": [
+                  "vertex:2:2",
+                  "vertex:3:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:1|vertex:2:2",
+                "vertex_ids": [
+                  "vertex:1:1",
+                  "vertex:2:2"
+                ]
+              },
+              {
+                "id": "edge:vertex:4:-2|vertex:5:-1",
+                "vertex_ids": [
+                  "vertex:4:-2",
+                  "vertex:5:-1"
+                ]
+              },
+              {
+                "id": "edge:vertex:5:-1|vertex:5:1",
+                "vertex_ids": [
+                  "vertex:5:-1",
+                  "vertex:5:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:4:2|vertex:5:1",
+                "vertex_ids": [
+                  "vertex:4:2",
+                  "vertex:5:1"
+                ]
+              },
+              {
+                "id": "edge:vertex:3:1|vertex:4:2",
+                "vertex_ids": [
+                  "vertex:3:1",
+                  "vertex:4:2"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:2|vertex:-2:4",
+                "vertex_ids": [
+                  "vertex:-2:2",
+                  "vertex:-2:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:4|vertex:-3:5",
+                "vertex_ids": [
+                  "vertex:-2:4",
+                  "vertex:-3:5"
+                ]
+              },
+              {
+                "id": "edge:vertex:-3:5|vertex:-4:4",
+                "vertex_ids": [
+                  "vertex:-3:5",
+                  "vertex:-4:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-4:2|vertex:-4:4",
+                "vertex_ids": [
+                  "vertex:-4:2",
+                  "vertex:-4:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:2|vertex:0:4",
+                "vertex_ids": [
+                  "vertex:0:2",
+                  "vertex:0:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:5|vertex:0:4",
+                "vertex_ids": [
+                  "vertex:-1:5",
+                  "vertex:0:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:5|vertex:-2:4",
+                "vertex_ids": [
+                  "vertex:-1:5",
+                  "vertex:-2:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:2|vertex:2:4",
+                "vertex_ids": [
+                  "vertex:2:2",
+                  "vertex:2:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:5|vertex:2:4",
+                "vertex_ids": [
+                  "vertex:1:5",
+                  "vertex:2:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:4|vertex:1:5",
+                "vertex_ids": [
+                  "vertex:0:4",
+                  "vertex:1:5"
+                ]
+              },
+              {
+                "id": "edge:vertex:4:2|vertex:4:4",
+                "vertex_ids": [
+                  "vertex:4:2",
+                  "vertex:4:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:3:5|vertex:4:4",
+                "vertex_ids": [
+                  "vertex:3:5",
+                  "vertex:4:4"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:4|vertex:3:5",
+                "vertex_ids": [
+                  "vertex:2:4",
+                  "vertex:3:5"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:5|vertex:-1:7",
+                "vertex_ids": [
+                  "vertex:-1:5",
+                  "vertex:-1:7"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:7|vertex:-2:8",
+                "vertex_ids": [
+                  "vertex:-1:7",
+                  "vertex:-2:8"
+                ]
+              },
+              {
+                "id": "edge:vertex:-2:8|vertex:-3:7",
+                "vertex_ids": [
+                  "vertex:-2:8",
+                  "vertex:-3:7"
+                ]
+              },
+              {
+                "id": "edge:vertex:-3:5|vertex:-3:7",
+                "vertex_ids": [
+                  "vertex:-3:5",
+                  "vertex:-3:7"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:5|vertex:1:7",
+                "vertex_ids": [
+                  "vertex:1:5",
+                  "vertex:1:7"
+                ]
+              },
+              {
+                "id": "edge:vertex:0:8|vertex:1:7",
+                "vertex_ids": [
+                  "vertex:0:8",
+                  "vertex:1:7"
+                ]
+              },
+              {
+                "id": "edge:vertex:-1:7|vertex:0:8",
+                "vertex_ids": [
+                  "vertex:-1:7",
+                  "vertex:0:8"
+                ]
+              },
+              {
+                "id": "edge:vertex:3:5|vertex:3:7",
+                "vertex_ids": [
+                  "vertex:3:5",
+                  "vertex:3:7"
+                ]
+              },
+              {
+                "id": "edge:vertex:2:8|vertex:3:7",
+                "vertex_ids": [
+                  "vertex:2:8",
+                  "vertex:3:7"
+                ]
+              },
+              {
+                "id": "edge:vertex:1:7|vertex:2:8",
+                "vertex_ids": [
+                  "vertex:1:7",
+                  "vertex:2:8"
+                ]
+              }
+            ],
+            "ports": [
+              {
+                "id": "port:edge:vertex:-1:7|vertex:0:8",
+                "edge_id": "edge:vertex:-1:7|vertex:0:8",
+                "resource_type": "ore",
+                "trade_ratio": 2
+              },
+              {
+                "id": "port:edge:vertex:2:8|vertex:3:7",
+                "edge_id": "edge:vertex:2:8|vertex:3:7",
+                "resource_type": null,
+                "trade_ratio": 3
+              },
+              {
+                "id": "port:edge:vertex:4:2|vertex:4:4",
+                "edge_id": "edge:vertex:4:2|vertex:4:4",
+                "resource_type": "brick",
+                "trade_ratio": 2
+              },
+              {
+                "id": "port:edge:vertex:4:-2|vertex:4:-4",
+                "edge_id": "edge:vertex:4:-2|vertex:4:-4",
+                "resource_type": null,
+                "trade_ratio": 3
+              },
+              {
+                "id": "port:edge:vertex:2:-8|vertex:3:-7",
+                "edge_id": "edge:vertex:2:-8|vertex:3:-7",
+                "resource_type": "wool",
+                "trade_ratio": 2
+              },
+              {
+                "id": "port:edge:vertex:-1:-7|vertex:0:-8",
+                "edge_id": "edge:vertex:-1:-7|vertex:0:-8",
+                "resource_type": "lumber",
+                "trade_ratio": 2
+              },
+              {
+                "id": "port:edge:vertex:-3:-5|vertex:-4:-4",
+                "edge_id": "edge:vertex:-3:-5|vertex:-4:-4",
+                "resource_type": "grain",
+                "trade_ratio": 2
+              },
+              {
+                "id": "port:edge:vertex:-5:-1|vertex:-5:1",
+                "edge_id": "edge:vertex:-5:-1|vertex:-5:1",
+                "resource_type": null,
+                "trade_ratio": 3
+              },
+              {
+                "id": "port:edge:vertex:-3:5|vertex:-4:4",
+                "edge_id": "edge:vertex:-3:5|vertex:-4:4",
+                "resource_type": null,
+                "trade_ratio": 3
+              }
+            ]
+          },
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 1,
+            "event_type": "game_initialized.v1",
+            "payload": {
+              "seed": "894177203164",
+              "seat_count": 3
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      },
+      {
+        "command_type": "begin_initial_placement.v1",
+        "acting_seat_number": null,
+        "payload": {},
+        "decision_metadata": null,
+        "state_schema_version": "state-v2",
+        "state": {
+          "phase": "initial_placement",
+          "seat_order": [
+            1,
+            3,
+            2
+          ],
+          "round": 1,
+          "active_seat_number": 1,
+          "step": "place_initial_settlement_and_road",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ],
+          "players": [
+            {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [],
+              "roads": []
+            },
+            {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [],
+              "roads": []
+            },
+            {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [],
+              "roads": []
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 2,
+            "event_type": "initial_placement_started.v1",
+            "payload": {
+              "seat_order": [
+                1,
+                3,
+                2
+              ],
+              "round": 1,
+              "active_seat_number": 1
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      },
+      {
+        "command_type": "place_initial_settlement_and_road.v1",
+        "acting_seat_number": 1,
+        "payload": {
+          "settlement_vertex_id": "vertex:-1:5",
+          "road_edge_id": "edge:vertex:-1:5|vertex:0:4"
+        },
+        "decision_metadata": {
+          "policy_version": "random_placement.v1",
+          "option_id": "settlement:11:vertex:-1:5:road:27:edge:vertex:-1:5|vertex:0:4"
+        },
+        "state_schema_version": "state-v2",
+        "state": {
+          "phase": "initial_placement",
+          "seat_order": [
+            1,
+            3,
+            2
+          ],
+          "round": 1,
+          "active_seat_number": 3,
+          "step": "place_initial_settlement_and_road",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ],
+          "players": [
+            {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-1:5"
+              ],
+              "roads": [
+                "edge:vertex:-1:5|vertex:0:4"
+              ]
+            },
+            {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [],
+              "roads": []
+            },
+            {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [],
+              "roads": []
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 3,
+            "event_type": "initial_settlement_placed.v1",
+            "payload": {
+              "seat_number": 1,
+              "settlement_vertex_id": "vertex:-1:5"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 4,
+            "event_type": "initial_road_placed.v1",
+            "payload": {
+              "seat_number": 1,
+              "settlement_vertex_id": "vertex:-1:5",
+              "road_edge_id": "edge:vertex:-1:5|vertex:0:4"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      },
+      {
+        "command_type": "place_initial_settlement_and_road.v1",
+        "acting_seat_number": 3,
+        "payload": {
+          "settlement_vertex_id": "vertex:-3:-5",
+          "road_edge_id": "edge:vertex:-2:-4|vertex:-3:-5"
+        },
+        "decision_metadata": {
+          "policy_version": "random_placement.v1",
+          "option_id": "settlement:12:vertex:-3:-5:road:30:edge:vertex:-2:-4|vertex:-3:-5"
+        },
+        "state_schema_version": "state-v2",
+        "state": {
+          "phase": "initial_placement",
+          "seat_order": [
+            1,
+            3,
+            2
+          ],
+          "round": 1,
+          "active_seat_number": 2,
+          "step": "place_initial_settlement_and_road",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ],
+          "players": [
+            {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-1:5"
+              ],
+              "roads": [
+                "edge:vertex:-1:5|vertex:0:4"
+              ]
+            },
+            {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [],
+              "roads": []
+            },
+            {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-3:-5"
+              ],
+              "roads": [
+                "edge:vertex:-2:-4|vertex:-3:-5"
+              ]
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 5,
+            "event_type": "initial_settlement_placed.v1",
+            "payload": {
+              "seat_number": 3,
+              "settlement_vertex_id": "vertex:-3:-5"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 6,
+            "event_type": "initial_road_placed.v1",
+            "payload": {
+              "seat_number": 3,
+              "settlement_vertex_id": "vertex:-3:-5",
+              "road_edge_id": "edge:vertex:-2:-4|vertex:-3:-5"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      },
+      {
+        "command_type": "place_initial_settlement_and_road.v1",
+        "acting_seat_number": 2,
+        "payload": {
+          "settlement_vertex_id": "vertex:2:4",
+          "road_edge_id": "edge:vertex:1:5|vertex:2:4"
+        },
+        "decision_metadata": {
+          "policy_version": "random_placement.v1",
+          "option_id": "settlement:10:vertex:2:4:road:26:edge:vertex:1:5|vertex:2:4"
+        },
+        "state_schema_version": "state-v2",
+        "state": {
+          "phase": "initial_placement",
+          "seat_order": [
+            1,
+            3,
+            2
+          ],
+          "round": 2,
+          "active_seat_number": 2,
+          "step": "place_initial_settlement_and_road",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ],
+          "players": [
+            {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-1:5"
+              ],
+              "roads": [
+                "edge:vertex:-1:5|vertex:0:4"
+              ]
+            },
+            {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:2:4"
+              ],
+              "roads": [
+                "edge:vertex:1:5|vertex:2:4"
+              ]
+            },
+            {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-3:-5"
+              ],
+              "roads": [
+                "edge:vertex:-2:-4|vertex:-3:-5"
+              ]
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 7,
+            "event_type": "initial_settlement_placed.v1",
+            "payload": {
+              "seat_number": 2,
+              "settlement_vertex_id": "vertex:2:4"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 8,
+            "event_type": "initial_road_placed.v1",
+            "payload": {
+              "seat_number": 2,
+              "settlement_vertex_id": "vertex:2:4",
+              "road_edge_id": "edge:vertex:1:5|vertex:2:4"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      },
+      {
+        "command_type": "place_initial_settlement_and_road.v1",
+        "acting_seat_number": 2,
+        "payload": {
+          "settlement_vertex_id": "vertex:3:-5",
+          "road_edge_id": "edge:vertex:3:-5|vertex:4:-4"
+        },
+        "decision_metadata": {
+          "policy_version": "random_placement.v1",
+          "option_id": "settlement:11:vertex:3:-5:road:28:edge:vertex:3:-5|vertex:4:-4"
+        },
+        "state_schema_version": "state-v2",
+        "state": {
+          "phase": "initial_placement",
+          "seat_order": [
+            1,
+            3,
+            2
+          ],
+          "round": 2,
+          "active_seat_number": 3,
+          "step": "place_initial_settlement_and_road",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ],
+          "players": [
+            {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-1:5"
+              ],
+              "roads": [
+                "edge:vertex:-1:5|vertex:0:4"
+              ]
+            },
+            {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 1,
+                "grain": 0,
+                "brick": 0,
+                "ore": 1
+              },
+              "settlements": [
+                "vertex:2:4",
+                "vertex:3:-5"
+              ],
+              "roads": [
+                "edge:vertex:1:5|vertex:2:4",
+                "edge:vertex:3:-5|vertex:4:-4"
+              ]
+            },
+            {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-3:-5"
+              ],
+              "roads": [
+                "edge:vertex:-2:-4|vertex:-3:-5"
+              ]
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 9,
+            "event_type": "initial_settlement_placed.v1",
+            "payload": {
+              "seat_number": 2,
+              "settlement_vertex_id": "vertex:3:-5"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 10,
+            "event_type": "initial_road_placed.v1",
+            "payload": {
+              "seat_number": 2,
+              "settlement_vertex_id": "vertex:3:-5",
+              "road_edge_id": "edge:vertex:3:-5|vertex:4:-4"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 11,
+            "event_type": "initial_resources_granted.v1",
+            "payload": {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 1,
+                "grain": 0,
+                "brick": 0,
+                "ore": 1
+              }
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      },
+      {
+        "command_type": "place_initial_settlement_and_road.v1",
+        "acting_seat_number": 3,
+        "payload": {
+          "settlement_vertex_id": "vertex:3:-1",
+          "road_edge_id": "edge:vertex:3:-1|vertex:4:-2"
+        },
+        "decision_metadata": {
+          "policy_version": "random_placement.v1",
+          "option_id": "settlement:11:vertex:3:-1:road:28:edge:vertex:3:-1|vertex:4:-2"
+        },
+        "state_schema_version": "state-v2",
+        "state": {
+          "phase": "initial_placement",
+          "seat_order": [
+            1,
+            3,
+            2
+          ],
+          "round": 2,
+          "active_seat_number": 1,
+          "step": "place_initial_settlement_and_road",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ],
+          "players": [
+            {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 0,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-1:5"
+              ],
+              "roads": [
+                "edge:vertex:-1:5|vertex:0:4"
+              ]
+            },
+            {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 1,
+                "grain": 0,
+                "brick": 0,
+                "ore": 1
+              },
+              "settlements": [
+                "vertex:2:4",
+                "vertex:3:-5"
+              ],
+              "roads": [
+                "edge:vertex:1:5|vertex:2:4",
+                "edge:vertex:3:-5|vertex:4:-4"
+              ]
+            },
+            {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 1,
+                "wool": 1,
+                "grain": 1,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-3:-5",
+                "vertex:3:-1"
+              ],
+              "roads": [
+                "edge:vertex:-2:-4|vertex:-3:-5",
+                "edge:vertex:3:-1|vertex:4:-2"
+              ]
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 12,
+            "event_type": "initial_settlement_placed.v1",
+            "payload": {
+              "seat_number": 3,
+              "settlement_vertex_id": "vertex:3:-1"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 13,
+            "event_type": "initial_road_placed.v1",
+            "payload": {
+              "seat_number": 3,
+              "settlement_vertex_id": "vertex:3:-1",
+              "road_edge_id": "edge:vertex:3:-1|vertex:4:-2"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 14,
+            "event_type": "initial_resources_granted.v1",
+            "payload": {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 1,
+                "wool": 1,
+                "grain": 1,
+                "brick": 0,
+                "ore": 0
+              }
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      },
+      {
+        "command_type": "place_initial_settlement_and_road.v1",
+        "acting_seat_number": 1,
+        "payload": {
+          "settlement_vertex_id": "vertex:5:-1",
+          "road_edge_id": "edge:vertex:4:-2|vertex:5:-1"
+        },
+        "decision_metadata": {
+          "policy_version": "random_placement.v1",
+          "option_id": "settlement:11:vertex:5:-1:road:28:edge:vertex:4:-2|vertex:5:-1"
+        },
+        "state_schema_version": "state-v2",
+        "state": {
+          "phase": "turn_ready",
+          "seat_order": [
+            1,
+            3,
+            2
+          ],
+          "round": 2,
+          "active_seat_number": 0,
+          "step": "",
+          "seats": [
+            {
+              "seat_number": 1,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 2,
+              "controller_type": "ai"
+            },
+            {
+              "seat_number": 3,
+              "controller_type": "ai"
+            }
+          ],
+          "players": [
+            {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 1,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-1:5",
+                "vertex:5:-1"
+              ],
+              "roads": [
+                "edge:vertex:-1:5|vertex:0:4",
+                "edge:vertex:4:-2|vertex:5:-1"
+              ]
+            },
+            {
+              "seat_number": 2,
+              "resources": {
+                "lumber": 0,
+                "wool": 1,
+                "grain": 0,
+                "brick": 0,
+                "ore": 1
+              },
+              "settlements": [
+                "vertex:2:4",
+                "vertex:3:-5"
+              ],
+              "roads": [
+                "edge:vertex:1:5|vertex:2:4",
+                "edge:vertex:3:-5|vertex:4:-4"
+              ]
+            },
+            {
+              "seat_number": 3,
+              "resources": {
+                "lumber": 1,
+                "wool": 1,
+                "grain": 1,
+                "brick": 0,
+                "ore": 0
+              },
+              "settlements": [
+                "vertex:-3:-5",
+                "vertex:3:-1"
+              ],
+              "roads": [
+                "edge:vertex:-2:-4|vertex:-3:-5",
+                "edge:vertex:3:-1|vertex:4:-2"
+              ]
+            }
+          ]
+        },
+        "events": [
+          {
+            "sequence": 15,
+            "event_type": "initial_settlement_placed.v1",
+            "payload": {
+              "seat_number": 1,
+              "settlement_vertex_id": "vertex:5:-1"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 16,
+            "event_type": "initial_road_placed.v1",
+            "payload": {
+              "seat_number": 1,
+              "settlement_vertex_id": "vertex:5:-1",
+              "road_edge_id": "edge:vertex:4:-2|vertex:5:-1"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 17,
+            "event_type": "initial_resources_granted.v1",
+            "payload": {
+              "seat_number": 1,
+              "resources": {
+                "lumber": 1,
+                "wool": 0,
+                "grain": 0,
+                "brick": 0,
+                "ore": 0
+              }
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          },
+          {
+            "sequence": 18,
+            "event_type": "initial_placement_completed.v1",
+            "payload": {
+              "seat_order": [
+                1,
+                3,
+                2
+              ],
+              "next_phase": "turn_ready"
+            },
+            "visibility": "public",
+            "visible_to_seat_number": null
+          }
+        ]
+      }
+    ]
+  }
+}

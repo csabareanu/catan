@@ -18,7 +18,7 @@ class GameBootstrapService
     public function __construct(private readonly GameEngineClient $gameEngineClient) {}
 
     /**
-     * Claim and persist a deterministic bootstrap run when the game is eligible.
+     * Claim and persist a deterministic initial-placement run when eligible.
      */
     public function execute(int $gameId): void
     {
@@ -45,13 +45,13 @@ class GameBootstrapService
             return;
         }
 
-        $response = $this->gameEngineClient->bootstrapRun($payload);
+        $response = $this->gameEngineClient->initialPlacementRun($payload);
 
         $this->persistResult($gameId, $payload, $response);
     }
 
     /**
-     * Record a sanitized terminal failure unless canonical bootstrap history won the race.
+     * Record a sanitized terminal failure unless canonical run history won the race.
      */
     public function recordFailure(int $gameId, ?Throwable $exception): void
     {
@@ -133,56 +133,91 @@ class GameBootstrapService
             $this->validatePersistableResponse($game, $payload, $response);
 
             $data = $response['data'];
-            $state = $data['state'];
-            $events = $data['events'];
-            $command = GameCommand::create([
-                'game_id' => $game->getKey(),
-                'sequence' => 1,
-                'idempotency_key' => BootstrapGameRun::idempotencyKey($game->getKey()),
-                'acting_seat_number' => null,
-                'command_type' => 'bootstrap.v1',
-                'payload' => $payload,
-                'accepted_at' => now(),
-            ]);
+            $transitions = $data['transitions'];
             $lastEventSequence = 0;
-            $occurredAt = now();
+            $state = [];
+            $previousState = null;
 
-            foreach ($events as $event) {
-                GameEvent::create([
+            foreach ($transitions as $index => $transition) {
+                $commandSequence = $index + 1;
+                $command = GameCommand::create([
                     'game_id' => $game->getKey(),
-                    'command_id' => $command->getKey(),
-                    'sequence' => $event['sequence'],
-                    'event_type' => $event['event_type'],
-                    'payload' => $event['payload'],
-                    'visibility' => $event['visibility'],
-                    'visible_to_seat_number' => $event['visible_to_seat_number'],
-                    'occurred_at' => $occurredAt,
+                    'sequence' => $commandSequence,
+                    'idempotency_key' => $this->transitionIdempotencyKey($game->getKey(), $transition, $previousState),
+                    'acting_seat_number' => $transition['acting_seat_number'],
+                    'command_type' => $transition['command_type'],
+                    'payload' => $transition['payload'],
+                    'decision_metadata' => $transition['decision_metadata'],
+                    'accepted_at' => now(),
                 ]);
 
-                $lastEventSequence = max($lastEventSequence, $event['sequence']);
+                foreach ($transition['events'] as $event) {
+                    GameEvent::create([
+                        'game_id' => $game->getKey(),
+                        'command_id' => $command->getKey(),
+                        'sequence' => $event['sequence'],
+                        'event_type' => $event['event_type'],
+                        'payload' => $event['payload'],
+                        'visibility' => $event['visibility'],
+                        'visible_to_seat_number' => $event['visible_to_seat_number'],
+                        'occurred_at' => now(),
+                    ]);
+
+                    $lastEventSequence = max($lastEventSequence, $event['sequence']);
+                }
+
+                $state = $transition['state'];
+
+                GameSnapshot::create([
+                    'game_id' => $game->getKey(),
+                    'command_sequence' => $commandSequence,
+                    'event_sequence' => $lastEventSequence,
+                    'state_schema_version' => $transition['state_schema_version'],
+                    'state' => $state,
+                    'created_at' => now(),
+                ]);
+
+                $previousState = $state;
             }
 
-            GameSnapshot::create([
-                'game_id' => $game->getKey(),
-                'command_sequence' => 1,
-                'event_sequence' => $lastEventSequence,
-                'state_schema_version' => $data['state_schema_version'],
-                'state' => $state,
-                'created_at' => now(),
-            ]);
-
             $game->forceFill([
-                'lifecycle_status' => 'running',
-                'state_schema_version' => $data['state_schema_version'],
+                'lifecycle_status' => $data['stop_reason'] === 'human_input_required'
+                    ? 'awaiting human input'
+                    : 'running',
+                'state_schema_version' => $transitions[array_key_last($transitions)]['state_schema_version'],
                 'current_state' => $state,
                 'result' => null,
-                'last_command_sequence' => 1,
+                'last_command_sequence' => count($transitions),
                 'last_event_sequence' => $lastEventSequence,
                 'completed_at' => null,
                 'failure_code' => null,
                 'failure_message' => null,
             ])->save();
         });
+    }
+
+    /**
+     * Keep setup transition identity stable across queue retries.
+     *
+     * @param  array<string, mixed>  $transition
+     * @param  array<string, mixed>|null  $previousState
+     */
+    private function transitionIdempotencyKey(int $gameId, array $transition, ?array $previousState): string
+    {
+        if ($transition['command_type'] === 'place_initial_settlement_and_road.v1'
+            && ! is_int($previousState['round'] ?? null)) {
+            throw new GameEngineProtocolException('The initial placement run omitted the previous state round.');
+        }
+
+        return match ($transition['command_type']) {
+            'bootstrap.v1' => BootstrapGameRun::idempotencyKey($gameId),
+            'begin_initial_placement.v1' => 'initial-placement:start',
+            'place_initial_settlement_and_road.v1' => sprintf(
+                'initial-placement:%d:%d',
+                $previousState['round'],
+                $transition['acting_seat_number'],
+            ),
+        };
     }
 
     /**
@@ -203,10 +238,16 @@ class GameBootstrapService
         $data = $response['data'] ?? null;
         $configuration = $game->configuration;
         $boardConfiguration = $game->board_configuration;
-        $state = is_array($data) ? ($data['state'] ?? null) : null;
+        $transitions = is_array($data) ? ($data['transitions'] ?? null) : null;
         $responseRuleset = is_array($data) ? ($data['ruleset'] ?? null) : null;
         $responseMap = is_array($data) ? ($data['map'] ?? null) : null;
-        $stateBoard = is_array($state) ? ($state['board'] ?? null) : null;
+        $bootstrapTransition = is_array($transitions) ? ($transitions[0] ?? null) : null;
+        $finalTransition = is_array($transitions) && $transitions !== []
+            ? $transitions[array_key_last($transitions)]
+            : null;
+        $bootstrapState = is_array($bootstrapTransition) ? ($bootstrapTransition['state'] ?? null) : null;
+        $state = is_array($finalTransition) ? ($finalTransition['state'] ?? null) : null;
+        $stateBoard = is_array($bootstrapState) ? ($bootstrapState['board'] ?? null) : null;
         $expectedSeats = $this->enginePayload($game)['seats'];
 
         if (! is_array($data)
@@ -214,6 +255,14 @@ class GameBootstrapService
             || ! is_array($boardConfiguration)
             || ! is_array($responseRuleset)
             || ! is_array($responseMap)
+            || ($data['setup_run_schema_version'] ?? null) !== '1'
+            || ! in_array($data['stop_reason'] ?? null, ['human_input_required', 'turn_ready'], true)
+            || ! is_array($transitions)
+            || ! array_is_list($transitions)
+            || count($transitions) < 2
+            || ! is_array($bootstrapTransition)
+            || ! is_array($finalTransition)
+            || ! is_array($bootstrapState)
             || ! is_array($state)
             || ! is_array($stateBoard)
             || $payload !== $this->enginePayload($game)
@@ -222,10 +271,12 @@ class GameBootstrapService
             || ($responseRuleset['version'] ?? null) !== (string) $game->ruleset_version
             || ($responseMap['key'] ?? null) !== ($configuration['map_key'] ?? null)
             || ($responseMap['version'] ?? null) !== ($configuration['map_version'] ?? null)
+            || ($bootstrapTransition['payload'] ?? null) !== $payload
             || $stateBoard !== $boardConfiguration
+            || ! $this->matchesSeatConfiguration($bootstrapState['seats'] ?? null, $expectedSeats)
             || ! $this->matchesSeatConfiguration($state['seats'] ?? null, $expectedSeats)) {
             throw new GameEngineProtocolException(
-                'The game engine returned bootstrap data for a different persisted game.',
+                'The game engine returned setup data for a different persisted game.',
             );
         }
     }

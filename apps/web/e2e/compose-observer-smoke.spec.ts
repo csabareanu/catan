@@ -31,7 +31,7 @@ test('observes a real Compose game without API interception', async ({ page }, t
   await page.goto(`/games/${gameID}/observe`)
 
   await expect(page.getByRole('heading', { name: `Game ${gameID}`, exact: true })).toBeVisible()
-  await expect(page.getByText('Run in progress', { exact: true })).toBeVisible()
+  await expect(page.getByText('Awaiting human input', { exact: true })).toBeVisible()
   await expect(page.locator('.observer-board .board-svg')).toBeVisible()
   await expect(page.locator('.board-hex')).toHaveCount(19)
   await expect(page.locator('.board-port')).toHaveCount(9)

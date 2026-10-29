@@ -55,6 +55,9 @@ type InitialPlacementResult struct {
 	StateSchemaVersion     string
 	State                  PlacementState
 	Events                 []PlacementEvent
+	// Command is the accepted placement command. It is nil for the system
+	// transition that begins initial placement.
+	Command *InitialPlacementCommand
 	// Decision is nil for transitions that came from system setup or explicit
 	// commands rather than a placement policy.
 	Decision *PlacementDecision
@@ -179,6 +182,7 @@ func ApplyInitialPlacementCommand(state PlacementState, command InitialPlacement
 		StateSchemaVersion:     PlacementStateSchemaVersion,
 		State:                  nextState,
 		Events:                 events,
+		Command:                &command,
 	}, nil
 }
 

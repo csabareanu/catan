@@ -91,6 +91,7 @@ func NewHandler() http.Handler {
 	mux.HandleFunc("/healthz", health)
 	mux.HandleFunc("/v1/boards/generate", generateBoard)
 	mux.HandleFunc("/v1/runs/bootstrap", bootstrapRun)
+	mux.HandleFunc("/v1/runs/initial-placement", initialPlacementRun)
 	return mux
 }
 

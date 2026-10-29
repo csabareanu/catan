@@ -7,19 +7,30 @@ import (
 )
 
 const (
-	ExecutionSchemaVersion             = "1"
-	StateSchemaVersion                 = "state-v1"
-	PlacementStateSchemaVersion        = "state-v2"
-	PhaseInitialized                   = "initialized"
-	PhaseInitialPlacement              = "initial_placement"
-	PhaseTurnReady                     = "turn_ready"
-	InitialPlacementStep               = "place_initial_settlement_and_road"
-	GameInitializedEventType           = "game_initialized.v1"
-	InitialPlacementStartedEventType   = "initial_placement_started.v1"
-	InitialSettlementPlacedEventType   = "initial_settlement_placed.v1"
-	InitialRoadPlacedEventType         = "initial_road_placed.v1"
-	InitialResourcesGrantedEventType   = "initial_resources_granted.v1"
-	InitialPlacementCompletedEventType = "initial_placement_completed.v1"
+	ExecutionSchemaVersion              = "1"
+	StateSchemaVersion                  = "state-v1"
+	PlacementStateSchemaVersion         = "state-v2"
+	PhaseInitialized                    = "initialized"
+	PhaseInitialPlacement               = "initial_placement"
+	PhaseTurnReady                      = "turn_ready"
+	InitialPlacementStep                = "place_initial_settlement_and_road"
+	GameInitializedEventType            = "game_initialized.v1"
+	InitialPlacementStartedEventType    = "initial_placement_started.v1"
+	InitialSettlementPlacedEventType    = "initial_settlement_placed.v1"
+	InitialRoadPlacedEventType          = "initial_road_placed.v1"
+	InitialResourcesGrantedEventType    = "initial_resources_granted.v1"
+	InitialPlacementCompletedEventType  = "initial_placement_completed.v1"
+	InitialPlacementRunSchemaVersion    = "1"
+	BootstrapRunCommandType             = "bootstrap.v1"
+	BeginInitialPlacementRunCommandType = "begin_initial_placement.v1"
+)
+
+// InitialPlacementRunStopReason explains why an automated setup run stopped.
+type InitialPlacementRunStopReason string
+
+const (
+	InitialPlacementRunStopReasonHumanInputRequired InitialPlacementRunStopReason = "human_input_required"
+	InitialPlacementRunStopReasonTurnReady          InitialPlacementRunStopReason = "turn_ready"
 )
 
 var (
@@ -180,4 +191,69 @@ type BootstrapResult struct {
 	MapKey                 string
 	State                  BootstrapState
 	Events                 []Event
+}
+
+// BootstrapRunCommandPayload records the canonical configuration accepted by
+// the bootstrap transition.
+type BootstrapRunCommandPayload struct {
+	Seed       string
+	RulesetKey string
+	MapKey     string
+	Seats      []Seat
+}
+
+// EmptyRunCommandPayload represents the system command that begins setup.
+type EmptyRunCommandPayload struct{}
+
+// InitialPlacementRunTransition is a closed union of the transitions returned
+// by a deterministic initial-placement run.
+type InitialPlacementRunTransition interface {
+	initialPlacementRunTransition()
+}
+
+// BootstrapRunTransition contains the initialized state and its event.
+type BootstrapRunTransition struct {
+	CommandType        string
+	Payload            BootstrapRunCommandPayload
+	StateSchemaVersion string
+	State              BootstrapState
+	Events             []Event
+}
+
+func (BootstrapRunTransition) initialPlacementRunTransition() {}
+
+// BeginInitialPlacementRunTransition contains the system transition that
+// establishes setup order and activates the first seat.
+type BeginInitialPlacementRunTransition struct {
+	CommandType        string
+	Payload            EmptyRunCommandPayload
+	StateSchemaVersion string
+	State              PlacementState
+	Events             []PlacementEvent
+}
+
+func (BeginInitialPlacementRunTransition) initialPlacementRunTransition() {}
+
+// AIPlacementRunTransition contains one legal placement selected by policy.
+type AIPlacementRunTransition struct {
+	CommandType        string
+	ActingSeatNumber   int
+	Payload            InitialPlacementCommandPayload
+	Decision           PlacementDecision
+	StateSchemaVersion string
+	State              PlacementState
+	Events             []PlacementEvent
+}
+
+func (AIPlacementRunTransition) initialPlacementRunTransition() {}
+
+// InitialPlacementRunResult contains all ordered transitions through the
+// first human decision or completion of setup.
+type InitialPlacementRunResult struct {
+	SetupRunSchemaVersion string
+	Seed                  string
+	RulesetKey            string
+	MapKey                string
+	StopReason            InitialPlacementRunStopReason
+	Transitions           []InitialPlacementRunTransition
 }

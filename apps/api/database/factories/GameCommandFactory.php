@@ -27,6 +27,7 @@ class GameCommandFactory extends Factory
             'payload' => [
                 'schema_version' => '1',
             ],
+            'decision_metadata' => null,
             'accepted_at' => now(),
         ];
     }
