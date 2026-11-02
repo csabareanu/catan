@@ -138,7 +138,19 @@ marked complete here; unchecked items remain planned.
      through visible event pages and persisted snapshot frames without
      duplicating game rules in React.
 5. **Initial placement phase** - planned. Three- or four-seat games enforce
-   deterministic legal setup while AI seats complete placement visibly.
+   deterministic legal setup, the observer presents setup events, and the human
+   owner can make their initial placements.
+   - **5a. Initial placement rules contract** - complete. Go defines the setup
+     order and legal settlement/road placement transitions without auto-placing
+     a human seat.
+   - **5b. Deterministic AI setup execution** - complete. AI placement commands,
+     events, snapshots, and lifecycle state persist through the retry-safe
+     pipeline.
+   - **5c. Setup observer projection** - complete. The browser renders
+     viewer-safe setup state and plays authorized setup events in order.
+   - **5d. Human initial placement** - planned. The owner chooses legal setup
+     settlements and connected roads; Go validates commands and AI setup
+     resumes until the phase completes.
 6. **Core turn economy** - planned. Dice, resource production, roads, settlements,
    cities, and bank or port trading form a legal replayable turn loop.
 7. **Robber interactions** - planned. Discards, robber movement, blocked
@@ -149,8 +161,9 @@ marked complete here; unchecked items remain planned.
    resource trades while private holdings remain hidden.
 10. **Complete headless AI games** - planned. Awards, victory scoring, completion,
     and baseline AI decisions allow seeded games to finish reproducibly.
-11. **Human setup and core turns** - planned. One human can complete setup, roll,
-    build, and use bank or port trades while AI opponents act.
+11. **Human core turns** - planned. After Feature 5d completes initial
+    placement, one human can roll, build, and use bank or port trades while AI
+    opponents act.
 12. **Human special actions and negotiation** - planned. The human resolves robber
     and discard decisions, uses development cards, and negotiates legal trades.
 13. **Completed match experience** - planned. The browser delivers a clear,
@@ -407,14 +420,16 @@ supported by real API state.
 
 ### Play, Watch, and Replay direction
 
-Keep `/games/:gameId/observe` as the shared read-only destination during the
-current bootstrap stage, including the F-01 preview/start fix. Future human
-play uses current state, legal actions, and bounded recent activity; active
-AI-only games use a spectator Watch experience with recent activity. Reserve
-full player-facing replay navigation for finished matches, while continuing
-to persist the complete history. Feature 4c now provides persisted checkpoint
-navigation in the shared observer; the later historical-access policy still
-needs to be enforced by Laravel when it is introduced.
+Keep `/games/:gameId/observe` as the shared destination during the current
+bootstrap stage, including the F-01 preview/start fix. Feature 5d adds a narrow
+interaction for legal human setup placements on that screen; normal human turn
+actions remain in Feature 11. Future human play uses current state, legal
+actions, and bounded recent activity; active AI-only games use a spectator
+Watch experience with recent activity. Reserve full player-facing replay
+navigation for finished matches, while continuing to persist the complete
+history. Feature 4c provides persisted checkpoint navigation in the shared
+observer; Laravel must enforce the later historical-access policy when it is
+introduced.
 
 AI-only simulations may finish without being watched. Replay pause and speed
 control presentation rather than engine execution. Replay remains seat-safe

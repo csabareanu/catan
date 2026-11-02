@@ -103,9 +103,10 @@ The product will be delivered through vertical slices rather than a long, invisi
 1. Establish the Go engine to Laravel API to React browser walking skeleton.
 2. Generate a seeded board through the API and render it in the browser.
 3. Add rules and visual feedback together in small, testable slices.
-4. Complete and verify headless AI gameplay.
-5. Allow one human-controlled seat to submit commands through the same engine.
-6. Polish the complete human-versus-AI experience.
+4. Complete the setup observer, then let one human-controlled seat make its legal initial settlement and road placements through the same engine.
+5. Complete and verify headless AI gameplay across the core turns and special actions.
+6. Allow one human-controlled seat to submit core-turn commands through the same engine.
+7. Polish the complete human-versus-AI experience.
 
 The API remains authoritative and independently operable throughout this process.
 
@@ -297,11 +298,12 @@ Visual feedback begins early. The first frontend milestone is a rendered seeded 
 
 ### Play, Watch, and Replay direction
 
-Decision recorded 2026-10-18: keep `/games/:gameId/observe` as the shared
-read-only destination for started games during the current bootstrap stage.
-The preview/start journey fix continues to use it. The distinctions below
-guide future specifications; they do not add routes, controls, or API
-restrictions to that fix.
+Decision updated 2026-11-02: keep `/games/:gameId/observe` as the shared
+destination during the current bootstrap stage. Feature 5d adds a narrow
+setup-only interaction when the owner's human seat is expected to place; the
+same screen continues to show the board and setup history. The preview/start
+journey continues to use this route. Normal turn input remains part of Feature
+11, and this does not add a new route.
 
 | Situation | Future experience | History presentation |
 |---|---|---|

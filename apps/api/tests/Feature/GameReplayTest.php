@@ -175,6 +175,116 @@ class GameReplayTest extends TestCase
         $this->assertArrayNotHasKey('current_state', $projection);
     }
 
+    public function test_it_projects_setup_structures_and_only_the_human_seat_resources_for_state_v2(): void
+    {
+        $game = Game::factory()->create([
+            'human_seat_number' => 2,
+        ]);
+        $snapshot = GameSnapshot::factory()->for($game)->create([
+            'state_schema_version' => 'state-v2',
+            'state' => [
+                'phase' => 'initial_placement',
+                'seat_order' => [3, 1, 2],
+                'round' => 2,
+                'active_seat_number' => 2,
+                'step' => 'place_initial_settlement_and_road',
+                'players' => [
+                    [
+                        'seat_number' => 1,
+                        'resources' => ['lumber' => 2, 'wool' => 1, 'grain' => 0, 'brick' => 0, 'ore' => 0],
+                        'settlements' => ['vertex:one'],
+                        'roads' => ['edge:one'],
+                    ],
+                    [
+                        'seat_number' => 2,
+                        'resources' => ['lumber' => 1, 'wool' => 0, 'grain' => 1, 'brick' => 0, 'ore' => 1],
+                        'settlements' => ['vertex:two'],
+                        'roads' => ['edge:two'],
+                    ],
+                    [
+                        'seat_number' => 3,
+                        'resources' => ['lumber' => 0, 'wool' => 2, 'grain' => 0, 'brick' => 1, 'ore' => 0],
+                        'settlements' => ['vertex:three'],
+                        'roads' => ['edge:three'],
+                    ],
+                ],
+                'secret' => 'canonical-only',
+            ],
+        ]);
+
+        $projection = (new GameReplayProjection)->project(
+            game: $game,
+            seats: collect(),
+            events: collect(),
+            snapshots: collect([$snapshot]),
+            frame: $snapshot,
+            requestedAfterSequence: '0',
+            limit: 25,
+        );
+
+        $this->assertSame('replay-v1', $projection['schema_version']);
+        $this->assertSame('replay-public-v2', $projection['frame']['public_projection_schema_version']);
+        $this->assertSame([
+            'phase' => 'initial_placement',
+            'active_seat_number' => 2,
+            'seat_order' => [3, 1, 2],
+            'round' => 2,
+            'step' => 'place_initial_settlement_and_road',
+            'players' => [
+                ['seat_number' => 1, 'settlements' => ['vertex:one'], 'roads' => ['edge:one']],
+                ['seat_number' => 2, 'settlements' => ['vertex:two'], 'roads' => ['edge:two']],
+                ['seat_number' => 3, 'settlements' => ['vertex:three'], 'roads' => ['edge:three']],
+            ],
+        ], $projection['frame']['public_state']);
+        $this->assertSame('replay-viewer-v1', $projection['frame']['viewer_projection_schema_version']);
+        $this->assertSame([
+            'seat_number' => 2,
+            'resources' => ['lumber' => 1, 'wool' => 0, 'grain' => 1, 'brick' => 0, 'ore' => 1],
+        ], $projection['frame']['viewer_state']);
+        $this->assertArrayNotHasKey('secret', $projection['frame']['public_state']);
+    }
+
+    public function test_an_ai_only_state_v2_frame_does_not_project_any_seat_resources(): void
+    {
+        $game = Game::factory()->create([
+            'human_seat_number' => null,
+        ]);
+        $snapshot = GameSnapshot::factory()->for($game)->create([
+            'state_schema_version' => 'state-v2',
+            'state' => [
+                'phase' => 'turn_ready',
+                'players' => [
+                    [
+                        'seat_number' => 1,
+                        'resources' => ['lumber' => 3, 'wool' => 2, 'grain' => 1, 'brick' => 0, 'ore' => 0],
+                        'settlements' => ['vertex:one'],
+                        'roads' => ['edge:one'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $projection = (new GameReplayProjection)->project(
+            game: $game,
+            seats: collect(),
+            events: collect(),
+            snapshots: collect([$snapshot]),
+            frame: $snapshot,
+            requestedAfterSequence: '0',
+            limit: 25,
+        );
+
+        $this->assertSame('replay-public-v2', $projection['frame']['public_projection_schema_version']);
+        $this->assertSame([
+            'phase' => 'turn_ready',
+            'players' => [
+                ['seat_number' => 1, 'settlements' => ['vertex:one'], 'roads' => ['edge:one']],
+            ],
+        ], $projection['frame']['public_state']);
+        $this->assertNull($projection['frame']['viewer_state']);
+        $this->assertArrayNotHasKey('viewer_projection_schema_version', $projection['frame']);
+    }
+
     public function test_an_ai_only_game_projects_public_events_without_private_ai_events(): void
     {
         $game = Game::factory()->create([

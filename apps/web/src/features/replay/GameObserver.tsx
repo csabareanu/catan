@@ -1,13 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
-import { BoardHelp, BoardSvg } from '../board/BoardSvg'
 import {
+  BoardHelp,
+  BoardSvg,
+  type BoardPieceColor,
+  type BoardPlayerStructures,
+} from '../board/BoardSvg'
+import type { ResourceType } from '../board/boardApi'
+import {
+  readSetupPlaybackEvents,
   readPublicReplayState,
   type PublicReplayState,
+  type SetupPlaybackEvent,
+  type SetupPlayerStructures,
 } from './publicReplayState'
 import type { ReplayResponse } from './replayApi'
 import { useReplayNavigation } from './useReplayNavigation'
+import { consumeObserverAutoplayIntent } from './observerAutoplayIntent'
+
+const RESOURCE_LABELS: Record<ResourceType, string> = {
+  lumber: 'Lumber',
+  wool: 'Wool',
+  grain: 'Grain',
+  brick: 'Brick',
+  ore: 'Ore',
+}
+
+const SETUP_PLAYBACK_INTERVAL_MS = 850
 
 type GameObserverProps = {
   isLoggingOut: boolean
@@ -26,6 +46,9 @@ export function GameObserver({
   gameID,
   onUnauthorized,
 }: GameObserverProps) {
+  const observerKey = `${user.id}:${gameID}`
+  const [autoplayIntentKey, setAutoplayIntentKey] = useState<string | null>(null)
+  const checkedObserverKeyRef = useRef<string | null>(null)
   const {
     errorMessage,
     isFollowingLatest,
@@ -39,6 +62,17 @@ export function GameObserver({
     selectCheckpoint,
     selectLatest,
   } = useReplayNavigation({ gameID, onUnauthorized, token })
+
+  useEffect(() => {
+    if (checkedObserverKeyRef.current === observerKey) {
+      return
+    }
+
+    checkedObserverKeyRef.current = observerKey
+    setAutoplayIntentKey(consumeObserverAutoplayIntent(user.id, gameID) ? observerKey : null)
+  }, [gameID, observerKey, user.id])
+
+  const shouldAutoplaySetup = autoplayIntentKey === observerKey
 
   return (
     <AccessShell
@@ -74,6 +108,16 @@ export function GameObserver({
                 </svg>
                 Read-only
               </span>
+              <span
+                className={`observer-refresh-indicator${loadState === 'loading' ? ' observer-refresh-indicator-active' : ''}`}
+                role={loadState === 'loading' ? 'status' : undefined}
+                aria-live={loadState === 'loading' ? 'polite' : undefined}
+                aria-label={loadState === 'loading' ? 'Refreshing the persisted replay' : undefined}
+                aria-hidden={loadState !== 'loading'}
+              >
+                <span className="status-dot" aria-hidden="true" />
+                <span className="observer-refresh-label">Refreshing</span>
+              </span>
               <span className={`library-status observer-status-${statusClass(replay.context.game.lifecycle_status)}`}>
                 {observerStatusLabel(replay.context.game.lifecycle_status)}
               </span>
@@ -86,13 +130,6 @@ export function GameObserver({
         <div className="observer-state" role="status" aria-live="polite">
           <span className="status-dot" aria-hidden="true" />
           Loading the persisted replay
-        </div>
-      )}
-
-      {loadState === 'loading' && replay !== null && (
-        <div className="observer-state" role="status" aria-live="polite">
-          <span className="status-dot" aria-hidden="true" />
-          Refreshing the persisted replay
         </div>
       )}
 
@@ -112,7 +149,9 @@ export function GameObserver({
 
       {replay && (
         <ObserverContent
+          key={gameID}
           replay={replay}
+          shouldAutoplaySetup={shouldAutoplaySetup}
           isFollowingLatest={isFollowingLatest}
           isLoadingMoreEvents={isLoadingMoreEvents}
           isNavigationLoading={loadState === 'loading'}
@@ -129,6 +168,7 @@ export function GameObserver({
 
 type ObserverContentProps = {
   replay: ReplayResponse
+  shouldAutoplaySetup: boolean
   isFollowingLatest: boolean
   isLoadingMoreEvents: boolean
   isNavigationLoading: boolean
@@ -141,6 +181,7 @@ type ObserverContentProps = {
 
 function ObserverContent({
   replay,
+  shouldAutoplaySetup,
   isFollowingLatest,
   isLoadingMoreEvents,
   isNavigationLoading,
@@ -156,7 +197,196 @@ function ObserverContent({
   const sidebarRef = useRef<HTMLElement>(null)
   const { context, events, event_cursor: eventCursor, frame } = replay
   const game = context.game
-  const publicState = readPublicReplayState(frame)
+  const publicState = readPublicReplayState(frame, game.human_seat_number)
+  const setupPlaybackEvents = readSetupPlaybackEvents(events)
+  const [setupPlaybackCount, setSetupPlaybackCount] = useState<number | null>(null)
+  const [isSetupPlaying, setIsSetupPlaying] = useState(false)
+  const hasStartedArrivalAutoplayRef = useRef(false)
+  const selectReplayCheckpoint = useCallback((commandSequence: string) => {
+    setSetupPlaybackCount(null)
+    setIsSetupPlaying(false)
+    selectCheckpoint(commandSequence)
+  }, [selectCheckpoint])
+  const selectReplayLatest = useCallback(() => {
+    setSetupPlaybackCount(null)
+    setIsSetupPlaying(false)
+    selectLatest()
+  }, [selectLatest])
+  const visibleSetupPlaybackCount = setupPlaybackCount === null
+    ? null
+    : Math.min(setupPlaybackCount, setupPlaybackEvents.length)
+  const latestSetupEvent = visibleSetupPlaybackCount === null || visibleSetupPlaybackCount === 0
+    ? null
+    : setupPlaybackEvents[visibleSetupPlaybackCount - 1] ?? null
+  const completionEventIndex = setupPlaybackEvents.findIndex((event) => event.kind === 'completed')
+  const hasPresentedCompletion = completionEventIndex >= 0 &&
+    visibleSetupPlaybackCount !== null &&
+    visibleSetupPlaybackCount > completionEventIndex
+  const isAtSetupPlaybackEnd = setupPlaybackCount !== null &&
+    setupPlaybackCount >= setupPlaybackEvents.length &&
+    !eventCursor.has_more &&
+    !isLoadingMoreEvents
+  const expectedHumanSeat = publicState.phase === 'initial_placement' &&
+    game.human_seat_number !== null &&
+    publicState.activeSeatNumber === game.human_seat_number
+    ? context.seats.find((seat) => seat.seat_number === game.human_seat_number) ?? null
+    : null
+  const isAtHumanInputBoundary = isAtSetupPlaybackEnd && expectedHumanSeat !== null
+  const hasFinishedSetup = hasPresentedCompletion || (
+    isAtSetupPlaybackEnd && publicState.phase === 'turn_ready'
+  )
+  const isSetupPlaybackTerminal =
+    hasPresentedCompletion ||
+    isAtHumanInputBoundary ||
+    (isAtSetupPlaybackEnd && publicState.phase === 'turn_ready')
+  const isSetupPlaybackRunning = isSetupPlaying &&
+    !isSetupPlaybackTerminal &&
+    loadMoreErrorMessage === null
+  const setupPlaybackStatus = getSetupPlaybackStatus({
+    currentEvent: latestSetupEvent,
+    expectedHumanSeat,
+    hasFinishedSetup,
+    isAtHumanInputBoundary,
+    isPlaying: isSetupPlaybackRunning,
+    isPaused: setupPlaybackCount !== null &&
+      !isSetupPlaybackRunning &&
+      !isSetupPlaybackTerminal &&
+      loadMoreErrorMessage === null,
+    loadMoreErrorMessage,
+    playbackCount: setupPlaybackCount,
+    playbackEventCount: setupPlaybackEvents.length,
+    seats: context.seats,
+    isLoadingMoreEvents,
+  })
+  const setupPlaybackEventBySequence = new Map(
+    setupPlaybackEvents.map((event) => [event.sequence, event]),
+  )
+  const visibleSetupPlayers = setupPlaybackCount === null
+    ? publicState.setup?.players ?? []
+    : getSetupPlayersAtPlaybackPosition(setupPlaybackEvents, visibleSetupPlaybackCount ?? 0)
+  const mostRecentPlacementEvent = latestSetupEvent?.kind === 'settlement' || latestSetupEvent?.kind === 'road'
+    ? latestSetupEvent
+    : null
+  const playerStructures: BoardPlayerStructures[] = visibleSetupPlayers
+    .flatMap((player): BoardPlayerStructures[] => {
+      const seat = context.seats.find((candidate) => candidate.seat_number === player.seatNumber)
+
+      if (!seat) {
+        return []
+      }
+
+      return [{
+        seatNumber: seat.seat_number,
+        ownerLabel: seatDisplayName(seat.label, seat.seat_number),
+        color: playerColorClass(seat.seat_number, seat.controller_type),
+        settlementVertexIDs: player.settlements,
+        roadEdgeIDs: player.roads,
+        recentSettlementVertexIDs: mostRecentPlacementEvent?.kind === 'settlement' &&
+          mostRecentPlacementEvent.seatNumber === player.seatNumber &&
+          mostRecentPlacementEvent.settlementVertexID !== null
+          ? [mostRecentPlacementEvent.settlementVertexID]
+          : [],
+        recentRoadEdgeIDs: mostRecentPlacementEvent?.kind === 'road' &&
+          mostRecentPlacementEvent.seatNumber === player.seatNumber &&
+          mostRecentPlacementEvent.roadEdgeID !== null
+          ? [mostRecentPlacementEvent.roadEdgeID]
+          : [],
+      }]
+    })
+
+  useEffect(() => {
+    if (
+      !shouldAutoplaySetup ||
+      hasStartedArrivalAutoplayRef.current ||
+      setupPlaybackEvents.length === 0
+    ) {
+      return
+    }
+
+    hasStartedArrivalAutoplayRef.current = true
+    setSetupPlaybackCount(0)
+    setIsSetupPlaying(true)
+  }, [setupPlaybackEvents.length, shouldAutoplaySetup])
+
+  useEffect(() => {
+    if (
+      isSetupPlaybackTerminal ||
+      setupPlaybackCount === null ||
+      setupPlaybackCount <= setupPlaybackEvents.length ||
+      !eventCursor.has_more ||
+      isLoadingMoreEvents ||
+      loadMoreErrorMessage !== null
+    ) {
+      return
+    }
+
+    loadMoreEvents()
+  }, [
+    eventCursor.has_more,
+    isSetupPlaybackTerminal,
+    isLoadingMoreEvents,
+    loadMoreErrorMessage,
+    loadMoreEvents,
+    setupPlaybackCount,
+    setupPlaybackEvents.length,
+  ])
+
+  useEffect(() => {
+    if (!isSetupPlaybackRunning) {
+      return
+    }
+
+    if (setupPlaybackCount === null) {
+      return
+    }
+
+    if (setupPlaybackCount < setupPlaybackEvents.length) {
+      const timeoutID = window.setTimeout(() => {
+        setSetupPlaybackCount((currentCount) => currentCount === null ? 1 : currentCount + 1)
+      }, SETUP_PLAYBACK_INTERVAL_MS)
+
+      return () => window.clearTimeout(timeoutID)
+    }
+
+    if (eventCursor.has_more) {
+      if (!isLoadingMoreEvents) {
+        loadMoreEvents()
+      }
+
+      return
+    }
+  }, [
+    eventCursor.has_more,
+    isLoadingMoreEvents,
+    isSetupPlaybackRunning,
+    loadMoreEvents,
+    setupPlaybackCount,
+    setupPlaybackEvents.length,
+  ])
+
+  const startOrResumeSetupPlayback = () => {
+    if (isSetupPlaybackRunning) {
+      setIsSetupPlaying(false)
+      return
+    }
+
+    if (
+      setupPlaybackCount === null ||
+      hasFinishedSetup ||
+      isAtHumanInputBoundary ||
+      (isAtSetupPlaybackEnd && !eventCursor.has_more)
+    ) {
+      setSetupPlaybackCount(0)
+    }
+
+    setIsSetupPlaying(true)
+  }
+
+  const stepSetupPlayback = () => {
+    setIsSetupPlaying(false)
+    const nextCount = (setupPlaybackCount ?? 0) + 1
+    setSetupPlaybackCount(nextCount)
+  }
 
   const closeSidebar = useCallback(() => {
     setIsSidebarOpen(false)
@@ -232,6 +462,7 @@ function ObserverContent({
       <section className="observer-board" aria-label="Game board">
         <BoardSvg
           board={context.board}
+          playerStructures={playerStructures}
           toolbarStart={(
             <button
               ref={sidebarToggleRef}
@@ -344,13 +575,66 @@ function ObserverContent({
             isLoading={isNavigationLoading}
             selectedCommandSequence={selectedCommandSequence}
             snapshotIndex={replay.snapshot_index}
-            selectCheckpoint={selectCheckpoint}
-            selectLatest={selectLatest}
+            selectCheckpoint={selectReplayCheckpoint}
+            selectLatest={selectReplayLatest}
           />
+          {(setupPlaybackEvents.length > 0 || publicState.phase === 'initial_placement') && (
+            <section className="observer-setup-playback" aria-labelledby="observer-setup-playback-title">
+              <div className="observer-setup-playback-heading">
+                <h3 id="observer-setup-playback-title">Setup playback</h3>
+                <span>
+                  {setupPlaybackCount === null
+                    ? 'Latest state'
+                    : setupPlaybackCount > setupPlaybackEvents.length
+                      ? 'Loading next event'
+                      : `${visibleSetupPlaybackCount ?? 0} of ${setupPlaybackEvents.length} events`}
+                </span>
+              </div>
+              <div className="observer-setup-playback-actions">
+                <button
+                  className="observer-setup-playback-primary"
+                  type="button"
+                  onClick={startOrResumeSetupPlayback}
+                >
+                  {isSetupPlaybackRunning
+                    ? 'Pause setup'
+                    : (hasFinishedSetup || isAtHumanInputBoundary || isAtSetupPlaybackEnd)
+                      ? 'Replay setup'
+                      : setupPlaybackCount === null
+                        ? 'Play setup'
+                        : 'Resume setup'}
+                </button>
+                <button
+                  className="observer-setup-playback-step"
+                  type="button"
+                  onClick={stepSetupPlayback}
+                  disabled={
+                    isLoadingMoreEvents ||
+                    ((setupPlaybackCount ?? 0) >= setupPlaybackEvents.length && !eventCursor.has_more)
+                  }
+                >
+                  Next event
+                </button>
+              </div>
+              <p
+                className="observer-setup-playback-status"
+                role="status"
+                aria-live="polite"
+                data-setup-playback-status
+              >
+                {setupPlaybackStatus}
+              </p>
+            </section>
+          )}
           {events.length > 0 ? (
             <ol className="observer-history-list">
               {events.map((event) => (
-                <li className="observer-history-event" key={event.sequence}>
+                <li
+                  className="observer-history-event"
+                  aria-current={latestSetupEvent?.sequence === event.sequence ? 'step' : undefined}
+                  data-event-sequence={event.sequence}
+                  key={event.sequence}
+                >
                   <span className="observer-history-marker" aria-hidden="true">
                     <svg viewBox="0 0 24 24">
                       <path d="m5 12 4 4L19 6" />
@@ -358,7 +642,11 @@ function ObserverContent({
                   </span>
                   <div>
                     <strong>{eventLabel(event.event_type)}</strong>
-                    <p>{eventDescription(event.event_type)}</p>
+                    <p>{eventDescription(
+                      event.event_type,
+                      setupPlaybackEventBySequence.get(event.sequence) ?? null,
+                      context.seats,
+                    )}</p>
                   </div>
                 </li>
               ))}
@@ -570,10 +858,19 @@ function ObserverStatus({
   const activeSeat = publicState.activeSeatNumber === null
     ? null
     : seats.find((seat) => seat.seat_number === publicState.activeSeatNumber) ?? null
+  const setupOrder = publicState.setup?.seatOrder.flatMap((seatNumber) => {
+    const seat = seats.find((candidate) => candidate.seat_number === seatNumber)
+
+    return seat ? [seatDisplayName(seat.label, seat.seat_number)] : []
+  }) ?? []
   const hasStatus = publicState.phase !== null ||
     publicState.turnPhase !== null ||
     activeSeat !== null ||
-    publicState.awards.length > 0
+    publicState.awards.length > 0 ||
+    publicState.setup?.round !== null && publicState.setup?.round !== undefined ||
+    publicState.setup?.step !== null && publicState.setup?.step !== undefined ||
+    setupOrder.length > 0 ||
+    publicState.viewerResources !== null
 
   return (
     <section className="observer-panel observer-status-panel" aria-labelledby="observer-status-title">
@@ -596,13 +893,44 @@ function ObserverStatus({
                 <dd>{stateLabel(publicState.turnPhase)}</dd>
               </div>
             )}
+            {publicState.setup?.round !== null && publicState.setup?.round !== undefined && (
+              <div>
+                <dt>Setup round</dt>
+                <dd>{publicState.setup.round}</dd>
+              </div>
+            )}
+            {publicState.setup?.step !== null && publicState.setup?.step !== undefined && (
+              <div>
+                <dt>Setup step</dt>
+                <dd>{stateLabel(publicState.setup.step)}</dd>
+              </div>
+            )}
+            {setupOrder.length > 0 && (
+              <div>
+                <dt>Setup order</dt>
+                <dd className="observer-setup-order">{setupOrder.join(' → ')}</dd>
+              </div>
+            )}
             {activeSeat !== null && (
               <div>
-                <dt>Playing now</dt>
+                <dt>{publicState.phase === 'initial_placement' ? 'Placing now' : 'Playing now'}</dt>
                 <dd>{seatDisplayName(activeSeat.label, activeSeat.seat_number)}</dd>
               </div>
             )}
           </dl>
+          {publicState.viewerResources !== null && (
+            <section className="observer-setup-resources" aria-labelledby="observer-setup-resources-title">
+              <h3 id="observer-setup-resources-title">Your resources</h3>
+              <dl className="observer-resource-grid">
+                {(Object.keys(RESOURCE_LABELS) as ResourceType[]).map((resource) => (
+                  <div data-resource={resource} data-resource-count key={resource}>
+                    <dt>{RESOURCE_LABELS[resource]}</dt>
+                    <dd>{publicState.viewerResources?.[resource]}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
           {publicState.awards.length > 0 && (
             <div className="observer-awards">
               <span className="observer-status-label">Awards</span>
@@ -626,6 +954,158 @@ function ObserverStatus({
       )}
     </section>
   )
+}
+
+function getSetupPlayersAtPlaybackPosition(
+  events: SetupPlaybackEvent[],
+  playbackCount: number,
+): SetupPlayerStructures[] {
+  const players = new Map<number, SetupPlayerStructures>()
+
+  for (const event of events.slice(0, playbackCount)) {
+    if (event.seatNumber === null) {
+      continue
+    }
+
+    const player = players.get(event.seatNumber) ?? {
+      seatNumber: event.seatNumber,
+      settlements: [],
+      roads: [],
+    }
+
+    if (
+      event.kind === 'settlement' &&
+      event.settlementVertexID !== null &&
+      !player.settlements.includes(event.settlementVertexID)
+    ) {
+      player.settlements.push(event.settlementVertexID)
+    }
+
+    if (
+      event.kind === 'road' &&
+      event.roadEdgeID !== null &&
+      !player.roads.includes(event.roadEdgeID)
+    ) {
+      player.roads.push(event.roadEdgeID)
+    }
+
+    players.set(event.seatNumber, player)
+  }
+
+  return [...players.values()]
+}
+
+function getSetupPlaybackStatus({
+  currentEvent,
+  expectedHumanSeat,
+  hasFinishedSetup,
+  isAtHumanInputBoundary,
+  isPlaying,
+  isPaused,
+  loadMoreErrorMessage,
+  isLoadingMoreEvents,
+  playbackCount,
+  playbackEventCount,
+  seats,
+}: {
+  currentEvent: SetupPlaybackEvent | null
+  expectedHumanSeat: ReplayResponse['context']['seats'][number] | null
+  hasFinishedSetup: boolean
+  isAtHumanInputBoundary: boolean
+  isPlaying: boolean
+  isPaused: boolean
+  loadMoreErrorMessage: string | null
+  isLoadingMoreEvents: boolean
+  playbackCount: number | null
+  playbackEventCount: number
+  seats: ReplayResponse['context']['seats']
+}): string {
+  if (isAtHumanInputBoundary && expectedHumanSeat !== null) {
+    return `Setup playback stopped. Waiting for ${seatDisplayName(expectedHumanSeat.label, expectedHumanSeat.seat_number)} to place a settlement and road.`
+  }
+
+  if (hasFinishedSetup) {
+    return 'Setup complete. The game is ready for turns.'
+  }
+
+  if (loadMoreErrorMessage !== null) {
+    return 'Playback paused because more setup history could not be loaded. Retry loading history to continue.'
+  }
+
+  if (playbackCount !== null && playbackCount > playbackEventCount) {
+    return isLoadingMoreEvents
+      ? 'Loading the next setup event.'
+      : 'No additional setup events are available.'
+  }
+
+  if (isPlaying) {
+    if (playbackCount !== null && playbackCount >= playbackEventCount && !isLoadingMoreEvents) {
+      return 'Waiting for the next setup event.'
+    }
+
+    return currentEvent === null
+      ? 'Loading the next setup event.'
+      : `Playing: ${describeSetupPlaybackEvent(currentEvent, seats)}`
+  }
+
+  if (isPaused) {
+    return playbackCount === 0
+      ? 'Paused before the first setup event.'
+      : `Paused after ${playbackCount} of ${playbackEventCount} setup events.${currentEvent === null ? '' : ` ${describeSetupPlaybackEvent(currentEvent, seats)}`}`
+  }
+
+  return 'Showing the latest saved setup state. Play setup to watch the public events in order.'
+}
+
+function describeSetupPlaybackEvent(
+  event: SetupPlaybackEvent,
+  seats: ReplayResponse['context']['seats'],
+): string {
+  const seat = event.seatNumber === null
+    ? null
+    : seats.find((candidate) => candidate.seat_number === event.seatNumber) ?? null
+  const seatName = seat === null
+    ? event.seatNumber === null ? 'A player' : `Seat ${event.seatNumber}`
+    : seatDisplayName(seat.label, seat.seat_number)
+
+  switch (event.kind) {
+    case 'started': {
+      const order = event.seatOrder.map((seatNumber) => {
+        const orderedSeat = seats.find((candidate) => candidate.seat_number === seatNumber)
+
+        return orderedSeat === undefined
+          ? `Seat ${seatNumber}`
+          : seatDisplayName(orderedSeat.label, orderedSeat.seat_number)
+      })
+
+      return order.length === 0
+        ? 'Initial placement begins.'
+        : `Initial placement begins in this order: ${order.join(', ')}.`
+    }
+    case 'settlement':
+      return `${seatName} places a settlement.`
+    case 'road':
+      return `${seatName} places a road.`
+    case 'resources': {
+      if (event.resources === null) {
+        return `${seatName}'s starting resource grant is recorded.`
+      }
+
+      const grant = (Object.keys(RESOURCE_LABELS) as ResourceType[]).flatMap((resource) => {
+        const count = event.resources?.[resource] ?? 0
+
+        return count > 0
+          ? [`${count} ${RESOURCE_LABELS[resource].toLowerCase()}`]
+          : []
+      })
+
+      return grant.length === 0
+        ? `${seatName} receives no starting resources.`
+        : `${seatName} receives starting resources: ${grant.join(', ')}.`
+    }
+    case 'completed':
+      return 'Initial placement is complete. The game is ready for turns.'
+  }
 }
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
@@ -708,12 +1188,12 @@ function playerInitial(label: string | null, seatNumber: number): string {
   return initial || String(seatNumber)
 }
 
-function playerColorClass(seatNumber: number, controllerType: string): string {
+function playerColorClass(seatNumber: number, controllerType: string): BoardPieceColor {
   if (controllerType === 'human') {
     return 'human'
   }
 
-  const colors = ['sable', 'moss', 'clay']
+  const colors: BoardPieceColor[] = ['sable', 'moss', 'clay']
 
   return colors[(seatNumber - 2) % colors.length] ?? 'sable'
 }
@@ -725,6 +1205,11 @@ function eventCountLabel(count: number): string {
 function eventLabel(eventType: string): string {
   const labels: Record<string, string> = {
     'game_initialized.v1': 'Game initialized',
+    'initial_placement_started.v1': 'Initial placement started',
+    'initial_settlement_placed.v1': 'Initial settlement placed',
+    'initial_road_placed.v1': 'Initial road placed',
+    'initial_resources_granted.v1': 'Starting resources granted',
+    'initial_placement_completed.v1': 'Initial placement completed',
   }
 
   if (labels[eventType]) {
@@ -734,7 +1219,15 @@ function eventLabel(eventType: string): string {
   return lifecycleStatusLabel(eventType.replace(/\.v\d+$/, ''))
 }
 
-function eventDescription(eventType: string): string {
+function eventDescription(
+  eventType: string,
+  setupEvent: SetupPlaybackEvent | null,
+  seats: ReplayResponse['context']['seats'],
+): string {
+  if (setupEvent !== null) {
+    return describeSetupPlaybackEvent(setupEvent, seats)
+  }
+
   if (eventType === 'game_initialized.v1') {
     return 'The board and players are ready.'
   }

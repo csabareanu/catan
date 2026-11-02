@@ -70,14 +70,29 @@ const TERRAIN_LEGEND: Terrain[] = [
   'desert',
 ]
 
+const SETTLEMENT_SHAPE_PATH = 'M-6.5 5.5V-1.5L0-7L6.5-1.5V5.5Z'
+
 type EdgePoints = [ScreenPoint, ScreenPoint]
+
+export type BoardPieceColor = 'human' | 'sable' | 'moss' | 'clay'
+
+export type BoardPlayerStructures = {
+  seatNumber: number
+  ownerLabel: string
+  color: BoardPieceColor
+  settlementVertexIDs: string[]
+  roadEdgeIDs: string[]
+  recentSettlementVertexIDs?: string[]
+  recentRoadEdgeIDs?: string[]
+}
 
 type BoardSvgProps = {
   board: BoardData
+  playerStructures?: BoardPlayerStructures[]
   toolbarStart?: ReactNode
 }
 
-export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
+export function BoardSvg({ board, playerStructures = [], toolbarStart }: BoardSvgProps) {
   const { boardAppearance } = useSettings()
   const seaID = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const seaGradientID = `${seaID}-gradient`
@@ -267,6 +282,14 @@ export function BoardSvg({ board, toolbarStart }: BoardSvgProps) {
 
           <g className="board-port-layer">
             {board.ports.map((port) => renderPort(port, board, layout, isIllustrated))}
+          </g>
+
+          <g className="board-setup-road-layer">
+            {renderSetupRoads(board, layout, playerStructures)}
+          </g>
+
+          <g className="board-setup-settlement-layer">
+            {renderSetupSettlements(layout, playerStructures)}
           </g>
         </svg>
         {toolbar}
@@ -589,6 +612,94 @@ function renderPort(
       </text>
     </g>
   )
+}
+
+function renderSetupRoads(
+  board: BoardData,
+  layout: BoardLayout,
+  playerStructures: BoardPlayerStructures[],
+) {
+  return playerStructures.flatMap((player) => player.roadEdgeIDs.flatMap((edgeID) => {
+    const edge = board.edges.find((candidate) => candidate.id === edgeID)
+    const points = edge ? edgePoints(edge, layout.vertexPoints) : null
+
+    if (!points) {
+      return []
+    }
+
+    return [
+      <g
+        className={`board-setup-road-owner board-piece-${player.color}${player.recentRoadEdgeIDs?.includes(edgeID) ? ' board-setup-piece-reveal' : ''}`}
+        data-board-road-edge-id={edgeID}
+        data-seat-number={player.seatNumber}
+        key={`${player.seatNumber}-${edgeID}`}
+      >
+        <title>{player.ownerLabel} road</title>
+        <line
+          className="board-setup-road-shadow"
+          x1={points[0].x}
+          y1={points[0].y}
+          x2={points[1].x}
+          y2={points[1].y}
+        />
+        <line
+          className="board-setup-road-outline"
+          x1={points[0].x}
+          y1={points[0].y}
+          x2={points[1].x}
+          y2={points[1].y}
+        />
+        <line
+          className="board-setup-road"
+          x1={points[0].x}
+          y1={points[0].y}
+          x2={points[1].x}
+          y2={points[1].y}
+        />
+        <line
+          className="board-setup-road-grain"
+          x1={points[0].x}
+          y1={points[0].y}
+          x2={points[1].x}
+          y2={points[1].y}
+        />
+      </g>,
+    ]
+  }))
+}
+
+function renderSetupSettlements(
+  layout: BoardLayout,
+  playerStructures: BoardPlayerStructures[],
+) {
+  return playerStructures.flatMap((player) => player.settlementVertexIDs.flatMap((vertexID) => {
+    const point = layout.vertexPoints.get(vertexID)
+
+    if (!point) {
+      return []
+    }
+
+    return [
+      <g
+        className={`board-setup-settlement-owner board-piece-${player.color}${player.recentSettlementVertexIDs?.includes(vertexID) ? ' board-setup-piece-reveal' : ''}`}
+        data-board-settlement-id={vertexID}
+        data-seat-number={player.seatNumber}
+        key={`${player.seatNumber}-${vertexID}`}
+        transform={`translate(${point.x} ${point.y})`}
+      >
+        <title>{player.ownerLabel} settlement</title>
+        <g className="board-setup-settlement-artwork" transform="scale(1.2)">
+          <path className="board-setup-settlement-shadow" d={SETTLEMENT_SHAPE_PATH} />
+          <path className="board-setup-settlement-outline" d={SETTLEMENT_SHAPE_PATH} />
+          <path className="board-setup-settlement" d={SETTLEMENT_SHAPE_PATH} />
+          <path className="board-setup-settlement-side" d="M0-1.5L6.5-1.5V5.5H0Z" />
+          <path className="board-setup-settlement-roof-detail" d="M-4.7-2.4L0-6.1L4.7-2.4" />
+          <rect className="board-setup-settlement-window" x="2.2" y="0.1" width="1.8" height="1.8" rx="0.35" />
+          <rect className="board-setup-settlement-door" x="-1.5" y="2" width="3" height="3.5" rx="0.5" />
+        </g>
+      </g>,
+    ]
+  }))
 }
 
 function edgePoints(

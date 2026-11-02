@@ -45,6 +45,11 @@ test('observes a real Compose game without API interception', async ({ page }, t
   await expect(detailsDialog.locator('.observer-player')).toHaveCount(3)
   await expect(detailsDialog.getByRole('heading', { name: 'History', exact: true })).toBeVisible()
 
+  await expect(page.getByRole('button', { name: 'Play setup', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  await expect(page.locator('[data-setup-playback-status]'))
+    .toContainText('Waiting for Compose Smoke to place a settlement and road.', { timeout: 15_000 })
+
   await page.screenshot({ path: testInfo.outputPath('compose-observer.png') })
   await expect(apiFailures).toEqual([])
   await expect(consoleErrors).toEqual([])

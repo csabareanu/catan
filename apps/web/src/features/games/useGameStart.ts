@@ -16,6 +16,7 @@ import {
   writeGameStartIntent,
   type GameStartIntent,
 } from './gameStartIntent'
+import { markObserverAutoplayIntent } from '../replay/observerAutoplayIntent'
 
 type StartFailureAction = 'create' | 'save' | 'run' | 'refresh'
 
@@ -104,6 +105,7 @@ export function useGameStart({
 
   const finishStart = useCallback((gameId: number) => {
     clearGameStartIntent(ownerId)
+    markObserverAutoplayIntent(ownerId, gameId)
     setIntent(null)
     navigateTo(`/games/${gameId}/observe`)
   }, [ownerId])

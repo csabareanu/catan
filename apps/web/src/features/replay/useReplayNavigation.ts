@@ -220,7 +220,15 @@ function mergeReplayRefresh(
     currentReplay.event_cursor.returned_through_sequence,
     response.event_cursor.returned_through_sequence,
   )
-  const hasMore = currentReplay.event_cursor.has_more || response.event_cursor.has_more
+  const refreshReturnedNewerEvents = response.event_cursor.returned_through_sequence !== null &&
+    (currentReplay.event_cursor.returned_through_sequence === null ||
+      compareDecimalStrings(
+        response.event_cursor.returned_through_sequence,
+        currentReplay.event_cursor.returned_through_sequence,
+      ) > 0)
+  const hasMore = refreshReturnedNewerEvents
+    ? response.event_cursor.has_more
+    : currentReplay.event_cursor.has_more
 
   return {
     ...response,

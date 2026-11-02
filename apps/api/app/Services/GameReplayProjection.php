@@ -30,6 +30,17 @@ class GameReplayProjection
     ];
 
     /**
+     * @var list<string>
+     */
+    private const SETUP_RESOURCE_FIELDS = [
+        'lumber',
+        'wool',
+        'grain',
+        'brick',
+        'ore',
+    ];
+
+    /**
      * Build the public replay-v1 document from already-loaded records.
      *
      * The caller supplies a bounded event collection and the selected full
@@ -89,7 +100,7 @@ class GameReplayProjection
                 ->values()
                 ->all(),
             'frame' => $frame instanceof GameSnapshot
-                ? $this->projectFrame($frame)
+                ? $this->projectFrame($game, $frame)
                 : null,
         ];
     }
@@ -170,29 +181,138 @@ class GameReplayProjection
     /**
      * @return array<string, mixed>
      */
-    private function projectFrame(GameSnapshot $snapshot): array
+    private function projectFrame(Game $game, GameSnapshot $snapshot): array
     {
         $state = is_array($snapshot->state) ? $snapshot->state : [];
-
-        return [
+        $isPlacementState = $snapshot->state_schema_version === 'state-v2';
+        $viewerState = $isPlacementState
+            ? $this->projectViewerState($game, $state)
+            : null;
+        $frame = [
             'command_sequence' => (string) $snapshot->command_sequence,
             'event_sequence' => (string) $snapshot->event_sequence,
             'state_schema_version' => $snapshot->state_schema_version,
-            'public_projection_schema_version' => 'replay-public-v1',
-            'public_state' => $this->projectPublicState($state),
-            'viewer_state' => null,
+            'public_projection_schema_version' => $isPlacementState
+                ? 'replay-public-v2'
+                : 'replay-public-v1',
+            'public_state' => $this->projectPublicState($state, $isPlacementState),
         ];
+
+        if ($viewerState !== null) {
+            $frame['viewer_projection_schema_version'] = 'replay-viewer-v1';
+        }
+
+        $frame['viewer_state'] = $viewerState;
+
+        return $frame;
     }
 
     /**
      * @param  array<string, mixed>  $state
      * @return array<string, mixed>
      */
-    private function projectPublicState(array $state): array
+    private function projectPublicState(array $state, bool $isPlacementState): array
     {
-        return collect(self::PUBLIC_STATE_FIELDS)
+        $publicState = collect(self::PUBLIC_STATE_FIELDS)
             ->filter(fn (string $field): bool => array_key_exists($field, $state))
             ->mapWithKeys(fn (string $field): array => [$field => $state[$field]])
             ->all();
+
+        if (! $isPlacementState) {
+            return $publicState;
+        }
+
+        foreach (['seat_order', 'round', 'step'] as $field) {
+            if (array_key_exists($field, $state)) {
+                $publicState[$field] = $state[$field];
+            }
+        }
+
+        if (array_key_exists('players', $state)) {
+            $publicState['players'] = $this->projectPublicPlayers($state['players']);
+        }
+
+        return $publicState;
+    }
+
+    /**
+     * @return list<array{seat_number: int, settlements: list<string>, roads: list<string>}>
+     */
+    private function projectPublicPlayers(mixed $players): array
+    {
+        if (! is_array($players)) {
+            return [];
+        }
+
+        return collect($players)
+            ->filter(fn (mixed $player): bool => is_array($player)
+                && is_int($player['seat_number'] ?? null))
+            ->map(fn (array $player): array => [
+                'seat_number' => $player['seat_number'],
+                'settlements' => $this->projectStructureIds($player['settlements'] ?? null),
+                'roads' => $this->projectStructureIds($player['roads'] ?? null),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function projectStructureIds(mixed $structureIds): array
+    {
+        if (! is_array($structureIds)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $structureIds,
+            static fn (mixed $structureId): bool => is_string($structureId),
+        ));
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     * @return array{seat_number: int, resources: array<string, int>}|null
+     */
+    private function projectViewerState(Game $game, array $state): ?array
+    {
+        $humanSeatNumber = $game->human_seat_number;
+        $players = $state['players'] ?? null;
+
+        if (! is_int($humanSeatNumber) || $humanSeatNumber < 1 || ! is_array($players)) {
+            return null;
+        }
+
+        foreach ($players as $player) {
+            if (! is_array($player) || ($player['seat_number'] ?? null) !== $humanSeatNumber) {
+                continue;
+            }
+
+            $resources = $player['resources'] ?? null;
+
+            if (! is_array($resources)) {
+                return null;
+            }
+
+            $projectedResources = [];
+
+            foreach (self::SETUP_RESOURCE_FIELDS as $resource) {
+                $count = $resources[$resource] ?? null;
+
+                if (! is_int($count) || $count < 0) {
+                    return null;
+                }
+
+                $projectedResources[$resource] = $count;
+            }
+
+            return [
+                'seat_number' => $humanSeatNumber,
+                'resources' => $projectedResources,
+            ];
+        }
+
+        return null;
     }
 }

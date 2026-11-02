@@ -22,13 +22,16 @@ export type ReplaySnapshotIndexEntry = {
   created_at: string | null
 }
 
+export type ReplayPublicProjectionSchemaVersion = 'replay-public-v1' | 'replay-public-v2'
+export type ReplayViewerProjectionSchemaVersion = 'replay-viewer-v1'
+
 export type ReplayFrame = {
   command_sequence: string
   event_sequence: string
   state_schema_version: string
-  public_projection_schema_version: string
+  public_projection_schema_version: ReplayPublicProjectionSchemaVersion
   public_state: Record<string, unknown>
-  viewer_projection_schema_version?: string | null
+  viewer_projection_schema_version?: ReplayViewerProjectionSchemaVersion | null
   viewer_state: Record<string, unknown> | null
 }
 
@@ -222,10 +225,23 @@ function isReplayFrame(value: unknown): value is ReplayFrame {
     isString(value.command_sequence) &&
     isString(value.event_sequence) &&
     isString(value.state_schema_version) &&
-    isString(value.public_projection_schema_version) &&
+    isReplayPublicProjectionSchemaVersion(value.public_projection_schema_version) &&
     isRecord(value.public_state) &&
     (value.viewer_projection_schema_version === undefined ||
-      isNullableString(value.viewer_projection_schema_version)) &&
+      value.viewer_projection_schema_version === null ||
+      isReplayViewerProjectionSchemaVersion(value.viewer_projection_schema_version)) &&
     (value.viewer_state === null || isRecord(value.viewer_state))
   )
+}
+
+function isReplayPublicProjectionSchemaVersion(
+  value: unknown,
+): value is ReplayPublicProjectionSchemaVersion {
+  return value === 'replay-public-v1' || value === 'replay-public-v2'
+}
+
+function isReplayViewerProjectionSchemaVersion(
+  value: unknown,
+): value is ReplayViewerProjectionSchemaVersion {
+  return value === 'replay-viewer-v1'
 }

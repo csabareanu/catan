@@ -1,6 +1,6 @@
 import { devices, expect, test } from '@playwright/test'
 import { isBoardData } from '../src/features/board/boardApi'
-import type { ReplayResponse } from '../src/features/replay/replayApi'
+import type { ReplayEvent, ReplayResponse } from '../src/features/replay/replayApi'
 import standardBoard from './fixtures/standard-board.json' with { type: 'json' }
 
 const user = {
@@ -111,6 +111,324 @@ test('renders the board, players, and visible history', async ({ page }) => {
   await expect(detailsTrigger).toBeFocused()
 })
 
+for (const seatCount of [3, 4]) {
+  test(`renders the persisted ${seatCount}-seat setup state`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const gameID = 60 + seatCount
+    const response = setupReplayResponse(seatCount, 1)
+
+    await page.route(`**/api/v1/games/${gameID}/replay`, (route) =>
+      route.fulfill({ status: 200, json: response }),
+    )
+
+    await page.goto(`/games/${gameID}/observe`)
+
+    const statusPanel = page.locator('.observer-status-panel')
+    await expect(statusPanel).toContainText('Initial Placement')
+    await expect(statusPanel).toContainText('Setup round')
+    await expect(statusPanel).toContainText('Setup order')
+    await expect(statusPanel).toContainText('AI 2')
+
+    const seatOrder = [seatCount, ...Array.from({ length: seatCount - 1 }, (_, index) => index + 1)]
+      .map((seatNumber) => seatNumber === 1 ? 'Ada Player' : `AI ${seatNumber}`)
+      .join(' → ')
+    await expect(statusPanel).toContainText(seatOrder)
+
+    for (let index = 0; index < seatCount; index += 1) {
+      const seatNumber = index + 1
+      const settlementID = boardData().vertices[index]?.id
+      const roadID = boardData().edges[index]?.id
+
+      if (!settlementID || !roadID) {
+        throw new Error('The standard board fixture must provide setup structure positions.')
+      }
+
+      await expect(page.locator(`[data-board-settlement-id="${settlementID}"]`))
+        .toHaveAttribute('data-seat-number', String(seatNumber))
+      await expect(page.locator(`[data-board-road-edge-id="${roadID}"]`))
+        .toHaveAttribute('data-seat-number', String(seatNumber))
+      const color = ['human', 'sable', 'moss', 'clay'][seatNumber - 1]
+      await expect(page.locator(`[data-board-settlement-id="${settlementID}"]`))
+        .toHaveClass(new RegExp(`board-piece-${color}`))
+      await expect(page.locator(`[data-board-road-edge-id="${roadID}"]`))
+        .toHaveClass(new RegExp(`board-piece-${color}`))
+    }
+
+    const resources = page.locator('.observer-setup-resources')
+    await expect(resources).toBeVisible()
+    await expect(resources.locator('[data-resource-count]')).toHaveCount(5)
+    await expect(resources.locator('[data-resource="lumber"]')).toContainText('4')
+    await expect(resources.locator('[data-resource="wool"]')).toContainText('3')
+    await expect(resources.locator('[data-resource="grain"]')).toContainText('2')
+    await expect(resources.locator('[data-resource="brick"]')).toContainText('1')
+    await expect(resources.locator('[data-resource="ore"]')).toContainText('0')
+    await expect(resources).not.toContainText('701')
+    await expect(page.getByRole('button', { name: 'Play setup', exact: true })).toBeVisible()
+    await expect(page.locator('[data-setup-playback-status]'))
+      .toContainText('Showing the latest saved setup state.')
+    await expect(page.locator('.observer-history-event[aria-current="step"]')).toHaveCount(0)
+  })
+}
+
+test('plays setup events in order across pages and stops at the human input boundary', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const requestedCursors: Array<string | null> = []
+
+  await page.route('**/api/v1/games/68/replay**', async (route) => {
+    const afterEventSequence = new URL(route.request().url()).searchParams.get('after_event_sequence')
+    requestedCursors.push(afterEventSequence)
+    await route.fulfill({ status: 200, json: setupPlaybackResponse(1, afterEventSequence) })
+  })
+
+  await page.goto('/games/68/observe')
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  for (const sequence of ['2', '3', '4', '5', '6', '7']) {
+    await page.clock.runFor(900)
+    await expect(page.locator('.observer-history-event[aria-current="step"]'))
+      .toHaveAttribute('data-event-sequence', sequence)
+
+    if (sequence === '4') {
+      await expect(page.locator('[data-event-sequence="7"]')).toBeVisible()
+    }
+  }
+
+  const playbackStatus = page.locator('[data-setup-playback-status]')
+  await expect(playbackStatus).toContainText('Waiting for Ada Player to place a settlement and road.')
+  await expect(page.locator('.observer-history-event strong')).toHaveText([
+    'Initial placement started',
+    'Initial settlement placed',
+    'Initial road placed',
+    'Starting resources granted',
+    'Initial settlement placed',
+    'Initial road placed',
+  ])
+  await expect(page.locator('[data-event-sequence="5"] p')).toHaveText(
+    'AI 2 receives starting resources: 1 lumber, 1 wool.',
+  )
+
+  for (const seatNumber of [2, 3]) {
+    const vertexID = boardData().vertices[seatNumber - 1]?.id
+    const edgeID = boardData().edges[seatNumber - 1]?.id
+
+    if (!vertexID || !edgeID) {
+      throw new Error('The standard board fixture must provide setup structure positions.')
+    }
+
+    await expect(page.locator(`[data-board-settlement-id="${vertexID}"]`))
+      .toHaveAttribute('data-seat-number', String(seatNumber))
+    await expect(page.locator(`[data-board-road-edge-id="${edgeID}"]`))
+      .toHaveAttribute('data-seat-number', String(seatNumber))
+  }
+
+  await expect(page.locator('.board-setup-settlement-owner')).toHaveCount(2)
+  await expect(page.locator('.board-setup-road-owner')).toHaveCount(2)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '7')
+  await expect(page.locator('.observer-setup-resources')).toContainText('4')
+  expect(requestedCursors.filter((cursor) => cursor !== null)).toEqual(['4'])
+  await page.screenshot({ path: testInfo.outputPath('setup-playback.png') })
+})
+
+test('pauses and resumes setup playback, and stepping advances one event', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.route('**/api/v1/games/69/replay', (route) =>
+    route.fulfill({ status: 200, json: setupPlaybackResponse(1) }),
+  )
+
+  await page.goto('/games/69/observe')
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  await page.clock.runFor(900)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '2')
+
+  await page.getByRole('button', { name: 'Pause setup', exact: true }).click()
+  await page.clock.runFor(3000)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '2')
+
+  await page.getByRole('button', { name: 'Resume setup', exact: true }).click()
+  await page.clock.runFor(900)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '3')
+
+  const settlementID = boardData().vertices[1]?.id
+  const roadID = boardData().edges[1]?.id
+
+  if (!settlementID || !roadID) {
+    throw new Error('The standard board fixture must provide setup structure positions.')
+  }
+
+  await expect(page.locator(`[data-board-settlement-id="${settlementID}"]`)).toBeVisible()
+  await expect(page.locator('.board-setup-road-owner')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Pause setup', exact: true }).click()
+  await page.getByRole('button', { name: 'Next event', exact: true }).click()
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '4')
+  await expect(page.locator(`[data-board-road-edge-id="${roadID}"]`))
+    .toHaveAttribute('data-seat-number', '2')
+  await page.clock.runFor(3000)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '4')
+})
+
+test('restores the selected snapshot board after moving backward and returning to latest', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const requestedPositions: Array<string | null> = []
+
+  await page.route('**/api/v1/games/72/replay**', async (route) => {
+    const position = new URL(route.request().url()).searchParams.get('at_command_sequence')
+    requestedPositions.push(position)
+    await route.fulfill({ status: 200, json: setupReplayResponseAt(position ?? '9') })
+  })
+
+  await page.goto('/games/72/observe')
+  await expect(page.locator('.board-setup-settlement-owner')).toHaveCount(2)
+  await page.getByRole('button', { name: 'Next event', exact: true }).click()
+  await page.getByRole('button', { name: 'Next event', exact: true }).click()
+  await expect(page.locator('.board-setup-settlement-owner')).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Previous', exact: true }).click()
+  await expect(page.getByText('Saved position 2 of 3', { exact: true })).toBeVisible()
+  await expect(page.locator('.board-setup-settlement-owner')).toHaveCount(1)
+  await expect(page.locator('.board-setup-road-owner')).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Latest', exact: true }).click()
+  await expect(page.getByText('Latest saved position', { exact: true })).toBeVisible()
+  await expect(page.locator('.board-setup-settlement-owner')).toHaveCount(2)
+  await expect(page.locator('.board-setup-road-owner')).toHaveCount(2)
+  expect(requestedPositions.slice(-3)).toEqual([null, '6', null])
+})
+
+test('reduces the setup-piece reveal animation when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.route('**/api/v1/games/70/replay', (route) =>
+    route.fulfill({ status: 200, json: setupPlaybackResponse(1) }),
+  )
+
+  await page.goto('/games/70/observe')
+  await page.getByRole('button', { name: 'Next event', exact: true }).click()
+  await page.getByRole('button', { name: 'Next event', exact: true }).click()
+
+  const settlement = page.locator('.board-setup-settlement-owner').first()
+  await expect(settlement).toHaveClass(/board-setup-piece-reveal/)
+  await expect(settlement).toHaveCSS('animation-name', 'none')
+})
+
+test('stops AI-only setup playback at the completion event', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const requestedCursors: Array<string | null> = []
+
+  await page.route('**/api/v1/games/71/replay**', async (route) => {
+    const afterEventSequence = new URL(route.request().url()).searchParams.get('after_event_sequence')
+    requestedCursors.push(afterEventSequence)
+    await route.fulfill({ status: 200, json: setupPlaybackResponse(null, afterEventSequence) })
+  })
+
+  await page.goto('/games/71/observe')
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  for (const sequence of ['2', '3', '4', '5', '6', '7', '8']) {
+    await page.clock.runFor(900)
+    await expect(page.locator('.observer-history-event[aria-current="step"]'))
+      .toHaveAttribute('data-event-sequence', sequence)
+
+    if (sequence === '4' || sequence === '7') {
+      await expect(page.locator(`[data-event-sequence="${sequence === '4' ? '7' : '8'}"]`))
+        .toBeVisible()
+    }
+  }
+
+  await expect(page.locator('[data-setup-playback-status]'))
+    .toHaveText('Setup complete. The game is ready for turns.')
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '8')
+  await expect(page.getByRole('button', { name: 'Replay setup', exact: true })).toBeVisible()
+  expect(requestedCursors.filter((cursor) => cursor !== null)).toEqual(['4', '7'])
+})
+
+test('adapts setup-piece contrast and detail to each board appearance', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.route('**/api/v1/games/67/replay', (route) =>
+    route.fulfill({ status: 200, json: setupReplayResponse(3, 1) }),
+  )
+
+  await page.goto('/games/67/observe')
+
+  const board = page.locator('.board-svg')
+  const road = page.locator('.board-setup-road-owner').first()
+  const settlement = page.locator('.board-setup-settlement-owner').first()
+  const settlementArtwork = settlement.locator('.board-setup-settlement-artwork')
+  await expect(board).toHaveAttribute('data-board-appearance', 'classic')
+  await expect(road.locator('.board-setup-road-shadow')).toHaveCSS('stroke-width', '10px')
+  await expect(road.locator('.board-setup-road-grain')).toHaveCSS('display', 'none')
+  await expect(settlement.locator('.board-setup-settlement-window')).toHaveCSS('opacity', '0')
+  await expect(settlementArtwork).toHaveAttribute('transform', 'scale(1.2)')
+  const classicSettlementBounds = await settlementArtwork.boundingBox()
+
+  if (classicSettlementBounds === null) {
+    throw new Error('The setup settlement must be visible in Classic appearance.')
+  }
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await settings.getByRole('radio', { name: 'Illustrated', exact: true }).check()
+  await settings.getByRole('button', { name: 'Done', exact: true }).click()
+
+  await expect(board).toHaveAttribute('data-board-appearance', 'illustrated')
+  await expect(road.locator('.board-setup-road-shadow')).toHaveCSS('stroke-width', '14.5px')
+  await expect(road.locator('.board-setup-road-outline')).toHaveCSS('stroke-width', '10px')
+  await expect(road.locator('.board-setup-road')).toHaveCSS('stroke-width', '6.4px')
+  await expect(road.locator('.board-setup-road-grain')).toHaveCSS('display', 'block')
+  await expect(settlementArtwork).toHaveAttribute('transform', 'scale(1.2)')
+  const illustratedSettlementBounds = await settlementArtwork.boundingBox()
+
+  if (illustratedSettlementBounds === null) {
+    throw new Error('The setup settlement must be visible in Illustrated appearance.')
+  }
+
+  expect(Math.abs(illustratedSettlementBounds.width - classicSettlementBounds.width)).toBeLessThanOrEqual(2.5)
+  expect(Math.abs(illustratedSettlementBounds.height - classicSettlementBounds.height)).toBeLessThanOrEqual(2.5)
+  await expect(settlement.locator('.board-setup-settlement-shadow')).toHaveCSS('stroke-width', '7px')
+  await expect(settlement.locator('.board-setup-settlement-outline')).toHaveCSS('stroke-width', '5.1px')
+  await expect(settlement.locator('.board-setup-settlement-window')).toHaveCSS('opacity', '1')
+  await expect(settlement.locator('.board-setup-settlement-roof-detail')).toHaveCSS('opacity', '1')
+})
+
+test('does not render private inventories for an AI-only setup frame', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.route('**/api/v1/games/65/replay', (route) =>
+    route.fulfill({ status: 200, json: setupReplayResponse(3, null) }),
+  )
+
+  await page.goto('/games/65/observe')
+
+  await expect(page.locator('.observer-setup-resources')).toHaveCount(0)
+  await expect(page.getByText('701', { exact: true })).toHaveCount(0)
+})
+
+test('does not render viewer resources when the projection names another seat', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const response = setupReplayResponse(3, 1)
+
+  if (response.frame === null) {
+    throw new Error('The setup fixture must contain a persisted frame.')
+  }
+
+  response.frame.viewer_state = {
+    seat_number: 2,
+    resources: { lumber: 7, wool: 6, grain: 5, brick: 4, ore: 3 },
+  }
+  await page.route('**/api/v1/games/66/replay', (route) =>
+    route.fulfill({ status: 200, json: response }),
+  )
+
+  await page.goto('/games/66/observe')
+
+  await expect(page.locator('.observer-setup-resources')).toHaveCount(0)
+  await expect(page.getByText('7', { exact: true })).toHaveCount(0)
+})
+
 for (const viewport of [
   { width: 1440, height: 900, opensOverview: false },
   { width: 390, height: 844, opensOverview: true },
@@ -170,6 +488,57 @@ for (const viewport of [
     await expect.poll(() => requestedPositions.slice(-4)).toEqual([null, '6', '9', null])
   })
 }
+
+test('keeps the board fixed while a saved replay position refreshes', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  let releaseNavigationResponse = () => {}
+  let isNavigationResponseWaiting = false
+  const navigationResponseGate = new Promise<void>((resolve) => {
+    releaseNavigationResponse = resolve
+  })
+
+  await page.route('**/api/v1/games/73/replay**', async (route) => {
+    const position = new URL(route.request().url()).searchParams.get('at_command_sequence')
+
+    if (position === '6') {
+      isNavigationResponseWaiting = true
+      await navigationResponseGate
+    }
+
+    await route.fulfill({
+      status: 200,
+      json: replayResponseAt(position ?? '9'),
+    })
+  })
+
+  await page.goto('/games/73/observe')
+  const board = page.locator('.observer-board')
+  const beforeRefresh = await board.boundingBox()
+
+  if (beforeRefresh === null) {
+    throw new Error('The observer board must be visible before navigating replay positions.')
+  }
+
+  await page.getByRole('button', { name: 'Previous', exact: true }).click()
+  await expect.poll(() => isNavigationResponseWaiting).toBe(true)
+  await expect(page.getByRole('status', { name: 'Refreshing the persisted replay' })).toBeVisible()
+  const duringRefresh = await board.boundingBox()
+
+  if (duringRefresh === null) {
+    throw new Error('The observer board must remain visible while a replay position loads.')
+  }
+
+  releaseNavigationResponse()
+  await expect(page.getByText('Command 6 · Event 8', { exact: true })).toBeVisible()
+  const afterRefresh = await board.boundingBox()
+
+  if (afterRefresh === null) {
+    throw new Error('The observer board must be visible after replay navigation completes.')
+  }
+
+  expect(Math.abs(duringRefresh.y - beforeRefresh.y)).toBeLessThanOrEqual(1)
+  expect(Math.abs(afterRefresh.y - beforeRefresh.y)).toBeLessThanOrEqual(1)
+})
 
 test('keeps an explicit replay position while a queued game refreshes', async ({ page }) => {
   let requestCount = 0
@@ -884,6 +1253,255 @@ function replayResponse(
         }
       : null,
   }
+}
+
+function setupReplayResponse(
+  seatCount: number,
+  humanSeatNumber: number | null,
+): ReplayResponse {
+  const response = replayResponse(humanSeatNumber === null ? 'completed' : 'running', true)
+  const seats = Array.from({ length: seatCount }, (_, index) => {
+    const seatNumber = index + 1
+
+    return {
+      seat_number: seatNumber,
+      controller_type: seatNumber === humanSeatNumber ? 'human' : 'ai',
+      label: seatNumber === 1 ? 'Ada Player' : `AI ${seatNumber}`,
+    }
+  })
+  const seatOrder = [seatCount, ...Array.from({ length: seatCount - 1 }, (_, index) => index + 1)]
+  const players = seats.map((seat, index) => {
+    const settlementID = boardData().vertices[index]?.id
+    const roadID = boardData().edges[index]?.id
+
+    if (!settlementID || !roadID) {
+      throw new Error('The standard board fixture must provide setup structure positions.')
+    }
+
+    return {
+      seat_number: seat.seat_number,
+      settlements: [settlementID],
+      roads: [roadID],
+      resources: {
+        lumber: 700 + seat.seat_number,
+        wool: 700 + seat.seat_number,
+        grain: 700 + seat.seat_number,
+        brick: 700 + seat.seat_number,
+        ore: 700 + seat.seat_number,
+      },
+    }
+  })
+
+  response.context.game.mode = humanSeatNumber === null ? 'ai_only' : 'human_vs_ai'
+  response.context.game.seat_count = seatCount
+  response.context.game.human_seat_number = humanSeatNumber
+  response.context.game.state_schema_version = 'state-v2'
+  response.context.seats = seats
+  response.snapshot_index[0]!.state_schema_version = 'state-v2'
+
+  if (response.frame === null) {
+    throw new Error('The setup fixture must contain a persisted frame.')
+  }
+
+  response.frame.state_schema_version = 'state-v2'
+  response.frame.public_projection_schema_version = 'replay-public-v2'
+  response.frame.public_state = {
+    phase: 'initial_placement',
+    active_seat_number: 2,
+    seat_order: seatOrder,
+    round: 2,
+    step: 'place_initial_settlement_and_road',
+    players,
+  }
+  response.frame.viewer_state = humanSeatNumber === null
+    ? null
+    : {
+        seat_number: humanSeatNumber,
+        resources: { lumber: 4, wool: 3, grain: 2, brick: 1, ore: 0 },
+      }
+
+  if (humanSeatNumber === null) {
+    delete response.frame.viewer_projection_schema_version
+  } else {
+    response.frame.viewer_projection_schema_version = 'replay-viewer-v1'
+  }
+
+  return response
+}
+
+function setupPlaybackResponse(
+  humanSeatNumber: number | null,
+  afterEventSequence: string | null = null,
+): ReplayResponse {
+  const events = setupPlaybackEvents(humanSeatNumber)
+  const pageSize = 3
+  const afterIndex = afterEventSequence === null
+    ? -1
+    : events.findIndex((event) => event.sequence === afterEventSequence)
+  const startIndex = afterEventSequence === null ? 0 : afterIndex + 1
+  const pageEvents = events.slice(startIndex, startIndex + pageSize)
+  const returnedThroughSequence = pageEvents.at(-1)?.sequence ?? null
+  const hasMore = startIndex + pageEvents.length < events.length
+  const response = setupReplayResponse(3, humanSeatNumber)
+
+  response.events = pageEvents
+  response.event_cursor = {
+    requested_after_sequence: afterEventSequence ?? '0',
+    returned_through_sequence: returnedThroughSequence,
+    has_more: hasMore,
+    next_after_sequence: hasMore ? returnedThroughSequence : null,
+  }
+
+  if (response.frame === null) {
+    throw new Error('The setup fixture must contain a persisted frame.')
+  }
+
+  response.frame.public_state = {
+    ...response.frame.public_state,
+    phase: humanSeatNumber === null ? 'turn_ready' : 'initial_placement',
+    active_seat_number: humanSeatNumber ?? 0,
+    seat_order: humanSeatNumber === null ? [1, 3, 2] : [2, 3, humanSeatNumber],
+  }
+  response.frame.event_sequence = events.at(-1)?.sequence ?? response.frame.event_sequence
+
+  return response
+}
+
+function setupReplayResponseAt(commandSequence: string): ReplayResponse {
+  const positions = [
+    { command_sequence: '3', event_sequence: '4' },
+    { command_sequence: '6', event_sequence: '5' },
+    { command_sequence: '9', event_sequence: '7' },
+  ].map((position) => ({
+    ...position,
+    state_schema_version: 'state-v2',
+    created_at: user.created_at,
+  }))
+  const selectedPosition = positions.find((position) =>
+    position.command_sequence === commandSequence)
+
+  if (!selectedPosition) {
+    throw new Error(`No setup replay fixture exists for command ${commandSequence}.`)
+  }
+
+  const response = setupPlaybackResponse(1)
+  const eventSequence = selectedPosition.event_sequence
+  const isLatest = commandSequence === '9'
+  const hasSecondAIPlacement = isLatest
+  const board = boardData()
+  const seatTwoSettlement = board.vertices[1]?.id
+  const seatTwoRoad = board.edges[1]?.id
+  const seatThreeSettlement = board.vertices[2]?.id
+  const seatThreeRoad = board.edges[2]?.id
+
+  if (!seatTwoSettlement || !seatTwoRoad || !seatThreeSettlement || !seatThreeRoad) {
+    throw new Error('The standard board fixture must provide setup structure positions.')
+  }
+
+  response.snapshot_index = positions
+  response.events = setupPlaybackEvents(1).filter((event) =>
+    event.sequence.length < eventSequence.length || event.sequence <= eventSequence)
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: eventSequence,
+    has_more: false,
+    next_after_sequence: null,
+  }
+  response.context.game.state_schema_version = 'state-v2'
+  response.context.game.lifecycle_status = 'running'
+
+  if (response.frame === null) {
+    throw new Error('The setup fixture must contain a persisted frame.')
+  }
+
+  response.frame.command_sequence = commandSequence
+  response.frame.event_sequence = eventSequence
+  response.frame.public_state = {
+    ...response.frame.public_state,
+    phase: 'initial_placement',
+    active_seat_number: isLatest ? 1 : 2,
+    seat_order: [2, 3, 1],
+    round: 1,
+    step: 'place_initial_settlement_and_road',
+    players: response.context.seats.map((seat) => ({
+      seat_number: seat.seat_number,
+      settlements: seat.seat_number === 2
+        ? [seatTwoSettlement]
+        : seat.seat_number === 3 && hasSecondAIPlacement
+          ? [seatThreeSettlement]
+          : [],
+      roads: seat.seat_number === 2
+        ? [seatTwoRoad]
+        : seat.seat_number === 3 && hasSecondAIPlacement
+          ? [seatThreeRoad]
+          : [],
+    })),
+  }
+
+  return response
+}
+
+function setupPlaybackEvents(humanSeatNumber: number | null): ReplayEvent[] {
+  const vertices = boardData().vertices
+  const edges = boardData().edges
+  const seatTwoSettlement = vertices[1]?.id
+  const seatTwoRoad = edges[1]?.id
+  const seatThreeSettlement = vertices[2]?.id
+  const seatThreeRoad = edges[2]?.id
+
+  if (!seatTwoSettlement || !seatTwoRoad || !seatThreeSettlement || !seatThreeRoad) {
+    throw new Error('The standard board fixture must provide setup structure positions.')
+  }
+
+  const makeEvent = (
+    sequence: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+  ): ReplayEvent => ({
+    sequence,
+    event_type: eventType,
+    payload,
+    occurred_at: user.created_at,
+  })
+
+  const events = [
+    makeEvent('2', 'initial_placement_started.v1', {
+      seat_order: humanSeatNumber === null ? [1, 3, 2] : [2, 3, humanSeatNumber],
+      round: 1,
+      active_seat_number: humanSeatNumber === null ? 1 : 2,
+    }),
+    makeEvent('3', 'initial_settlement_placed.v1', {
+      seat_number: 2,
+      settlement_vertex_id: seatTwoSettlement,
+    }),
+    makeEvent('4', 'initial_road_placed.v1', {
+      seat_number: 2,
+      settlement_vertex_id: seatTwoSettlement,
+      road_edge_id: seatTwoRoad,
+    }),
+    makeEvent('5', 'initial_resources_granted.v1', {
+      seat_number: 2,
+      resources: { lumber: 1, wool: 1, grain: 0, brick: 0, ore: 0 },
+    }),
+    makeEvent('6', 'initial_settlement_placed.v1', {
+      seat_number: 3,
+      settlement_vertex_id: seatThreeSettlement,
+    }),
+    makeEvent('7', 'initial_road_placed.v1', {
+      seat_number: 3,
+      settlement_vertex_id: seatThreeSettlement,
+      road_edge_id: seatThreeRoad,
+    }),
+  ]
+
+  if (humanSeatNumber === null) {
+    events.push(makeEvent('8', 'initial_placement_completed.v1', {
+      seat_order: [1, 3, 2],
+      next_phase: 'turn_ready',
+    }))
+  }
+
+  return events
 }
 
 function replayResponseAt(

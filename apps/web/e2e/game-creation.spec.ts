@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { BoardData } from '../src/features/board/boardApi'
 import type { GameLifecycleStatus, GameResponse } from '../src/features/games/gameApi'
+import { gameListResponse } from './fixtures/gameListResponse'
+import type { ReplayResponse } from '../src/features/replay/replayApi'
 
 const user = {
   id: 7,
@@ -277,6 +279,8 @@ test('shows a recoverable service error during preview generation', async ({ pag
 })
 
 test('starts the reviewed board once and opens its observer directly', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-15T10:00:00Z') })
+  await page.clock.pauseAt(new Date('2026-10-15T10:00:01Z'))
   await authenticatePage(page)
   let reviewedBoard: BoardData | null = null
   let createCount = 0
@@ -291,6 +295,27 @@ test('starts the reviewed board once and opens its observer directly', async ({ 
     await route.fulfill({ status: 200, json: { data: reviewedBoard } })
   })
   await page.route('**/api/v1/games', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        json: gameListResponse([{
+          id: 42,
+          owner_id: user.id,
+          mode: 'human_vs_ai',
+          seed: reviewedBoard?.seed ?? '42',
+          ruleset: { key: 'base', version: '1.0.0' },
+          map: { key: 'standard', version: '1.0.0', orientation: 'pointy' },
+          seat_count: 3,
+          human_seat_number: 1,
+          lifecycle_status: 'awaiting human input',
+          configuration: { ai_count: 2 },
+          created_at: user.created_at,
+          updated_at: user.created_at,
+        }]),
+      })
+      return
+    }
+
     createCount += 1
     createPayload = route.request().postDataJSON() as Record<string, unknown>
     await createGate
@@ -309,7 +334,7 @@ test('starts the reviewed board once and opens its observer directly', async ({ 
   await page.route('**/api/v1/games/42/replay', async (route) => {
     await route.fulfill({
       status: 200,
-      json: replayResponse('queued', reviewedBoard as BoardData),
+      json: setupObserverReplayResponse(reviewedBoard as BoardData),
     })
   })
 
@@ -329,6 +354,30 @@ test('starts the reviewed board once and opens its observer directly', async ({ 
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   )
   expect(createPayload?.seed).toBe(reviewedBoard?.seed)
+
+  await expect(page.getByRole('button', { name: 'Pause setup', exact: true })).toBeVisible()
+  await page.clock.runFor(900)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '2')
+  await expect(page.evaluate(() => sessionStorage.getItem('catan.observer-autoplay-intent.v1:7:42')))
+    .resolves.toBeNull()
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Play setup', exact: true })).toBeVisible()
+  await expect(page.locator('[data-setup-playback-status]'))
+    .toContainText('Showing the latest saved setup state.')
+  await expect(page.locator('.observer-history-event[aria-current="step"]')).toHaveCount(0)
+  await page.clock.runFor(2000)
+  await expect(page.getByRole('button', { name: 'Play setup', exact: true })).toBeVisible()
+
+  await page.goto('/games')
+  await expect(page.getByRole('heading', { name: 'Your games', exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Open game for Game 42', exact: true }).click()
+  await expect(page).toHaveURL(/\/games\/42\/observe$/)
+  await expect(page.getByRole('button', { name: 'Play setup', exact: true })).toBeVisible()
+  await expect(page.locator('[data-setup-playback-status]'))
+    .toContainText('Showing the latest saved setup state.')
+  await expect(page.locator('.observer-history-event[aria-current="step"]')).toHaveCount(0)
 })
 
 test('retries a lost creation response with the same key and board', async ({ page }) => {
@@ -835,7 +884,7 @@ function gameResponse(lifecycleStatus: GameLifecycleStatus, board: BoardData): G
   }
 }
 
-function replayResponse(lifecycleStatus: GameLifecycleStatus, board: BoardData) {
+function replayResponse(lifecycleStatus: GameLifecycleStatus, board: BoardData): ReplayResponse {
   const game = gameResponse(lifecycleStatus, board).data
 
   return {
@@ -872,4 +921,87 @@ function replayResponse(lifecycleStatus: GameLifecycleStatus, board: BoardData) 
     snapshot_index: [],
     frame: null,
   }
+}
+
+function setupObserverReplayResponse(board: BoardData): ReplayResponse {
+  const firstSettlement = board.vertices[0]?.id
+  const firstRoad = board.edges[0]?.id
+  const secondSettlement = board.vertices[1]?.id
+  const secondRoad = board.edges[1]?.id
+
+  if (!firstSettlement || !firstRoad || !secondSettlement || !secondRoad) {
+    throw new Error('The game creation board fixture must provide setup structure positions.')
+  }
+
+  const response = replayResponse('awaiting human input', board)
+  response.context.game.state_schema_version = 'state-v2'
+  response.events = [
+    {
+      sequence: '2',
+      event_type: 'initial_placement_started.v1',
+      payload: { seat_order: [2, 3, 1], round: 1, active_seat_number: 2 },
+      occurred_at: user.created_at,
+    },
+    {
+      sequence: '3',
+      event_type: 'initial_settlement_placed.v1',
+      payload: { seat_number: 2, settlement_vertex_id: firstSettlement },
+      occurred_at: user.created_at,
+    },
+    {
+      sequence: '4',
+      event_type: 'initial_road_placed.v1',
+      payload: { seat_number: 2, settlement_vertex_id: firstSettlement, road_edge_id: firstRoad },
+      occurred_at: user.created_at,
+    },
+    {
+      sequence: '5',
+      event_type: 'initial_settlement_placed.v1',
+      payload: { seat_number: 3, settlement_vertex_id: secondSettlement },
+      occurred_at: user.created_at,
+    },
+    {
+      sequence: '6',
+      event_type: 'initial_road_placed.v1',
+      payload: { seat_number: 3, settlement_vertex_id: secondSettlement, road_edge_id: secondRoad },
+      occurred_at: user.created_at,
+    },
+  ]
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: '6',
+    has_more: false,
+    next_after_sequence: null,
+  }
+  response.snapshot_index = [{
+    command_sequence: '3',
+    event_sequence: '6',
+    state_schema_version: 'state-v2',
+    created_at: user.created_at,
+  }]
+  response.frame = {
+    command_sequence: '3',
+    event_sequence: '6',
+    state_schema_version: 'state-v2',
+    public_projection_schema_version: 'replay-public-v2',
+    public_state: {
+      phase: 'initial_placement',
+      active_seat_number: 1,
+      seat_order: [2, 3, 1],
+      round: 2,
+      step: 'place_initial_settlement_and_road',
+      players: [
+        { seat_number: 1, settlements: [], roads: [] },
+        { seat_number: 2, settlements: [firstSettlement], roads: [firstRoad] },
+        { seat_number: 3, settlements: [secondSettlement], roads: [secondRoad] },
+      ],
+    },
+    viewer_projection_schema_version: 'replay-viewer-v1',
+    viewer_state: {
+      seat_number: 1,
+      resources: { lumber: 0, wool: 0, grain: 0, brick: 0, ore: 0 },
+    },
+  }
+
+  return response
 }
