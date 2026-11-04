@@ -29,12 +29,44 @@ dotenv_value() {
 }
 
 APP_PORT="$(dotenv_value APP_PORT 8000)"
-WEB_PORT="$(dotenv_value WEB_PORT 5173)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:${APP_PORT}}"
 API_BASE_URL="${API_BASE_URL%/}"
-WEB_BASE_URL="${COMPOSE_WEB_BASE_URL:-http://127.0.0.1:${WEB_PORT}}"
+WEB_BASE_URL="${COMPOSE_WEB_BASE_URL:-http://web:5173}"
+COMPOSE_FILE_SPEC="$(dotenv_value COMPOSE_FILE compose.yaml)"
 token=""
 game_id=""
+
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE=(docker compose)
+elif docker-compose version >/dev/null 2>&1; then
+    COMPOSE=(docker-compose)
+else
+    printf 'COMPOSE OBSERVER SMOKE FAILED: Docker Compose is not available.\n' >&2
+    exit 1
+fi
+
+COMPOSE+=(--project-directory "$ROOT_DIR")
+IFS=: read -r -a compose_files <<< "$COMPOSE_FILE_SPEC"
+for compose_file in "${compose_files[@]}"; do
+    if [[ -z "$compose_file" ]]; then
+        printf 'COMPOSE OBSERVER SMOKE FAILED: COMPOSE_FILE contains an empty path.\n' >&2
+        exit 1
+    fi
+
+    if [[ "$compose_file" = /* ]]; then
+        compose_path="$compose_file"
+    else
+        compose_path="$ROOT_DIR/$compose_file"
+    fi
+
+    if [[ ! -f "$compose_path" ]]; then
+        printf 'COMPOSE OBSERVER SMOKE FAILED: Compose file not found: %s\n' "$compose_path" >&2
+        exit 1
+    fi
+
+    COMPOSE+=(-f "$compose_path")
+done
+COMPOSE+=(--profile test)
 
 cleanup() {
     local status=$?
@@ -65,7 +97,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-for required_command in curl npm; do
+for required_command in curl docker; do
     if ! command -v "$required_command" >/dev/null 2>&1; then
         printf 'COMPOSE OBSERVER SMOKE FAILED: required command not found: %s\n' "$required_command" >&2
         exit 1
@@ -80,12 +112,10 @@ token="${COMPOSE_OBSERVER_TOKEN:?Compose smoke did not provide a bearer token.}"
 game_id="${COMPOSE_OBSERVER_GAME_ID:?Compose smoke did not provide a game id.}"
 
 printf 'Opening the real Compose observer for game %s at %s\n' "$game_id" "$WEB_BASE_URL"
-(
-    cd "$ROOT_DIR/apps/web"
-    COMPOSE_OBSERVER_TOKEN="$token" \
-        COMPOSE_OBSERVER_GAME_ID="$game_id" \
-        COMPOSE_WEB_BASE_URL="$WEB_BASE_URL" \
-        npm run test:e2e:compose
-)
+"${COMPOSE[@]}" run --build --rm \
+    --env "COMPOSE_OBSERVER_TOKEN=$token" \
+    --env "COMPOSE_OBSERVER_GAME_ID=$game_id" \
+    --env "COMPOSE_WEB_BASE_URL=$WEB_BASE_URL" \
+    web-e2e npm run test:e2e:compose
 
 printf 'Compose observer smoke test passed: real API, worker, and browser observer verified.\n'

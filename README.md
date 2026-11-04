@@ -182,27 +182,34 @@ worker to persist the bootstrap, and checks PostgreSQL for exactly one
 It prints the healthy dependencies and the final running game id. It uses the
 existing named PostgreSQL volume and never removes it.
 
+Run mocked browser tests in the dedicated Playwright container:
+
+```bash
+docker compose --profile test run --build --rm web-e2e
+```
+
+The image is pinned to the `@playwright/test` version in
+`apps/web/package-lock.json` and includes Chromium's Linux dependencies. No
+host browser installation is needed. Keep the image tag in
+`apps/web/Dockerfile.e2e` aligned when upgrading Playwright.
+
 To verify the real browser observer against the running Compose stack, use the
 separate opt-in smoke command:
 
 ```bash
-PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright \
-  scripts/compose-observer-smoke.sh
+scripts/compose-observer-smoke.sh
 ```
 
 This command reuses the Compose lifecycle smoke, opens the actual web service
-with Playwright without API response interception, checks the authenticated
-observer's running status and full board, then deletes the disposable game and
-revokes its bearer token. The disposable account record remains because the
-API has no account-deletion endpoint. The command is separate from
-`cd apps/web && npm run test:e2e`, which remains the fast API-mocked browser
-suite.
+with the same Playwright container and without API response interception,
+checks the authenticated observer's running status and full board, then deletes
+the disposable game and revokes its bearer token. The disposable account record
+remains because the API has no account-deletion endpoint.
 
 For the mounted development workflow, select both Compose files:
 
 ```bash
 COMPOSE_FILE=compose.yaml:compose.dev.yaml \
-  PLAYWRIGHT_BROWSERS_PATH=/tmp/catan-ms-playwright \
   scripts/compose-observer-smoke.sh
 ```
 

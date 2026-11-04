@@ -102,8 +102,10 @@ slice.
   focused tests; engine rules, deterministic behavior, and AI decisions require
   coverage through `cd services/game-engine && go test ./...`.
 - React uses `npm run lint`, `npm run build`, and Playwright browser tests via
-  `npm run test:e2e` for UI changes. Install the managed Chromium binary with
-  `npx playwright install chromium` when setting up a development environment.
+  `docker compose --profile test run --build --rm web-e2e` for UI changes. The
+  dedicated Playwright image includes Chromium's system dependencies; keep its
+  version in `apps/web/Dockerfile.e2e` aligned with the locked
+  `@playwright/test` version.
 - Cross-service changes require contract or integration evidence on both sides
   of the boundary.
 - An empty test suite is not evidence that newly added logic works.

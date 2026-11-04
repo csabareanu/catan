@@ -138,5 +138,17 @@ services:
       retries: 10
     restart: unless-stopped
 
+  web-e2e:
+    profiles: ["test"]
+    image: ${COMPOSE_PROJECT_NAME:-catan}-web-e2e:local
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.e2e
+    init: true
+    ipc: host
+    volumes:
+      - ./apps/web/test-results:/app/test-results
+      - ./apps/web/playwright-report:/app/playwright-report
+
 volumes:
   postgres-data:

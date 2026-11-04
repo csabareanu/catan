@@ -32,8 +32,9 @@ Run commands from the repository root unless noted otherwise.
 - React development: `cd apps/web && npm run dev`
 - React lint: `cd apps/web && npm run lint`
 - React build: `cd apps/web && npm run build`
-- React browser tests: `cd apps/web && npm run test:e2e` (install the managed
-  Chromium binary first with `cd apps/web && npx playwright install chromium`)
+- React browser tests: `docker compose --profile test run --build --rm web-e2e`
+  (the dedicated Playwright image is pinned to the `@playwright/test` version
+  in `apps/web/package-lock.json` and includes Chromium's system dependencies)
 - React preview: `cd apps/web && npm run preview`
 - Docker development stack: `docker compose -f compose.yaml -f compose.dev.yaml up -d`
 - Docker stable image-based stack: `docker compose up --build -d`
@@ -53,6 +54,11 @@ Refresh the container-managed dependency volumes after lockfile changes:
 
 - Composer: `docker compose -f compose.yaml -f compose.dev.yaml run --rm api composer install`
 - npm: `docker compose -f compose.yaml -f compose.dev.yaml run --rm web npm ci`
+
+The Playwright test image installs web dependencies from the lockfile during
+its build. Keep the `mcr.microsoft.com/playwright` tag in
+`apps/web/Dockerfile.e2e` aligned with the locked `@playwright/test` version;
+the `--build` browser-test command rebuilds that image when its inputs change.
 
 Rebuild the affected development image after Dockerfile or base-image changes.
 The stable image-based workflow requires rebuilds after source, dependency,
