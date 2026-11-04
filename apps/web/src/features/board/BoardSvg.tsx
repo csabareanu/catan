@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useId, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import type {
   BoardData,
   BoardEdge,
@@ -73,6 +73,7 @@ const TERRAIN_LEGEND: Terrain[] = [
 const SETTLEMENT_SHAPE_PATH = 'M-6.5 5.5V-1.5L0-7L6.5-1.5V5.5Z'
 
 type EdgePoints = [ScreenPoint, ScreenPoint]
+type BoardOverlayCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
 export type BoardPieceColor = 'human' | 'sable' | 'moss' | 'clay'
 
@@ -86,13 +87,32 @@ export type BoardPlayerStructures = {
   recentRoadEdgeIDs?: string[]
 }
 
+export type BoardPlacementChoices = {
+  options: Array<{
+    settlement_vertex_id: string
+    road_edge_id: string
+  }>
+  selectedSettlementVertexID: string | null
+  selectedRoadEdgeID: string | null
+  onSelectSettlement: (settlementVertexID: string) => void
+  onSelectRoad: (roadEdgeID: string) => void
+}
+
 type BoardSvgProps = {
   board: BoardData
   playerStructures?: BoardPlayerStructures[]
+  placementChoices?: BoardPlacementChoices
   toolbarStart?: ReactNode
+  toolbarOverlay?: ReactNode
 }
 
-export function BoardSvg({ board, playerStructures = [], toolbarStart }: BoardSvgProps) {
+export function BoardSvg({
+  board,
+  playerStructures = [],
+  placementChoices,
+  toolbarStart,
+  toolbarOverlay,
+}: BoardSvgProps) {
   const { boardAppearance } = useSettings()
   const seaID = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const seaGradientID = `${seaID}-gradient`
@@ -131,8 +151,16 @@ export function BoardSvg({ board, playerStructures = [], toolbarStart }: BoardSv
   const titleID = 'board-svg-title'
   const descriptionID = 'board-svg-description'
   const coastline = coastlinePath(board, layout.vertexPoints)
+  const toolbarOverlayCorner = placementChoices
+    ? leastOccupiedPlacementCorner(board, layout, placementChoices)
+    : 'top-left'
   const toolbar = (
     <div className="board-svg-toolbar">
+      {toolbarOverlay && (
+        <div className={`board-svg-toolbar-overlay board-svg-toolbar-overlay-${toolbarOverlayCorner}`}>
+          {toolbarOverlay}
+        </div>
+      )}
       {toolbarStart && (
         <div className="board-svg-toolbar-start">{toolbarStart}</div>
       )}
@@ -202,9 +230,13 @@ export function BoardSvg({ board, playerStructures = [], toolbarStart }: BoardSv
         <svg
           className="board-svg"
           data-board-appearance={boardAppearance}
+          data-placement-mode={placementChoices ? 'active' : undefined}
           viewBox={viewBox}
-          role="img"
-          aria-labelledby={`${titleID} ${descriptionID}`}
+          role={placementChoices ? 'group' : 'img'}
+          aria-label={placementChoices
+            ? 'Game board. Select one of the highlighted legal settlement positions, then a connected highlighted road.'
+            : undefined}
+          aria-labelledby={placementChoices ? undefined : `${titleID} ${descriptionID}`}
           preserveAspectRatio="xMidYMid meet"
         >
           <title id={titleID}>
@@ -291,6 +323,12 @@ export function BoardSvg({ board, playerStructures = [], toolbarStart }: BoardSv
           <g className="board-setup-settlement-layer">
             {renderSetupSettlements(layout, playerStructures)}
           </g>
+
+          {placementChoices && (
+            <g className="board-placement-choice-layer">
+              {renderPlacementChoices(board, layout, placementChoices)}
+            </g>
+          )}
         </svg>
         {toolbar}
       </div>
@@ -298,6 +336,163 @@ export function BoardSvg({ board, playerStructures = [], toolbarStart }: BoardSv
       <BoardHelp />
     </div>
   )
+}
+
+function leastOccupiedPlacementCorner(
+  board: BoardData,
+  layout: BoardLayout,
+  choices: BoardPlacementChoices,
+): BoardOverlayCorner {
+  const counts: Record<BoardOverlayCorner, number> = {
+    'top-left': 0,
+    'top-right': 0,
+    'bottom-left': 0,
+    'bottom-right': 0,
+  }
+  const boardCenter = layout.boardCenter
+  const addCandidate = (point: ScreenPoint) => {
+    const vertical = point.y <= boardCenter.y ? 'top' : 'bottom'
+    const horizontal = point.x <= boardCenter.x ? 'left' : 'right'
+    const corner = `${vertical}-${horizontal}` as BoardOverlayCorner
+    counts[corner] += 1
+  }
+  const settlementVertexIDs = new Set(
+    choices.options.map((option) => option.settlement_vertex_id),
+  )
+
+  for (const vertexID of settlementVertexIDs) {
+    const point = layout.vertexPoints.get(vertexID)
+
+    if (point) {
+      addCandidate(point)
+    }
+  }
+
+  const roadEdgeIDs = new Set(choices.selectedSettlementVertexID === null
+    ? []
+    : choices.options
+        .filter((option) => option.settlement_vertex_id === choices.selectedSettlementVertexID)
+        .map((option) => option.road_edge_id))
+
+  for (const edgeID of roadEdgeIDs) {
+    const edge = board.edges.find((candidate) => candidate.id === edgeID)
+    const points = edge ? edgePoints(edge, layout.vertexPoints) : null
+
+    if (points) {
+      addCandidate({
+        x: (points[0].x + points[1].x) / 2,
+        y: (points[0].y + points[1].y) / 2,
+      })
+    }
+  }
+
+  return (Object.keys(counts) as BoardOverlayCorner[])
+    .sort((left, right) => counts[left] - counts[right])[0] ?? 'top-left'
+}
+
+function renderPlacementChoices(
+  board: BoardData,
+  layout: BoardLayout,
+  choices: BoardPlacementChoices,
+) {
+  const settlementVertexIDs = [...new Set(
+    choices.options.map((option) => option.settlement_vertex_id),
+  )]
+  const roadEdgeIDs = choices.selectedSettlementVertexID === null
+    ? []
+    : [...new Set(choices.options
+        .filter((option) => option.settlement_vertex_id === choices.selectedSettlementVertexID)
+        .map((option) => option.road_edge_id))]
+
+  return [
+    ...settlementVertexIDs.flatMap((settlementVertexID) => {
+      const point = layout.vertexPoints.get(settlementVertexID)
+
+      if (!point) {
+        return []
+      }
+
+      const isSelected = choices.selectedSettlementVertexID === settlementVertexID
+      const isAlternative = choices.selectedSettlementVertexID !== null && !isSelected
+
+      return [
+        <g
+          className={`board-placement-settlement${isSelected ? ' board-placement-choice-selected' : ''}${isAlternative ? ' board-placement-choice-muted' : ''}`}
+          data-board-interactive="true"
+          data-board-placement-settlement-id={settlementVertexID}
+          aria-label={`Select legal settlement position ${settlementVertexID}`}
+          aria-pressed={isSelected}
+          key={`settlement-${settlementVertexID}`}
+          role="button"
+          tabIndex={0}
+          transform={`translate(${point.x} ${point.y})`}
+          onClick={() => choices.onSelectSettlement(settlementVertexID)}
+          onKeyDown={(event) => activateBoardChoice(event, () =>
+            choices.onSelectSettlement(settlementVertexID))}
+        >
+          <title>Legal settlement position</title>
+          <circle className="board-placement-settlement-target" r="13" />
+          <circle className="board-placement-settlement-core" r="7" />
+        </g>,
+      ]
+    }),
+    ...roadEdgeIDs.flatMap((roadEdgeID) => {
+      const edge = board.edges.find((candidate) => candidate.id === roadEdgeID)
+      const points = edge ? edgePoints(edge, layout.vertexPoints) : null
+
+      if (!points) {
+        return []
+      }
+
+      const isSelected = choices.selectedRoadEdgeID === roadEdgeID
+      const isAlternative = choices.selectedRoadEdgeID !== null && !isSelected
+
+      return [
+        <g
+          className={`board-placement-road${isSelected ? ' board-placement-choice-selected' : ''}${isAlternative ? ' board-placement-choice-muted' : ''}`}
+          data-board-interactive="true"
+          data-board-placement-road-id={roadEdgeID}
+          aria-label={`Select legal road ${roadEdgeID} connected to the selected settlement`}
+          aria-pressed={isSelected}
+          key={`road-${roadEdgeID}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => choices.onSelectRoad(roadEdgeID)}
+          onKeyDown={(event) => activateBoardChoice(event, () =>
+            choices.onSelectRoad(roadEdgeID))}
+        >
+          <title>Legal road connected to selected settlement</title>
+          <line
+            className="board-placement-road-target"
+            x1={points[0].x}
+            y1={points[0].y}
+            x2={points[1].x}
+            y2={points[1].y}
+          />
+          <line
+            className="board-placement-road-core"
+            x1={points[0].x}
+            y1={points[0].y}
+            x2={points[1].x}
+            y2={points[1].y}
+          />
+        </g>,
+      ]
+    }),
+  ]
+}
+
+function activateBoardChoice(
+  event: ReactKeyboardEvent<SVGGElement>,
+  selectChoice: () => void,
+): void {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  selectChoice()
 }
 
 export function BoardHelp() {

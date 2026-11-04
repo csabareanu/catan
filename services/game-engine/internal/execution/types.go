@@ -7,22 +7,23 @@ import (
 )
 
 const (
-	ExecutionSchemaVersion              = "1"
-	StateSchemaVersion                  = "state-v1"
-	PlacementStateSchemaVersion         = "state-v2"
-	PhaseInitialized                    = "initialized"
-	PhaseInitialPlacement               = "initial_placement"
-	PhaseTurnReady                      = "turn_ready"
-	InitialPlacementStep                = "place_initial_settlement_and_road"
-	GameInitializedEventType            = "game_initialized.v1"
-	InitialPlacementStartedEventType    = "initial_placement_started.v1"
-	InitialSettlementPlacedEventType    = "initial_settlement_placed.v1"
-	InitialRoadPlacedEventType          = "initial_road_placed.v1"
-	InitialResourcesGrantedEventType    = "initial_resources_granted.v1"
-	InitialPlacementCompletedEventType  = "initial_placement_completed.v1"
-	InitialPlacementRunSchemaVersion    = "1"
-	BootstrapRunCommandType             = "bootstrap.v1"
-	BeginInitialPlacementRunCommandType = "begin_initial_placement.v1"
+	ExecutionSchemaVersion                    = "1"
+	StateSchemaVersion                        = "state-v1"
+	PlacementStateSchemaVersion               = "state-v2"
+	PhaseInitialized                          = "initialized"
+	PhaseInitialPlacement                     = "initial_placement"
+	PhaseTurnReady                            = "turn_ready"
+	InitialPlacementStep                      = "place_initial_settlement_and_road"
+	GameInitializedEventType                  = "game_initialized.v1"
+	InitialPlacementStartedEventType          = "initial_placement_started.v1"
+	InitialSettlementPlacedEventType          = "initial_settlement_placed.v1"
+	InitialRoadPlacedEventType                = "initial_road_placed.v1"
+	InitialResourcesGrantedEventType          = "initial_resources_granted.v1"
+	InitialPlacementCompletedEventType        = "initial_placement_completed.v1"
+	InitialPlacementRunSchemaVersion          = "1"
+	InitialPlacementContinuationSchemaVersion = "1"
+	BootstrapRunCommandType                   = "bootstrap.v1"
+	BeginInitialPlacementRunCommandType       = "begin_initial_placement.v1"
 )
 
 // InitialPlacementRunStopReason explains why an automated setup run stopped.
@@ -256,4 +257,12 @@ type InitialPlacementRunResult struct {
 	MapKey                string
 	StopReason            InitialPlacementRunStopReason
 	Transitions           []InitialPlacementRunTransition
+}
+
+// InitialPlacementContinuationResult contains the human command and following
+// AI commands through the next human decision or completion of setup.
+type InitialPlacementContinuationResult struct {
+	SetupContinuationSchemaVersion string
+	StopReason                     InitialPlacementRunStopReason
+	Transitions                    []InitialPlacementResult
 }

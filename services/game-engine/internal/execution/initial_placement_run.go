@@ -43,27 +43,21 @@ func RunInitialPlacement(config BootstrapConfig) (InitialPlacementRunResult, err
 		State:              cloneRunPlacementState(started.State),
 		Events:             append([]PlacementEvent(nil), started.Events...),
 	})
-	nextEventSequence += len(started.Events)
+	if len(started.Events) == 0 {
+		return InitialPlacementRunResult{}, fmt.Errorf("begin initial placement emitted no events")
+	}
 
-	state := started.State
-	for state.Phase == PhaseInitialPlacement {
-		controller, found := activePlacementController(state)
-		if !found {
-			return InitialPlacementRunResult{}, fmt.Errorf("active seat %d has no configured controller", state.ActiveSeatNumber)
-		}
-		if controller == ControllerHuman {
-			result.StopReason = InitialPlacementRunStopReasonHumanInputRequired
-			return result, nil
-		}
-
-		placement, err := ApplyInitialPlacementWithPolicy(state, RandomPlacementPolicy{}, nextEventSequence)
-		if err != nil {
-			return InitialPlacementRunResult{}, fmt.Errorf("apply AI placement for seat %d: %w", state.ActiveSeatNumber, err)
-		}
+	aiPlacements, stopReason, err := runAIPlacementsUntilBoundary(
+		started.State,
+		started.Events[len(started.Events)-1].Sequence,
+	)
+	if err != nil {
+		return InitialPlacementRunResult{}, fmt.Errorf("run initial placement policy: %w", err)
+	}
+	for _, placement := range aiPlacements {
 		if placement.Command == nil || placement.Decision == nil {
-			return InitialPlacementRunResult{}, fmt.Errorf("AI placement for seat %d omitted its accepted command or policy decision", state.ActiveSeatNumber)
+			return InitialPlacementRunResult{}, fmt.Errorf("AI placement omitted its accepted command or policy decision")
 		}
-
 		result.Transitions = append(result.Transitions, AIPlacementRunTransition{
 			CommandType:        placement.Command.CommandType,
 			ActingSeatNumber:   placement.Command.ActingSeatNumber,
@@ -73,14 +67,9 @@ func RunInitialPlacement(config BootstrapConfig) (InitialPlacementRunResult, err
 			State:              cloneRunPlacementState(placement.State),
 			Events:             append([]PlacementEvent(nil), placement.Events...),
 		})
-		nextEventSequence += len(placement.Events)
-		state = placement.State
 	}
+	result.StopReason = stopReason
 
-	if state.Phase != PhaseTurnReady {
-		return InitialPlacementRunResult{}, fmt.Errorf("initial placement stopped in unexpected phase %q", state.Phase)
-	}
-	result.StopReason = InitialPlacementRunStopReasonTurnReady
 	return result, nil
 }
 

@@ -72,6 +72,31 @@ export type ReplayResponse = {
   frame: ReplayFrame | null
 }
 
+export type InitialPlacementOption = {
+  settlement_vertex_id: string
+  road_edge_id: string
+}
+
+export type InitialPlacementOptionsResponse = {
+  schema_version: 'initial-placement-options-v1'
+  data: {
+    command_sequence: string
+    active_seat_number: number
+    round: number
+    options: InitialPlacementOption[]
+  }
+}
+
+export type InitialPlacementCommandResponse = {
+  schema_version: 'initial-placement-command-v1'
+  data: {
+    replayed: boolean
+    lifecycle_status: string
+    last_command_sequence: string
+    last_event_sequence: string
+  }
+}
+
 export type ReplayRequestOptions = {
   atCommandSequence?: string
   afterEventSequence?: string
@@ -128,6 +153,43 @@ export async function getGameReplay(
   )
 }
 
+export async function getInitialPlacementOptions(
+  token: string,
+  gameID: number,
+  onUnauthorized?: () => void,
+  signal?: AbortSignal,
+): Promise<InitialPlacementOptionsResponse> {
+  return requestJson(
+    `/api/v1/games/${gameID}/initial-placement/options`,
+    isInitialPlacementOptionsResponse,
+    { token, onUnauthorized, signal },
+  )
+}
+
+export async function submitInitialPlacement(
+  token: string,
+  gameID: number,
+  command: {
+    expected_command_sequence: string
+    settlement_vertex_id: string
+    road_edge_id: string
+  },
+  idempotencyKey: string,
+  onUnauthorized?: () => void,
+): Promise<InitialPlacementCommandResponse> {
+  return requestJson(
+    `/api/v1/games/${gameID}/initial-placement`,
+    isInitialPlacementCommandResponse,
+    {
+      method: 'POST',
+      body: command,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      token,
+      onUnauthorized,
+    },
+  )
+}
+
 function isMultiEventReplayMockEnabled(): boolean {
   return import.meta.env.DEV &&
     typeof window !== 'undefined' &&
@@ -146,6 +208,55 @@ function isReplayResponse(value: unknown): value is ReplayResponse {
     value.snapshot_index.every(isReplaySnapshotIndexEntry) &&
     (value.frame === null || isReplayFrame(value.frame))
   )
+}
+
+function isInitialPlacementOptionsResponse(
+  value: unknown,
+): value is InitialPlacementOptionsResponse {
+  return (
+    isRecord(value) &&
+    value.schema_version === 'initial-placement-options-v1' &&
+    isRecord(value.data) &&
+    isDecimalSequence(value.data.command_sequence) &&
+    isPositiveInteger(value.data.active_seat_number) &&
+    isPositiveInteger(value.data.round) &&
+    Array.isArray(value.data.options) &&
+    value.data.options.every(isInitialPlacementOption)
+  )
+}
+
+function isInitialPlacementCommandResponse(
+  value: unknown,
+): value is InitialPlacementCommandResponse {
+  return (
+    isRecord(value) &&
+    value.schema_version === 'initial-placement-command-v1' &&
+    isRecord(value.data) &&
+    typeof value.data.replayed === 'boolean' &&
+    isString(value.data.lifecycle_status) &&
+    isDecimalSequence(value.data.last_command_sequence) &&
+    isDecimalSequence(value.data.last_event_sequence)
+  )
+}
+
+function isInitialPlacementOption(value: unknown): value is InitialPlacementOption {
+  return (
+    isRecord(value) &&
+    isNonEmptyString(value.settlement_vertex_id) &&
+    isNonEmptyString(value.road_edge_id)
+  )
+}
+
+function isDecimalSequence(value: unknown): value is string {
+  return typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value)
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return isString(value) && value.trim() !== ''
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return isInteger(value) && value > 0
 }
 
 function isReplayContext(value: unknown): value is ReplayContext {

@@ -38,6 +38,9 @@ var (
 	// ErrNoLegalInitialPlacementOptions means the active seat has no legal
 	// settlement-and-road pair to choose.
 	ErrNoLegalInitialPlacementOptions = errors.New("no legal initial placement options")
+	// ErrPlacementCommandRequiresHuman means a human command was supplied while
+	// an AI-controlled seat is active.
+	ErrPlacementCommandRequiresHuman = errors.New("initial placement command requires a human-controlled active seat")
 	// ErrInvalidPlacementPolicy means no usable placement policy was supplied.
 	ErrInvalidPlacementPolicy = errors.New("invalid initial placement policy")
 	// ErrInvalidPlacementPolicyDecision means the policy selected an option that

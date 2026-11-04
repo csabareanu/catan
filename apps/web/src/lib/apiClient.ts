@@ -3,6 +3,7 @@ export type ApiErrorFields = Record<string, string[]>
 type ApiRequestOptions = {
   method?: 'DELETE' | 'GET' | 'POST'
   body?: unknown
+  headers?: Record<string, string>
   token?: string
   onUnauthorized?: () => void
   signal?: AbortSignal
@@ -103,6 +104,7 @@ async function sendRequest(
 ): Promise<Response> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
+    ...options.headers,
   }
 
   if (options.body !== undefined) {

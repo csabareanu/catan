@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\GameEngineProtocolException;
 use App\Exceptions\GameEngineUnavailable;
+use App\Exceptions\InitialPlacementCommandRejected;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -84,9 +85,391 @@ class GameEngineClient
     }
 
     /**
+     * Retrieve complete legal setup placement pairs from the stateless Go service.
+     *
+     * @param  array{state_schema_version: 'state-v2', state: array<string, mixed>}  $payload
+     * @return array<string, mixed>
+     */
+    public function initialPlacementOptions(array $payload): array
+    {
+        $body = $this->post('/v1/initial-placement/options', $payload);
+
+        if (! $this->isInitialPlacementOptionsResponse($body, $payload)) {
+            throw new GameEngineProtocolException('The game engine returned invalid initial placement options.');
+        }
+
+        return $body;
+    }
+
+    /**
+     * Validate one human placement and run deterministic AI setup until the next boundary.
+     *
+     * @param  array{
+     *     state_schema_version: 'state-v2',
+     *     state: array<string, mixed>,
+     *     game_configuration: array{
+     *         seed: string,
+     *         ruleset_key: string,
+     *         map_key: string,
+     *         seats: list<array{seat_number: int, controller_type: 'human'|'ai'}>
+     *     },
+     *     next_event_sequence: int,
+     *     command: array{
+     *         command_type: 'place_initial_settlement_and_road.v1',
+     *         acting_seat_number: int,
+     *         payload: array{settlement_vertex_id: string, road_edge_id: string}
+     *     }
+     * }  $payload
+     * @return array<string, mixed>
+     */
+    public function continueInitialPlacement(array $payload): array
+    {
+        $body = $this->post(
+            '/v1/runs/initial-placement/continue',
+            $payload,
+            rejectIllegalPlacement: true,
+        );
+
+        if (! $this->isInitialPlacementContinuationResponse($body, $payload)) {
+            throw new GameEngineProtocolException('The game engine returned an invalid initial placement response.');
+        }
+
+        return $body;
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
-    private function post(string $path, array $payload): mixed
+    private function isInitialPlacementContinuationResponse(mixed $body, array $payload): bool
+    {
+        $data = is_array($body) ? ($body['data'] ?? null) : null;
+        $state = $payload['state'] ?? null;
+        $configuration = $payload['game_configuration'] ?? null;
+        $transitions = is_array($data) ? ($data['transitions'] ?? null) : null;
+        $board = is_array($state) ? ($state['board'] ?? null) : null;
+        $seats = is_array($configuration) ? ($configuration['seats'] ?? null) : null;
+        $command = $payload['command'] ?? null;
+        $commandPayload = is_array($command) ? ($command['payload'] ?? null) : null;
+        $responseData = [
+            'seed' => is_array($board) ? ($board['seed'] ?? null) : null,
+            'ruleset' => is_array($board) ? ($board['ruleset'] ?? null) : null,
+            'map' => is_array($board) ? ($board['map'] ?? null) : null,
+        ];
+
+        if (($payload['state_schema_version'] ?? null) !== 'state-v2'
+            || ! is_array($state)
+            || ! is_array($configuration)
+            || ! $this->isSeatList($seats)
+            || ! $this->isPlacementRunState($state, $responseData, $seats)
+            || ($state['phase'] ?? null) !== 'initial_placement'
+            || ! $this->isSeatList($state['seats'] ?? null, $seats)
+            || ($configuration['seed'] ?? null) !== ($board['seed'] ?? null)
+            || ($configuration['ruleset_key'] ?? null) !== ($board['ruleset']['key'] ?? null)
+            || ($configuration['map_key'] ?? null) !== ($board['map']['key'] ?? null)
+            || ! is_int($payload['next_event_sequence'] ?? null)
+            || $payload['next_event_sequence'] < 1
+            || ($command['command_type'] ?? null) !== 'place_initial_settlement_and_road.v1'
+            || ($command['acting_seat_number'] ?? null) !== ($state['active_seat_number'] ?? null)
+            || ! is_array($commandPayload)
+            || count($commandPayload) !== 2
+            || ! is_string($commandPayload['settlement_vertex_id'] ?? null)
+            || $commandPayload['settlement_vertex_id'] === ''
+            || ! is_string($commandPayload['road_edge_id'] ?? null)
+            || $commandPayload['road_edge_id'] === ''
+            || ! $this->isSeatHuman($seats, $state['active_seat_number'] ?? null)
+            || ! is_array($data)
+            || ($data['setup_continuation_schema_version'] ?? null) !== '1'
+            || ! in_array($data['stop_reason'] ?? null, ['human_input_required', 'turn_ready'], true)
+            || ! is_array($transitions)
+            || ! array_is_list($transitions)
+            || $transitions === []
+            || count($transitions) > 2 * count($seats)) {
+            return false;
+        }
+
+        $runPayload = [
+            'seed' => $configuration['seed'],
+            'ruleset_key' => $configuration['ruleset_key'],
+            'map_key' => $configuration['map_key'],
+            'seats' => $seats,
+        ];
+        $expectedEventSequence = $payload['next_event_sequence'];
+        $firstTransition = $transitions[0];
+
+        if (! $this->isHumanInitialPlacementTransition(
+            $firstTransition,
+            $state,
+            $responseData,
+            $runPayload,
+            $commandPayload,
+            $expectedEventSequence,
+        )) {
+            return false;
+        }
+
+        $expectedEventSequence += count($firstTransition['events']);
+        $previousState = $firstTransition['state'];
+
+        for ($index = 1; $index < count($transitions); $index++) {
+            $transition = $transitions[$index];
+
+            if (! $this->isInitialPlacementPolicyTransition(
+                $transition,
+                $previousState,
+                $responseData,
+                $runPayload,
+                $expectedEventSequence,
+            ) || ! $this->isContinuationPlacementState($transition['state'] ?? null, $state, $responseData, $seats)) {
+                return false;
+            }
+
+            $expectedEventSequence += count($transition['events']);
+            $previousState = $transition['state'];
+        }
+
+        $finalTransition = $transitions[array_key_last($transitions)];
+        $finalState = $finalTransition['state'];
+
+        if (! $this->isContinuationPlacementState($finalState, $state, $responseData, $seats)) {
+            return false;
+        }
+
+        if ($data['stop_reason'] === 'human_input_required') {
+            return ($finalState['phase'] ?? null) === 'initial_placement'
+                && $this->isSeatHuman($seats, $finalState['active_seat_number'] ?? null);
+        }
+
+        $lastEvents = $finalTransition['events'];
+        $lastEvent = $lastEvents[array_key_last($lastEvents)];
+
+        return ($finalState['phase'] ?? null) === 'turn_ready'
+            && ($finalState['round'] ?? null) === 2
+            && ($finalState['active_seat_number'] ?? null) === 0
+            && ($finalState['step'] ?? null) === ''
+            && ($lastEvent['event_type'] ?? null) === 'initial_placement_completed.v1';
+    }
+
+    /**
+     * @param  array<string, mixed>  $previousState
+     * @param  array<string, mixed>  $responseData
+     * @param  array<string, mixed>  $runPayload
+     * @param  array{settlement_vertex_id: string, road_edge_id: string}  $commandPayload
+     */
+    private function isHumanInitialPlacementTransition(
+        mixed $transition,
+        array $previousState,
+        array $responseData,
+        array $runPayload,
+        array $commandPayload,
+        int $expectedEventSequence,
+    ): bool {
+        if (! is_array($transition)
+            || ($transition['command_type'] ?? null) !== 'place_initial_settlement_and_road.v1'
+            || ($transition['acting_seat_number'] ?? null) !== ($previousState['active_seat_number'] ?? null)
+            || ! array_key_exists('decision_metadata', $transition)
+            || $transition['decision_metadata'] !== null
+            || array_key_exists('command_sequence', $transition)
+            || ($transition['payload'] ?? null) !== $commandPayload
+            || ($transition['state_schema_version'] ?? null) !== 'state-v2'
+            || ! $this->isContinuationPlacementState($transition['state'] ?? null, $previousState, $responseData, $runPayload['seats'])) {
+            return false;
+        }
+
+        $seatNumber = $transition['acting_seat_number'];
+        $previousPlayer = $previousState['players'][$seatNumber - 1] ?? null;
+        $nextPlayer = $transition['state']['players'][$seatNumber - 1] ?? null;
+
+        if (! is_array($previousPlayer)
+            || ! is_array($nextPlayer)
+            || count($nextPlayer['settlements']) !== count($previousPlayer['settlements']) + 1
+            || count($nextPlayer['roads']) !== count($previousPlayer['roads']) + 1
+            || ! in_array($commandPayload['settlement_vertex_id'], $nextPlayer['settlements'], true)
+            || ! in_array($commandPayload['road_edge_id'], $nextPlayer['roads'], true)) {
+            return false;
+        }
+
+        $expectedEventTypes = [
+            'initial_settlement_placed.v1',
+            'initial_road_placed.v1',
+        ];
+        if (($previousState['round'] ?? null) === 2) {
+            $expectedEventTypes[] = 'initial_resources_granted.v1';
+        }
+        if (($transition['state']['phase'] ?? null) === 'turn_ready') {
+            if (($previousState['round'] ?? null) !== 2) {
+                return false;
+            }
+            $expectedEventTypes[] = 'initial_placement_completed.v1';
+        }
+
+        $events = $transition['events'] ?? null;
+        if (! is_array($events) || ! array_is_list($events) || count($events) !== count($expectedEventTypes)) {
+            return false;
+        }
+
+        foreach ($expectedEventTypes as $index => $eventType) {
+            $event = $events[$index];
+            if (! $this->isPublicInitialPlacementRunEvent($event, $expectedEventSequence + $index, $eventType)) {
+                return false;
+            }
+
+            $eventPayload = $event['payload'];
+            if ($index === 0
+                && (($eventPayload['seat_number'] ?? null) !== $seatNumber
+                    || ($eventPayload['settlement_vertex_id'] ?? null) !== $commandPayload['settlement_vertex_id'])) {
+                return false;
+            }
+            if ($index === 1
+                && (($eventPayload['seat_number'] ?? null) !== $seatNumber
+                    || ($eventPayload['settlement_vertex_id'] ?? null) !== $commandPayload['settlement_vertex_id']
+                    || ($eventPayload['road_edge_id'] ?? null) !== $commandPayload['road_edge_id'])) {
+                return false;
+            }
+            if ($eventType === 'initial_resources_granted.v1'
+                && (($eventPayload['seat_number'] ?? null) !== $seatNumber
+                    || ! $this->isResourceCounts($eventPayload['resources'] ?? null))) {
+                return false;
+            }
+            if ($eventType === 'initial_placement_completed.v1'
+                && (($eventPayload['seat_order'] ?? null) !== $previousState['seat_order']
+                    || ($eventPayload['next_phase'] ?? null) !== 'turn_ready')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $sourceState
+     * @param  array<string, mixed>  $responseData
+     * @param  list<array{seat_number: int, controller_type: 'human'|'ai'}>  $seats
+     */
+    private function isContinuationPlacementState(
+        mixed $candidate,
+        array $sourceState,
+        array $responseData,
+        array $seats,
+    ): bool {
+        return $this->isPlacementRunState($candidate, $responseData, $seats)
+            && $this->isSeatList($candidate['seats'] ?? null, $seats)
+            && $this->sameCanonicalValue($candidate['board'] ?? null, $sourceState['board'] ?? null);
+    }
+
+    /**
+     * @param  list<array{seat_number: int, controller_type: 'human'|'ai'}>  $seats
+     */
+    private function isSeatHuman(array $seats, mixed $seatNumber): bool
+    {
+        foreach ($seats as $seat) {
+            if ($seat['seat_number'] === $seatNumber) {
+                return $seat['controller_type'] === 'human';
+            }
+        }
+
+        return false;
+    }
+
+    private function sameCanonicalValue(mixed $left, mixed $right): bool
+    {
+        return $this->canonicalize($left) === $this->canonicalize($right);
+    }
+
+    private function canonicalize(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(fn (mixed $item): mixed => $this->canonicalize($item), $value);
+        }
+
+        ksort($value);
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->canonicalize($item);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  array{state_schema_version: 'state-v2', state: array<string, mixed>}  $payload
+     */
+    private function isInitialPlacementOptionsResponse(mixed $body, array $payload): bool
+    {
+        $state = $payload['state'] ?? null;
+        $data = is_array($body) ? ($body['data'] ?? null) : null;
+        $board = is_array($state) ? ($state['board'] ?? null) : null;
+        $vertices = is_array($board) ? ($board['vertices'] ?? null) : null;
+        $edges = is_array($board) ? ($board['edges'] ?? null) : null;
+        $options = is_array($data) ? ($data['options'] ?? null) : null;
+
+        if (($payload['state_schema_version'] ?? null) !== 'state-v2'
+            || ! is_array($state)
+            || ($state['phase'] ?? null) !== 'initial_placement'
+            || ! is_int($state['active_seat_number'] ?? null)
+            || ! is_int($state['round'] ?? null)
+            || ! is_array($data)
+            || ($data['initial_placement_options_schema_version'] ?? null) !== '1'
+            || ($data['active_seat_number'] ?? null) !== $state['active_seat_number']
+            || ($data['round'] ?? null) !== $state['round']
+            || ! is_array($options)
+            || ! array_is_list($options)
+            || ! is_array($vertices)
+            || ! array_is_list($vertices)
+            || ! is_array($edges)
+            || ! array_is_list($edges)
+            || array_key_exists('players', $data)
+            || array_key_exists('resources', $data)
+            || array_key_exists('state', $data)) {
+            return false;
+        }
+
+        $vertexIds = [];
+        foreach ($vertices as $vertex) {
+            if (! is_array($vertex) || ! is_string($vertex['id'] ?? null) || $vertex['id'] === '') {
+                return false;
+            }
+
+            $vertexIds[$vertex['id']] = true;
+        }
+
+        $edgeIds = [];
+        foreach ($edges as $edge) {
+            if (! is_array($edge) || ! is_string($edge['id'] ?? null) || $edge['id'] === '') {
+                return false;
+            }
+
+            $edgeIds[$edge['id']] = true;
+        }
+
+        $seenPairs = [];
+        foreach ($options as $option) {
+            if (! is_array($option)
+                || count($option) !== 2
+                || ! is_string($option['settlement_vertex_id'] ?? null)
+                || ! isset($vertexIds[$option['settlement_vertex_id']])
+                || ! is_string($option['road_edge_id'] ?? null)
+                || ! isset($edgeIds[$option['road_edge_id']])) {
+                return false;
+            }
+
+            $pairKey = $option['settlement_vertex_id']."\0".$option['road_edge_id'];
+            if (isset($seenPairs[$pairKey])) {
+                return false;
+            }
+            $seenPairs[$pairKey] = true;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function post(string $path, array $payload, bool $rejectIllegalPlacement = false): mixed
     {
         try {
             $response = Http::baseUrl($this->baseUrl)
@@ -102,6 +485,14 @@ class GameEngineClient
         }
 
         if (! $response->successful()) {
+            $body = $response->json();
+            if ($rejectIllegalPlacement
+                && $response->status() === 422
+                && is_array($body)
+                && ($body['error']['code'] ?? null) === 'illegal_placement') {
+                throw new InitialPlacementCommandRejected;
+            }
+
             throw new GameEngineProtocolException(
                 sprintf('The game engine returned HTTP %d.', $response->status()),
             );

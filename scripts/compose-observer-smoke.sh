@@ -118,4 +118,98 @@ printf 'Opening the real Compose observer for game %s at %s\n' "$game_id" "$WEB_
     --env "COMPOSE_WEB_BASE_URL=$WEB_BASE_URL" \
     web-e2e npm run test:e2e:compose
 
-printf 'Compose observer smoke test passed: real API, worker, and browser observer verified.\n'
+if ! [[ "$game_id" =~ ^[0-9]+$ ]]; then
+    printf 'COMPOSE OBSERVER SMOKE FAILED: expected a numeric game id, got %s.\n' "$game_id" >&2
+    exit 1
+fi
+
+setup_sql="
+SELECT
+    game.lifecycle_status,
+    game.current_state ->> 'phase',
+    game.state_schema_version,
+    game.last_command_sequence,
+    game.last_event_sequence,
+    (SELECT count(*) FROM game_commands WHERE game_id = ${game_id} AND command_type = 'bootstrap.v1'),
+    (SELECT count(*) FROM game_commands WHERE game_id = ${game_id} AND command_type = 'begin_initial_placement.v1'),
+    (SELECT count(*) FROM game_commands WHERE game_id = ${game_id}),
+    (SELECT count(*) FROM game_commands WHERE game_id = ${game_id} AND command_type = 'place_initial_settlement_and_road.v1'),
+    (SELECT count(*)
+       FROM game_commands AS command
+       JOIN game_seats AS seat
+         ON seat.game_id = command.game_id
+        AND seat.seat_number = command.acting_seat_number
+      WHERE command.game_id = ${game_id}
+        AND command.command_type = 'place_initial_settlement_and_road.v1'
+        AND seat.controller_type = 'human'
+        AND command.decision_metadata IS NULL
+        AND command.payload::jsonb ? 'settlement_vertex_id'
+        AND command.payload::jsonb ? 'road_edge_id'),
+    (SELECT count(*)
+       FROM game_commands AS command
+       JOIN game_seats AS seat
+         ON seat.game_id = command.game_id
+        AND seat.seat_number = command.acting_seat_number
+      WHERE command.game_id = ${game_id}
+        AND command.command_type = 'place_initial_settlement_and_road.v1'
+        AND seat.controller_type = 'ai'
+        AND command.decision_metadata ->> 'policy_version' = 'random_placement.v1'
+        AND command.decision_metadata ->> 'option_id' IS NOT NULL
+        AND command.payload::jsonb ? 'settlement_vertex_id'
+        AND command.payload::jsonb ? 'road_edge_id'),
+    (SELECT coalesce(min(sequence), 0) FROM game_commands WHERE game_id = ${game_id}),
+    (SELECT coalesce(max(sequence), 0) FROM game_commands WHERE game_id = ${game_id}),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id}),
+    (SELECT coalesce(min(sequence), 0) FROM game_events WHERE game_id = ${game_id}),
+    (SELECT coalesce(max(sequence), 0) FROM game_events WHERE game_id = ${game_id}),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND command_id IS NOT NULL),
+    (SELECT count(*) FROM game_snapshots WHERE game_id = ${game_id}),
+    (SELECT count(*) FROM game_snapshots WHERE game_id = ${game_id} AND command_sequence = 1 AND state_schema_version = 'state-v1'),
+    (SELECT count(*) FROM game_snapshots WHERE game_id = ${game_id} AND command_sequence > 1 AND state_schema_version = 'state-v2'),
+    (SELECT command_sequence FROM game_snapshots WHERE game_id = ${game_id} ORDER BY command_sequence DESC LIMIT 1),
+    (SELECT event_sequence FROM game_snapshots WHERE game_id = ${game_id} ORDER BY command_sequence DESC LIMIT 1),
+    (SELECT state_schema_version FROM game_snapshots WHERE game_id = ${game_id} ORDER BY command_sequence DESC LIMIT 1),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'game_initialized.v1'),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_placement_started.v1'),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_settlement_placed.v1'),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_road_placed.v1'),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_resources_granted.v1'),
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_placement_completed.v1')
+FROM games AS game
+WHERE game.id = ${game_id};
+"
+db_counts="$("${COMPOSE[@]}" exec -T postgres sh -c 'psql -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -F "|" -c "$1"' sh "$setup_sql")" || {
+    printf 'COMPOSE OBSERVER SMOKE FAILED: could not inspect completed PostgreSQL setup history.\n' >&2
+    exit 1
+}
+
+IFS='|' read -r lifecycle_status state_phase state_schema_version last_command_sequence last_event_sequence \
+    bootstrap_count setup_start_count command_count placement_count human_placement_count ai_placement_count \
+    first_command_sequence final_command_sequence event_count first_event_sequence final_event_sequence linked_event_count \
+    snapshot_count initial_snapshot_count setup_snapshot_count final_snapshot_command_sequence final_snapshot_event_sequence \
+    final_snapshot_schema initialized_event_count setup_started_event_count settlement_event_count road_event_count \
+    resource_event_count completed_event_count <<< "$db_counts"
+
+if [[ "$lifecycle_status" != running || "$state_phase" != turn_ready || "$state_schema_version" != state-v2 || \
+    "$last_command_sequence" != 8 || "$last_event_sequence" != 18 || "$bootstrap_count" != 1 || \
+    "$setup_start_count" != 1 || "$command_count" != 8 || "$placement_count" != 6 || \
+    "$human_placement_count" != 2 || "$ai_placement_count" != 4 || "$first_command_sequence" != 1 || \
+    "$final_command_sequence" != 8 || "$event_count" != 18 || "$first_event_sequence" != 1 || \
+    "$final_event_sequence" != 18 || "$linked_event_count" != 18 || "$snapshot_count" != 8 || \
+    "$initial_snapshot_count" != 1 || "$setup_snapshot_count" != 7 || \
+    "$final_snapshot_command_sequence" != 8 || "$final_snapshot_event_sequence" != 18 || \
+    "$final_snapshot_schema" != state-v2 || "$initialized_event_count" != 1 || \
+    "$setup_started_event_count" != 1 || "$settlement_event_count" != 6 || "$road_event_count" != 6 || \
+    "$resource_event_count" != 3 || "$completed_event_count" != 1 ]]; then
+    printf 'COMPOSE OBSERVER SMOKE FAILED: unexpected completed setup history for game %s.\n' "$game_id" >&2
+    printf '  lifecycle=%s phase=%s state=%s commands=%s placements=%s human=%s ai=%s events=%s snapshots=%s\n' \
+        "$lifecycle_status" "$state_phase" "$state_schema_version" "$command_count" "$placement_count" \
+        "$human_placement_count" "$ai_placement_count" "$event_count" "$snapshot_count" >&2
+    printf '  command cursor=%s event cursor=%s event range=%s-%s final snapshot=%s/%s (%s)\n' \
+        "$last_command_sequence" "$last_event_sequence" "$first_event_sequence" "$final_event_sequence" \
+        "$final_snapshot_command_sequence" "$final_snapshot_event_sequence" "$final_snapshot_schema" >&2
+    exit 1
+fi
+
+printf 'PostgreSQL setup history: 2 human placements, 4 AI placements, 18 ordered events, and 8 snapshots; phase is turn_ready.\n'
+printf 'Compose observer smoke passed: React playback, Laravel persistence, and Go continuation agree for game %s.\n' "$game_id"

@@ -122,7 +122,7 @@ export function useBoardViewport({ board, layout }: BoardViewportOptions): Board
     }
 
     const handleNativeWheel = (event: globalThis.WheelEvent) => {
-      if (event.target instanceof Element && event.target.closest('button')) {
+      if (isBoardInteractionTarget(event.target)) {
         return
       }
 
@@ -208,7 +208,7 @@ export function useBoardViewport({ board, layout }: BoardViewportOptions): Board
   }
 
   const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.target instanceof Element && event.target.closest('button')) {
+    if (isBoardInteractionTarget(event.target)) {
       return
     }
 
@@ -232,7 +232,7 @@ export function useBoardViewport({ board, layout }: BoardViewportOptions): Board
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.target instanceof HTMLButtonElement || !layout) {
+    if (isBoardInteractionTarget(event.target) || !layout) {
       return
     }
 
@@ -284,7 +284,7 @@ export function useBoardViewport({ board, layout }: BoardViewportOptions): Board
       return
     }
 
-    if (event.target instanceof Element && event.target.closest('button')) {
+    if (isBoardInteractionTarget(event.target)) {
       return
     }
 
@@ -586,4 +586,10 @@ function midpointOf(first: BoardPointer, second: BoardPointer): BoardPointer {
 
 function distanceBetween(first: BoardPointer, second: BoardPointer): number {
   return Math.hypot(second.x - first.x, second.y - first.y)
+}
+
+function isBoardInteractionTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(
+    target.closest('button, [data-board-interactive="true"]'),
+  )
 }

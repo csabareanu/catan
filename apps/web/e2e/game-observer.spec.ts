@@ -170,6 +170,384 @@ for (const seatCount of [3, 4]) {
   })
 }
 
+test('lets the owner choose a legal pair, submit once, and watch the saved continuation', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const legalOptions = humanPlacementOptions()
+  const submittedCommands: Array<{
+    body: unknown
+    headers: Record<string, string>
+  }> = []
+  let placementAccepted = false
+  let optionsRequestCount = 0
+  let releaseOptions = () => {}
+  let releaseSubmission = () => {}
+  const optionsGate = new Promise<void>((resolve) => {
+    releaseOptions = resolve
+  })
+  const submissionGate = new Promise<void>((resolve) => {
+    releaseSubmission = resolve
+  })
+
+  await page.route('**/api/v1/games/74/replay**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      json: placementAccepted
+        ? humanPlacementCompletionResponse(74)
+        : humanPlacementBoundaryResponse('9', 74),
+    })
+  })
+  await page.route('**/api/v1/games/74/initial-placement/options', async (route) => {
+    optionsRequestCount += 1
+    expect(route.request().headers().authorization).toBe('Bearer test-token')
+    await optionsGate
+    await route.fulfill({
+      status: 200,
+      json: humanPlacementOptionsResponse('9', legalOptions),
+    })
+  })
+  await page.route('**/api/v1/games/74/initial-placement', async (route) => {
+    submittedCommands.push({
+      body: route.request().postDataJSON(),
+      headers: route.request().headers(),
+    })
+    await submissionGate
+    placementAccepted = true
+    await route.fulfill({
+      status: 200,
+      json: humanPlacementCommandResponse('14', '16', 'running'),
+    })
+  })
+
+  await page.goto('/games/74/observe')
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('Play setup to your turn')
+  const turnActionPanel = page.locator('#observer-sidebar .observer-turn-action-panel')
+  await expect(turnActionPanel).toContainText('Your turn')
+  await expect(turnActionPanel).toContainText('Initial placement')
+  await expect(turnActionPanel.locator('.observer-placement-panel')).toBeVisible()
+  expect(optionsRequestCount).toBe(0)
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  for (let eventIndex = 0; eventIndex < 6; eventIndex += 1) {
+    await page.clock.runFor(900)
+  }
+
+  await expect(page.locator('[data-setup-playback-status]'))
+    .toContainText('Waiting for Ada Player to place a settlement and road.')
+  await expect.poll(() => optionsRequestCount).toBe(1)
+  await expect.poll(() => page.locator('.observer-placement-panel').getAttribute('aria-labelledby'))
+    .toBe('observer-placement-title')
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('Loading legal choices')
+  releaseOptions()
+  await expect(page.locator('.observer-placement-steps li[aria-current="step"]'))
+    .toContainText('House')
+  await expect(page.locator('.observer-secondary-panel').nth(0))
+    .toHaveJSProperty('open', false)
+  await expect(page.locator('.observer-secondary-panel').nth(1))
+    .toHaveJSProperty('open', false)
+
+  const settlementIDs = [...new Set(legalOptions.map((option) => option.settlement_vertex_id))]
+  const settlementChoices = page.locator('[data-board-placement-settlement-id]')
+  await expect(settlementChoices).toHaveCount(settlementIDs.length)
+  expect(await settlementChoices.evaluateAll((choices) =>
+    choices.map((choice) => choice.getAttribute('data-board-placement-settlement-id')),
+  )).toEqual(settlementIDs)
+  await expect(page.locator('[data-board-placement-road-id]')).toHaveCount(0)
+
+  const firstSettlement = page.locator(
+    `[data-board-placement-settlement-id="${legalOptions[0]?.settlement_vertex_id}"]`,
+  )
+  await firstSettlement.focus()
+  await page.keyboard.press('Enter')
+  await expect(firstSettlement).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.observer-placement-steps li[aria-current="step"]'))
+    .toContainText('Road')
+  await expect(page.getByRole('button', { name: 'Change house', exact: true }))
+    .toBeVisible()
+  const connectedRoadChoices = page.locator('[data-board-placement-road-id]')
+  const firstSettlementRoads = legalOptions
+    .filter((option) => option.settlement_vertex_id === legalOptions[0]?.settlement_vertex_id)
+    .map((option) => option.road_edge_id)
+  await expect(connectedRoadChoices).toHaveCount(firstSettlementRoads.length)
+  expect(await connectedRoadChoices.evaluateAll((choices) =>
+    choices.map((choice) => choice.getAttribute('data-board-placement-road-id')),
+  )).toEqual(firstSettlementRoads)
+  await expect(page.locator('[data-board-placement-settlement-id].board-placement-choice-muted'))
+    .toHaveCount(settlementIDs.length - 1)
+  await expect(page.getByRole('button', { name: 'Confirm placement', exact: true }))
+    .toHaveCount(0)
+
+  const selectedRoad = page.locator(
+    `[data-board-placement-road-id="${firstSettlementRoads[0]}"]`,
+  )
+  await selectedRoad.focus()
+  await page.keyboard.press('Space')
+  await expect(selectedRoad).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-board-placement-road-id].board-placement-choice-muted'))
+    .toHaveCount(firstSettlementRoads.length - 1)
+  const placementPreview = page.locator('[data-placement-preview]')
+  await expect(placementPreview).toContainText('House selected')
+  await expect(placementPreview).toContainText('Road selected')
+  await expect(placementPreview).not.toContainText('vertex:')
+  await expect(placementPreview).not.toContainText('edge:')
+
+  const confirmPlacement = page.getByRole('button', {
+    name: 'Confirm placement',
+    exact: true,
+  })
+  await confirmPlacement.click()
+  await expect(page.getByRole('button', {
+    name: 'Submitting…',
+    exact: true,
+  })).toBeDisabled()
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('Submitting placement')
+  await expect.poll(() => submittedCommands).toHaveLength(1)
+  expect(submittedCommands[0]?.body).toEqual({
+    expected_command_sequence: '9',
+    settlement_vertex_id: legalOptions[0]?.settlement_vertex_id,
+    road_edge_id: firstSettlementRoads[0],
+  })
+  expect(submittedCommands[0]?.headers['idempotency-key']).toBeTruthy()
+  releaseSubmission()
+
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('Placement accepted. Setup is continuing on the board.')
+  await expect(page.locator('[data-initial-placement-status]')).toBeFocused()
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '8')
+  for (const sequence of ['9', '10', '11', '12', '13', '14', '15', '16']) {
+    await page.clock.runFor(900)
+    await expect(page.locator('.observer-history-event[aria-current="step"]'))
+      .toHaveAttribute('data-event-sequence', sequence)
+  }
+
+  await expect(page.locator('[data-setup-playback-status]'))
+    .toContainText('Setup complete. The game is ready for turns.')
+  await expect(page.locator('.observer-placement-panel')).toHaveCount(0)
+  expect(submittedCommands).toHaveLength(1)
+})
+
+test('keeps placement view-only on a historical replay position', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  let optionsRequestCount = 0
+  let submitRequestCount = 0
+
+  await page.route('**/api/v1/games/75/replay**', async (route) => {
+    const commandSequence = new URL(route.request().url()).searchParams.get('at_command_sequence')
+    await route.fulfill({
+      status: 200,
+      json: commandSequence === '6'
+        ? humanPlacementHistoricalResponse(75)
+        : humanPlacementBoundaryResponse('9', 75),
+    })
+  })
+  await page.route('**/api/v1/games/75/initial-placement/options', async (route) => {
+    optionsRequestCount += 1
+    await route.fulfill({
+      status: 200,
+      json: humanPlacementOptionsResponse('9', humanPlacementOptions()),
+    })
+  })
+  await page.route('**/api/v1/games/75/initial-placement', async () => {
+    submitRequestCount += 1
+  })
+
+  await page.goto('/games/75/observe')
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  for (let eventIndex = 0; eventIndex < 6; eventIndex += 1) {
+    await page.clock.runFor(900)
+  }
+  await expect(page.locator('[data-board-placement-settlement-id]')).toHaveCount(2)
+  expect(optionsRequestCount).toBe(1)
+
+  const historyPanel = page.locator('details.observer-secondary-panel').filter({
+    has: page.locator('#observer-history-title'),
+  })
+  await historyPanel.locator('summary').click()
+  await page.getByRole('button', { name: 'Previous', exact: true }).click()
+  await expect(page.getByText('Command 6 · Event 5', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('Historical position')
+  await expect(page.getByRole('button', { name: 'Confirm placement', exact: true }))
+    .toHaveCount(0)
+  await expect(page.locator('[data-board-placement-settlement-id]')).toHaveCount(0)
+  expect(optionsRequestCount).toBe(1)
+  expect(submitRequestCount).toBe(0)
+})
+
+test('refreshes stale placement state before showing choices again', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const requestedOptionSequences: string[] = []
+  let replayRequestCount = 0
+  let releaseReplayRefresh = () => {}
+  let replayRefreshStarted = () => {}
+  let stalePlacementSubmitted = false
+  const replayRefreshGate = new Promise<void>((resolve) => {
+    releaseReplayRefresh = resolve
+  })
+  const replayRefreshSignal = new Promise<void>((resolve) => {
+    replayRefreshStarted = resolve
+  })
+
+  await page.route('**/api/v1/games/76/replay**', async (route) => {
+    if (stalePlacementSubmitted) {
+      replayRequestCount += 1
+      replayRefreshStarted()
+      await replayRefreshGate
+    }
+
+    await route.fulfill({
+      status: 200,
+      json: stalePlacementSubmitted
+        ? humanPlacementBoundaryResponse('10', 76)
+        : humanPlacementBoundaryResponse('9', 76),
+    })
+  })
+  await page.route('**/api/v1/games/76/initial-placement/options', async (route) => {
+    const commandSequence = requestedOptionSequences.length === 0 ? '9' : '10'
+    requestedOptionSequences.push(commandSequence)
+    await route.fulfill({
+      status: 200,
+      json: humanPlacementOptionsResponse(commandSequence, humanPlacementOptions()),
+    })
+  })
+  await page.route('**/api/v1/games/76/initial-placement', async (route) => {
+    stalePlacementSubmitted = true
+    await route.fulfill({
+      status: 409,
+      json: {
+        error: {
+          code: 'stale_initial_placement',
+          message: 'The game has advanced since these placement options were loaded.',
+        },
+      },
+    })
+  })
+
+  await page.goto('/games/76/observe')
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  for (let eventIndex = 0; eventIndex < 6; eventIndex += 1) {
+    await page.clock.runFor(900)
+  }
+  await expect(page.locator('[data-board-placement-settlement-id]')).toHaveCount(2)
+  await page.locator('[data-board-placement-settlement-id]').first().click()
+  await page.locator('[data-board-placement-road-id]').first().click()
+  await page.getByRole('button', {
+    name: 'Confirm placement',
+    exact: true,
+  }).click()
+
+  await replayRefreshSignal
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('The saved game changed')
+  releaseReplayRefresh()
+  await expect.poll(() => replayRequestCount).toBe(1)
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('Play setup to your turn')
+
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  for (let eventIndex = 0; eventIndex < 6; eventIndex += 1) {
+    await page.clock.runFor(900)
+  }
+  await expect(page.locator('[data-board-placement-settlement-id]')).toHaveCount(2)
+  expect(requestedOptionSequences).toEqual(['9', '10'])
+})
+
+test('retries a failed placement with the same idempotency key', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const placementRequests: Array<{
+    body: unknown
+    idempotencyKey: string | undefined
+  }> = []
+
+  let placementAccepted = false
+
+  await page.route('**/api/v1/games/77/replay**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      json: placementAccepted
+        ? humanPlacementCompletionResponse(77)
+        : humanPlacementBoundaryResponse('9', 77),
+    })
+  })
+  await page.route('**/api/v1/games/77/initial-placement/options', async (route) => {
+    await route.fulfill({
+      status: 200,
+      json: humanPlacementOptionsResponse('9', humanPlacementOptions()),
+    })
+  })
+  await page.route('**/api/v1/games/77/initial-placement', async (route) => {
+    placementRequests.push({
+      body: route.request().postDataJSON(),
+      idempotencyKey: route.request().headers()['idempotency-key'],
+    })
+
+    if (placementRequests.length === 1) {
+      await route.fulfill({
+        status: 503,
+        json: {
+          error: {
+            code: 'game_engine_unavailable',
+            message: 'The game engine is unavailable.',
+          },
+        },
+      })
+      return
+    }
+
+    placementAccepted = true
+    await route.fulfill({
+      status: 200,
+      json: humanPlacementCommandResponse('14', '16', 'running'),
+    })
+  })
+
+  await page.goto('/games/77/observe')
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  for (let eventIndex = 0; eventIndex < 6; eventIndex += 1) {
+    await page.clock.runFor(900)
+  }
+  await expect(page.locator('[data-board-placement-settlement-id]')).toHaveCount(2)
+  await page.locator('[data-board-placement-settlement-id]').first().click()
+  await page.locator('[data-board-placement-road-id]').first().click()
+  await page.getByRole('button', {
+    name: 'Confirm placement',
+    exact: true,
+  }).click()
+
+  await expect(page.locator('[data-initial-placement-status]'))
+    .toContainText('The game engine is unavailable')
+  const retryPlacement = page.getByRole('button', {
+    name: 'Retry placement safely',
+    exact: true,
+  })
+  await expect(retryPlacement).toBeEnabled()
+  await retryPlacement.click()
+  await expect.poll(() => placementRequests).toHaveLength(2)
+  expect(placementRequests[1]?.body).toEqual(placementRequests[0]?.body)
+  expect(placementRequests[1]?.idempotencyKey).toBe(placementRequests[0]?.idempotencyKey)
+})
+
+test('keeps setup playback understandable with reduced motion enabled', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.route('**/api/v1/games/78/replay', (route) =>
+    route.fulfill({ status: 200, json: setupPlaybackResponse(1) }),
+  )
+
+  await page.goto('/games/78/observe')
+  await page.getByRole('button', { name: 'Play setup', exact: true }).click()
+  await page.clock.runFor(900)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '2')
+  await page.clock.runFor(900)
+  await expect(page.locator('.observer-history-event[aria-current="step"]'))
+    .toHaveAttribute('data-event-sequence', '3')
+  await expect(page.locator('.board-setup-piece-reveal').first())
+    .toHaveCSS('animation-name', 'none')
+})
+
 test('plays setup events in order across pages and stops at the human input boundary', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const requestedCursors: Array<string | null> = []
@@ -1327,6 +1705,238 @@ function setupReplayResponse(
   }
 
   return response
+}
+
+function humanPlacementBoundaryResponse(
+  commandSequence = '9',
+  gameID = 42,
+): ReplayResponse {
+  const response = setupReplayResponse(3, 1)
+  const events = setupPlaybackEvents(1)
+  const state = response.frame?.public_state
+
+  if (!response.frame || !state) {
+    throw new Error('The human placement fixture must contain a public state frame.')
+  }
+
+  response.context.game.lifecycle_status = 'awaiting human input'
+  response.context.game.id = gameID
+  response.events = events
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: '7',
+    has_more: false,
+    next_after_sequence: null,
+  }
+  response.snapshot_index = [
+    {
+      command_sequence: '6',
+      event_sequence: '5',
+      state_schema_version: 'state-v2',
+      created_at: user.created_at,
+    },
+    {
+      command_sequence: commandSequence,
+      event_sequence: '7',
+      state_schema_version: 'state-v2',
+      created_at: user.created_at,
+    },
+  ]
+  response.frame.command_sequence = commandSequence
+  response.frame.event_sequence = '7'
+  response.frame.public_state = {
+    ...state,
+    phase: 'initial_placement',
+    active_seat_number: 1,
+    seat_order: [2, 3, 1],
+    round: 1,
+    step: 'place_initial_settlement_and_road',
+  }
+
+  return response
+}
+
+function humanPlacementHistoricalResponse(gameID = 42): ReplayResponse {
+  const response = humanPlacementBoundaryResponse('9', gameID)
+  const frame = response.frame
+
+  if (!frame) {
+    throw new Error('The human placement history fixture must contain a frame.')
+  }
+
+  response.events = setupPlaybackEvents(1).filter((event) => event.sequence <= '5')
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: '5',
+    has_more: false,
+    next_after_sequence: null,
+  }
+  frame.command_sequence = '6'
+  frame.event_sequence = '5'
+
+  return response
+}
+
+function humanPlacementCompletionResponse(gameID = 42): ReplayResponse {
+  const response = humanPlacementBoundaryResponse('9', gameID)
+  const frame = response.frame
+  const vertices = boardData().vertices
+  const edges = boardData().edges
+
+  if (!frame) {
+    throw new Error('The human placement completion fixture must contain a frame.')
+  }
+
+  const humanSettlementID = vertices[6]?.id
+  const humanRoadID = edges[6]?.id
+  const thirdSeatSettlementID = vertices[7]?.id
+  const thirdSeatRoadID = edges[7]?.id
+  const secondSeatSettlementID = vertices[8]?.id
+  const secondSeatRoadID = edges[8]?.id
+
+  if (
+    !humanSettlementID ||
+    !humanRoadID ||
+    !thirdSeatSettlementID ||
+    !thirdSeatRoadID ||
+    !secondSeatSettlementID ||
+    !secondSeatRoadID
+  ) {
+    throw new Error('The standard board fixture must provide continuation structures.')
+  }
+
+  const makeEvent = (
+    sequence: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+  ): ReplayEvent => ({
+    sequence,
+    event_type: eventType,
+    payload,
+    occurred_at: user.created_at,
+  })
+  const continuationEvents = [
+    makeEvent('8', 'initial_settlement_placed.v1', {
+      seat_number: 1,
+      settlement_vertex_id: humanSettlementID,
+    }),
+    makeEvent('9', 'initial_road_placed.v1', {
+      seat_number: 1,
+      settlement_vertex_id: humanSettlementID,
+      road_edge_id: humanRoadID,
+    }),
+    makeEvent('10', 'initial_settlement_placed.v1', {
+      seat_number: 3,
+      settlement_vertex_id: thirdSeatSettlementID,
+    }),
+    makeEvent('11', 'initial_road_placed.v1', {
+      seat_number: 3,
+      settlement_vertex_id: thirdSeatSettlementID,
+      road_edge_id: thirdSeatRoadID,
+    }),
+    makeEvent('12', 'initial_resources_granted.v1', {
+      seat_number: 3,
+      resources: { lumber: 1, wool: 1, grain: 0, brick: 0, ore: 0 },
+    }),
+    makeEvent('13', 'initial_settlement_placed.v1', {
+      seat_number: 2,
+      settlement_vertex_id: secondSeatSettlementID,
+    }),
+    makeEvent('14', 'initial_road_placed.v1', {
+      seat_number: 2,
+      settlement_vertex_id: secondSeatSettlementID,
+      road_edge_id: secondSeatRoadID,
+    }),
+    makeEvent('15', 'initial_resources_granted.v1', {
+      seat_number: 2,
+      resources: { lumber: 1, wool: 1, grain: 0, brick: 0, ore: 0 },
+    }),
+    makeEvent('16', 'initial_placement_completed.v1', {
+      seat_order: [1, 3, 2],
+      next_phase: 'turn_ready',
+    }),
+  ]
+
+  response.context.game.lifecycle_status = 'running'
+  response.events = [...response.events, ...continuationEvents]
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: '16',
+    has_more: false,
+    next_after_sequence: null,
+  }
+  response.snapshot_index.push({
+    command_sequence: '14',
+    event_sequence: '16',
+    state_schema_version: 'state-v2',
+    created_at: user.created_at,
+  })
+  frame.command_sequence = '14'
+  frame.event_sequence = '16'
+  frame.public_state = {
+    ...frame.public_state,
+    phase: 'turn_ready',
+    active_seat_number: 1,
+    seat_order: [1, 3, 2],
+    round: 2,
+    step: 'complete',
+  }
+
+  return response
+}
+
+function humanPlacementOptions(): Array<{
+  settlement_vertex_id: string
+  road_edge_id: string
+}> {
+  const vertices = boardData().vertices
+  const edges = boardData().edges
+  const firstSettlement = vertices[0]?.id
+  const secondSettlement = vertices[1]?.id
+  const firstRoad = edges[0]?.id
+  const secondRoad = edges[1]?.id
+  const thirdRoad = edges[2]?.id
+
+  if (!firstSettlement || !secondSettlement || !firstRoad || !secondRoad || !thirdRoad) {
+    throw new Error('The standard board fixture must provide placement choices.')
+  }
+
+  return [
+    { settlement_vertex_id: firstSettlement, road_edge_id: firstRoad },
+    { settlement_vertex_id: firstSettlement, road_edge_id: secondRoad },
+    { settlement_vertex_id: secondSettlement, road_edge_id: thirdRoad },
+  ]
+}
+
+function humanPlacementOptionsResponse(
+  commandSequence: string,
+  options: Array<{ settlement_vertex_id: string; road_edge_id: string }>,
+) {
+  return {
+    schema_version: 'initial-placement-options-v1',
+    data: {
+      command_sequence: commandSequence,
+      active_seat_number: 1,
+      round: 1,
+      options,
+    },
+  }
+}
+
+function humanPlacementCommandResponse(
+  lastCommandSequence: string,
+  lastEventSequence: string,
+  lifecycleStatus: string,
+) {
+  return {
+    schema_version: 'initial-placement-command-v1',
+    data: {
+      replayed: false,
+      lifecycle_status: lifecycleStatus,
+      last_command_sequence: lastCommandSequence,
+      last_event_sequence: lastEventSequence,
+    },
+  }
 }
 
 function setupPlaybackResponse(

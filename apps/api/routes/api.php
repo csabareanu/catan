@@ -8,7 +8,9 @@ use App\Http\Controllers\Api\V1\CreateGameController;
 use App\Http\Controllers\Api\V1\GameController;
 use App\Http\Controllers\Api\V1\GameReplayController;
 use App\Http\Controllers\Api\V1\GenerateBoardController;
+use App\Http\Controllers\Api\V1\InitialPlacementOptionsController;
 use App\Http\Controllers\Api\V1\StartGameRunController;
+use App\Http\Controllers\Api\V1\SubmitInitialPlacementController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/v1/boards/generate', GenerateBoardController::class);
@@ -20,6 +22,14 @@ Route::post('/v1/games', CreateGameController::class)
 Route::post('/v1/games/{game}/run', StartGameRunController::class)
     ->middleware('auth:sanctum')
     ->name('api.v1.games.run');
+
+Route::get('/v1/games/{game}/initial-placement/options', InitialPlacementOptionsController::class)
+    ->middleware('auth:sanctum')
+    ->name('api.v1.games.initial-placement.options');
+
+Route::post('/v1/games/{game}/initial-placement', SubmitInitialPlacementController::class)
+    ->middleware('auth:sanctum')
+    ->name('api.v1.games.initial-placement.submit');
 
 Route::get('/v1/games', [GameController::class, 'index'])
     ->middleware('auth:sanctum')

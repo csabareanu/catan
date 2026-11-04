@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from '../auth/authApi'
 import {
   BoardHelp,
   BoardSvg,
+  type BoardPlacementChoices,
   type BoardPieceColor,
   type BoardPlayerStructures,
 } from '../board/BoardSvg'
@@ -15,7 +16,11 @@ import {
   type SetupPlaybackEvent,
   type SetupPlayerStructures,
 } from './publicReplayState'
-import type { ReplayResponse } from './replayApi'
+import type {
+  InitialPlacementCommandResponse,
+  ReplayResponse,
+} from './replayApi'
+import { useHumanInitialPlacement } from './useHumanInitialPlacement'
 import { useReplayNavigation } from './useReplayNavigation'
 import { consumeObserverAutoplayIntent } from './observerAutoplayIntent'
 
@@ -106,7 +111,7 @@ export function GameObserver({
                   <path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z" />
                   <circle cx="12" cy="12" r="2.5" />
                 </svg>
-                Read-only
+                Observer
               </span>
               <span
                 className={`observer-refresh-indicator${loadState === 'loading' ? ' observer-refresh-indicator-active' : ''}`}
@@ -151,6 +156,9 @@ export function GameObserver({
         <ObserverContent
           key={gameID}
           replay={replay}
+          token={token}
+          onUnauthorized={onUnauthorized}
+          retry={retry}
           shouldAutoplaySetup={shouldAutoplaySetup}
           isFollowingLatest={isFollowingLatest}
           isLoadingMoreEvents={isLoadingMoreEvents}
@@ -168,6 +176,9 @@ export function GameObserver({
 
 type ObserverContentProps = {
   replay: ReplayResponse
+  token: string
+  onUnauthorized: () => void
+  retry: () => void
   shouldAutoplaySetup: boolean
   isFollowingLatest: boolean
   isLoadingMoreEvents: boolean
@@ -181,6 +192,9 @@ type ObserverContentProps = {
 
 function ObserverContent({
   replay,
+  token,
+  onUnauthorized,
+  retry,
   shouldAutoplaySetup,
   isFollowingLatest,
   isLoadingMoreEvents,
@@ -201,6 +215,9 @@ function ObserverContent({
   const setupPlaybackEvents = readSetupPlaybackEvents(events)
   const [setupPlaybackCount, setSetupPlaybackCount] = useState<number | null>(null)
   const [isSetupPlaying, setIsSetupPlaying] = useState(false)
+  const [placementStatus, setPlacementStatus] = useState<'accepted' | 'stale' | null>(null)
+  const pendingPlacementEventSequenceRef = useRef<string | null>(null)
+  const stalePlacementCommandSequenceRef = useRef<string | null>(null)
   const hasStartedArrivalAutoplayRef = useRef(false)
   const selectReplayCheckpoint = useCallback((commandSequence: string) => {
     setSetupPlaybackCount(null)
@@ -212,6 +229,23 @@ function ObserverContent({
     setIsSetupPlaying(false)
     selectLatest()
   }, [selectLatest])
+  const handlePlacementAccepted = useCallback((response: InitialPlacementCommandResponse) => {
+    pendingPlacementEventSequenceRef.current = response.data.last_event_sequence
+    setPlacementStatus('accepted')
+    setSetupPlaybackCount(setupPlaybackEvents.length + 1)
+    setIsSetupPlaying(true)
+    selectLatest()
+    retry()
+  }, [retry, selectLatest, setupPlaybackEvents.length])
+  const refreshAfterStalePlacement = useCallback(() => {
+    stalePlacementCommandSequenceRef.current = frame?.command_sequence ?? null
+    pendingPlacementEventSequenceRef.current = null
+    setPlacementStatus('stale')
+    setSetupPlaybackCount(null)
+    setIsSetupPlaying(false)
+    selectLatest()
+    retry()
+  }, [frame?.command_sequence, retry, selectLatest])
   const visibleSetupPlaybackCount = setupPlaybackCount === null
     ? null
     : Math.min(setupPlaybackCount, setupPlaybackEvents.length)
@@ -232,6 +266,46 @@ function ObserverContent({
     ? context.seats.find((seat) => seat.seat_number === game.human_seat_number) ?? null
     : null
   const isAtHumanInputBoundary = isAtSetupPlaybackEnd && expectedHumanSeat !== null
+  const isHumanSetupSeatActive = expectedHumanSeat?.controller_type === 'human'
+  const canLoadPlacementOptions = isFollowingLatest &&
+    game.lifecycle_status === 'awaiting human input' &&
+    isHumanSetupSeatActive &&
+    isAtHumanInputBoundary &&
+    frame !== null &&
+    publicState.activeSeatNumber !== null &&
+    publicState.setup?.round !== null &&
+    publicState.setup?.round !== undefined
+  const initialPlacement = useHumanInitialPlacement({
+    enabled: canLoadPlacementOptions,
+    gameID: game.id,
+    token,
+    commandSequence: frame?.command_sequence ?? '',
+    activeSeatNumber: publicState.activeSeatNumber ?? 0,
+    round: publicState.setup?.round ?? 0,
+    onUnauthorized,
+    onAccepted: handlePlacementAccepted,
+    onStale: refreshAfterStalePlacement,
+  })
+  const isPlacementPanelVisible = placementStatus !== null || (
+    isHumanSetupSeatActive &&
+    (game.lifecycle_status === 'awaiting human input' || !isFollowingLatest)
+  )
+  const placementChoices: BoardPlacementChoices | undefined = initialPlacement.isReady &&
+    !initialPlacement.hasAccepted &&
+    !initialPlacement.needsSavedGameRefresh
+    ? {
+        options: initialPlacement.options,
+        selectedSettlementVertexID: initialPlacement.selectedSettlementVertexID,
+        selectedRoadEdgeID: initialPlacement.selectedRoadEdgeID,
+        onSelectSettlement: initialPlacement.selectSettlement,
+        onSelectRoad: initialPlacement.selectRoad,
+      }
+    : undefined
+  const isPlacementInteractionActive = canLoadPlacementOptions &&
+    initialPlacement.isReady &&
+    initialPlacement.options.length > 0 &&
+    !initialPlacement.hasAccepted &&
+    !initialPlacement.needsSavedGameRefresh
   const hasFinishedSetup = hasPresentedCompletion || (
     isAtSetupPlaybackEnd && publicState.phase === 'turn_ready'
   )
@@ -239,6 +313,7 @@ function ObserverContent({
     hasPresentedCompletion ||
     isAtHumanInputBoundary ||
     (isAtSetupPlaybackEnd && publicState.phase === 'turn_ready')
+
   const isSetupPlaybackRunning = isSetupPlaying &&
     !isSetupPlaybackTerminal &&
     loadMoreErrorMessage === null
@@ -258,6 +333,43 @@ function ObserverContent({
     seats: context.seats,
     isLoadingMoreEvents,
   })
+
+  useEffect(() => {
+    const pendingEventSequence = pendingPlacementEventSequenceRef.current
+
+    if (
+      pendingEventSequence === null ||
+      isNavigationLoading ||
+      frame === null ||
+      compareDecimalSequences(frame.event_sequence, pendingEventSequence) < 0
+    ) {
+      return
+    }
+
+    pendingPlacementEventSequenceRef.current = null
+  }, [frame, isNavigationLoading])
+
+  useEffect(() => {
+    if (
+      placementStatus === 'stale' &&
+      !isNavigationLoading &&
+      stalePlacementCommandSequenceRef.current !== null &&
+      frame?.command_sequence !== stalePlacementCommandSequenceRef.current
+    ) {
+      stalePlacementCommandSequenceRef.current = null
+      setPlacementStatus(null)
+    }
+  }, [frame?.command_sequence, isNavigationLoading, placementStatus])
+
+  useEffect(() => {
+    if (
+      placementStatus === 'accepted' &&
+      pendingPlacementEventSequenceRef.current === null &&
+      isSetupPlaybackTerminal
+    ) {
+      setPlacementStatus(null)
+    }
+  }, [isSetupPlaybackTerminal, placementStatus])
   const setupPlaybackEventBySequence = new Map(
     setupPlaybackEvents.map((event) => [event.sequence, event]),
   )
@@ -463,6 +575,7 @@ function ObserverContent({
         <BoardSvg
           board={context.board}
           playerStructures={playerStructures}
+          placementChoices={placementChoices}
           toolbarStart={(
             <button
               ref={sidebarToggleRef}
@@ -479,7 +592,11 @@ function ObserverContent({
                 setIsSidebarOpen(true)
               }}
             >
-              {isSidebarOpen ? 'Close overview' : 'Overview'}
+              {isSidebarOpen
+                ? 'Close turn panel'
+                : isPlacementPanelVisible
+                  ? 'Turn actions'
+                  : 'Overview'}
             </button>
           )}
         />
@@ -501,7 +618,7 @@ function ObserverContent({
         className={`observer-sidebar${isSidebarOpen ? ' observer-sidebar-open' : ''}`}
         role={isSidebarOpen ? 'dialog' : undefined}
         aria-modal={isSidebarOpen ? 'true' : undefined}
-        aria-label={isSidebarOpen ? 'Game details' : 'Players and game history'}
+        aria-label={isSidebarOpen ? 'Game details' : 'Turn actions, players, and game history'}
       >
         <div className="observer-sidebar-header">
           <button
@@ -513,14 +630,31 @@ function ObserverContent({
             Close details
           </button>
         </div>
+        <TurnActionPanel
+          publicState={publicState}
+          seats={context.seats}
+          humanSeatNumber={game.human_seat_number}
+          isPlacementPanelVisible={isPlacementPanelVisible}
+          placement={initialPlacement}
+          placementStatus={placementStatus}
+          isLatest={isFollowingLatest}
+          isAtPlaybackBoundary={isAtHumanInputBoundary}
+          isSavedHumanInput={game.lifecycle_status === 'awaiting human input'}
+          isRefreshingReplay={isNavigationLoading}
+          onRefreshSavedGame={refreshAfterStalePlacement}
+        />
         {frame && (
           <ObserverStatus publicState={publicState} seats={context.seats} />
         )}
-        <section className="observer-panel" aria-labelledby="observer-players-title">
-          <div className="observer-section-heading">
+        <details
+          key={isPlacementInteractionActive ? 'players-compact' : 'players-open'}
+          className="observer-panel observer-disclosure observer-secondary-panel"
+          open={!isPlacementInteractionActive}
+        >
+          <summary>
             <h2 id="observer-players-title">Players</h2>
             <span>{context.seats.length} players</span>
-          </div>
+          </summary>
           <ul className="observer-player-list" aria-label="Game players">
             {context.seats.map((seat) => {
               const playerAwards = publicState.awards
@@ -562,13 +696,17 @@ function ObserverContent({
               )
             })}
           </ul>
-        </section>
+        </details>
 
-        <section className="observer-panel" aria-labelledby="observer-history-title">
-          <div className="observer-section-heading">
+        <details
+          key={isPlacementInteractionActive ? 'history-compact' : 'history-open'}
+          className="observer-panel observer-disclosure observer-secondary-panel"
+          open={!isPlacementInteractionActive}
+        >
+          <summary>
             <h2 id="observer-history-title">History</h2>
             <span>{eventCountLabel(events.length)}</span>
-          </div>
+          </summary>
           <ReplayPositionControls
             frame={frame}
             isFollowingLatest={isFollowingLatest}
@@ -681,7 +819,7 @@ function ObserverContent({
           {frame && (
             <p className="observer-note">The current board view is ready for replay.</p>
           )}
-        </section>
+        </details>
 
         <details className="observer-panel observer-disclosure">
           <summary>Game details</summary>
@@ -846,6 +984,304 @@ function ReplayPositionControls({
       </div>
     </div>
   )
+}
+
+type InitialPlacementController = ReturnType<typeof useHumanInitialPlacement>
+
+type TurnActionPanelProps = {
+  publicState: PublicReplayState
+  seats: ReplayResponse['context']['seats']
+  humanSeatNumber: number | null
+  isPlacementPanelVisible: boolean
+  placement: InitialPlacementController
+  placementStatus: 'accepted' | 'stale' | null
+  isLatest: boolean
+  isAtPlaybackBoundary: boolean
+  isSavedHumanInput: boolean
+  isRefreshingReplay: boolean
+  onRefreshSavedGame: () => void
+}
+
+function TurnActionPanel({
+  publicState,
+  seats,
+  humanSeatNumber,
+  isPlacementPanelVisible,
+  placement,
+  placementStatus,
+  isLatest,
+  isAtPlaybackBoundary,
+  isSavedHumanInput,
+  isRefreshingReplay,
+  onRefreshSavedGame,
+}: TurnActionPanelProps) {
+  const activeSeat = publicState.activeSeatNumber === null
+    ? null
+    : seats.find((seat) => seat.seat_number === publicState.activeSeatNumber) ?? null
+  const phaseLabel = publicState.phase === null
+    ? 'Game phase unavailable'
+    : stateLabel(publicState.phase)
+  const positionLabel = publicState.setup?.round === null || publicState.setup?.round === undefined
+    ? phaseLabel
+    : `${phaseLabel} · Setup round ${publicState.setup.round}`
+  const activeSeatLabel = activeSeat === null
+    ? 'No active player'
+    : seatDisplayName(activeSeat.label, activeSeat.seat_number)
+  const turnLabel = activeSeat === null
+    ? 'Waiting for game state'
+    : activeSeat.controller_type === 'human' && activeSeat.seat_number === humanSeatNumber
+      ? 'Your turn'
+      : `${controllerTypeLabel(activeSeat.controller_type)} turn`
+
+  return (
+    <section className="observer-panel observer-turn-action-panel" aria-labelledby="observer-turn-action-title">
+      <div className="observer-section-heading">
+        <h2 id="observer-turn-action-title">Turn actions</h2>
+        <span>{turnLabel}</span>
+      </div>
+      <p className="observer-turn-action-context">
+        <strong>{activeSeatLabel}</strong>
+        <span>{positionLabel}</span>
+      </p>
+      {isPlacementPanelVisible && (
+        <InitialPlacementPanel
+          placement={placement}
+          placementStatus={placementStatus}
+          isLatest={isLatest}
+          isAtPlaybackBoundary={isAtPlaybackBoundary}
+          isSavedHumanInput={isSavedHumanInput}
+          isRefreshingReplay={isRefreshingReplay}
+          onRefreshSavedGame={onRefreshSavedGame}
+        />
+      )}
+    </section>
+  )
+}
+
+type InitialPlacementPanelProps = {
+  placement: InitialPlacementController
+  placementStatus: 'accepted' | 'stale' | null
+  isLatest: boolean
+  isAtPlaybackBoundary: boolean
+  isSavedHumanInput: boolean
+  isRefreshingReplay: boolean
+  onRefreshSavedGame: () => void
+}
+
+function InitialPlacementPanel({
+  placement,
+  placementStatus,
+  isLatest,
+  isAtPlaybackBoundary,
+  isSavedHumanInput,
+  isRefreshingReplay,
+  onRefreshSavedGame,
+}: InitialPlacementPanelProps) {
+  const statusRef = useRef<HTMLParagraphElement>(null)
+  const isPairReady = placement.selectedPairIsLegal
+  const hasSelectedHouse = placement.selectedSettlementVertexID !== null
+  const canChangeHouse = hasSelectedHouse &&
+    !placement.hasAccepted &&
+    !placement.needsSavedGameRefresh &&
+    isLatest &&
+    isAtPlaybackBoundary &&
+    isSavedHumanInput
+  const canConfirmPlacement = isPairReady &&
+    !placement.hasAccepted &&
+    !placement.needsSavedGameRefresh &&
+    isLatest &&
+    isAtPlaybackBoundary &&
+    isSavedHumanInput
+  const showPlacementSteps = isLatest && isAtPlaybackBoundary && isSavedHumanInput &&
+    placementStatus === null &&
+    placement.options.length > 0
+  const statusMessage = initialPlacementStatusMessage({
+    placement,
+    placementStatus,
+    isLatest,
+    isAtPlaybackBoundary,
+    isSavedHumanInput,
+  })
+
+  useEffect(() => {
+    if (placementStatus !== null) {
+      statusRef.current?.focus()
+    }
+  }, [placementStatus])
+
+  return (
+    <section className="observer-placement-panel" aria-labelledby="observer-placement-title">
+      <div className="observer-placement-heading">
+        <h2 id="observer-placement-title">Initial placement</h2>
+        {showPlacementSteps && (
+          <ol className="observer-placement-steps" aria-label="Placement steps">
+            <li
+              className={hasSelectedHouse ? 'observer-placement-step-complete' : 'observer-placement-step-current'}
+              aria-current={!hasSelectedHouse ? 'step' : undefined}
+            >
+              <span>1</span> House
+            </li>
+            <li
+              className={isPairReady
+                ? 'observer-placement-step-complete'
+                : hasSelectedHouse
+                  ? 'observer-placement-step-current'
+                  : 'observer-placement-step-pending'}
+              aria-current={hasSelectedHouse && !isPairReady ? 'step' : undefined}
+            >
+              <span>2</span> Road
+            </li>
+          </ol>
+        )}
+      </div>
+      <p
+        className="observer-placement-status"
+        role="status"
+        aria-live="polite"
+        data-initial-placement-status
+        ref={statusRef}
+        tabIndex={-1}
+      >
+        {statusMessage}
+      </p>
+      {isPairReady && (
+        <div
+          className="observer-placement-preview"
+          data-placement-preview
+          role="group"
+          aria-label="Selected placement pieces"
+        >
+          <span className="observer-placement-preview-piece">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m3 11 9-7 9 7M5.5 10v10h13V10M9.5 20v-5.5h5V20" />
+            </svg>
+            <span>House selected</span>
+          </span>
+          <span className="observer-placement-preview-piece">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m5 19 14-14" />
+              <circle cx="5" cy="19" r="2" />
+              <circle cx="19" cy="5" r="2" />
+            </svg>
+            <span>Road selected</span>
+          </span>
+        </div>
+      )}
+      <div className="observer-placement-actions">
+        {placement.needsSavedGameRefresh && (
+          <button
+            className="observer-placement-secondary"
+            type="button"
+            onClick={onRefreshSavedGame}
+          >
+            Refresh saved game
+          </button>
+        )}
+        {placement.hasOptionsError && !placement.needsSavedGameRefresh && (
+          <button
+            className="observer-placement-secondary"
+            type="button"
+            onClick={placement.retryOptions}
+          >
+            Try loading choices again
+          </button>
+        )}
+        {canChangeHouse && (
+          <button
+            className="observer-placement-change-house"
+            type="button"
+            disabled={placement.isSubmitting}
+            onClick={placement.clearSelection}
+          >
+            Change house
+          </button>
+        )}
+        {canConfirmPlacement && (
+          <button
+            className="observer-placement-confirm"
+            type="button"
+            disabled={
+              !placement.isReady ||
+              placement.isSubmitting
+            }
+            onClick={() => { void placement.submit() }}
+          >
+            {placement.isSubmitting
+              ? 'Submitting…'
+              : placement.canRetrySubmission
+                ? 'Retry placement safely'
+                : 'Confirm placement'}
+          </button>
+        )}
+      </div>
+      {placementStatus === 'stale' && !isRefreshingReplay && (
+        <button
+          className="observer-placement-retry-link"
+          type="button"
+          onClick={onRefreshSavedGame}
+        >
+          Try refreshing again
+        </button>
+      )}
+    </section>
+  )
+}
+
+function initialPlacementStatusMessage({
+  placement,
+  placementStatus,
+  isLatest,
+  isAtPlaybackBoundary,
+  isSavedHumanInput,
+}: Pick<
+  InitialPlacementPanelProps,
+  'placement' | 'placementStatus' | 'isLatest' | 'isAtPlaybackBoundary' | 'isSavedHumanInput'
+>): string {
+  if (placementStatus === 'accepted') {
+    return 'Placement accepted. Setup is continuing on the board.'
+  }
+
+  if (placementStatus === 'stale') {
+    return 'The saved game changed. Refresh before choosing again.'
+  }
+
+  if (!isLatest) {
+    return 'Historical position. Return to Latest to place pieces.'
+  }
+
+  if (!isSavedHumanInput) {
+    return 'Waiting for your saved setup turn.'
+  }
+
+  if (!isAtPlaybackBoundary) {
+    return 'Play setup to your turn before choosing.'
+  }
+
+  if (placement.isLoadingOptions) {
+    return 'Loading legal choices…'
+  }
+
+  if (placement.isSubmitting) {
+    return 'Submitting placement…'
+  }
+
+  if (placement.errorMessage !== null) {
+    return placement.errorMessage
+  }
+
+  if (placement.options.length === 0 && placement.isReady) {
+    return 'No legal placements are available.'
+  }
+
+  if (placement.selectedSettlementVertexID === null) {
+    return 'Choose a highlighted house on the board.'
+  }
+
+  if (placement.selectedRoadEdgeID === null) {
+    return 'Choose a highlighted road connected to your house.'
+  }
+
+  return 'Review your house and road, then confirm.'
 }
 
 function ObserverStatus({
@@ -1233,4 +1669,12 @@ function eventDescription(
   }
 
   return 'This event is available in the saved history.'
+}
+
+function compareDecimalSequences(left: string, right: string): number {
+  if (left.length !== right.length) {
+    return left.length < right.length ? -1 : 1
+  }
+
+  return left === right ? 0 : left < right ? -1 : 1
 }
