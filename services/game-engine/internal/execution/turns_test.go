@@ -134,6 +134,8 @@ func TestAddTerrainResourcesMapsEveryResourceTerrain(t *testing.T) {
 func TestStartNormalTurnStopsAtRobberBoundaryOnSeven(t *testing.T) {
 	seed := seedWithTurnRolls(t, 1, true)
 	setup := turnReadyPlacementState(t, seed, 3)
+	// A synthetic 7 token makes an accidental production calculation observable.
+	setTestHexNumber(&setup.Board, "hex:forest-seat-3", 7)
 	beforeResources := append([]PlayerState(nil), setup.Players...)
 	result, err := StartNormalTurn(setup, TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: setup.SeatOrder[0]}, 70)
 	if err != nil {
