@@ -450,7 +450,7 @@ func deriveSeatOrder(seed string, seats []Seat) ([]int, error) {
 		order[index] = seat.SeatNumber
 	}
 
-	random := placementRandom{state: uint64(seedValue) ^ initialPlacementOrderSalt}
+	random := deterministicRandom{state: uint64(seedValue) ^ initialPlacementOrderSalt}
 	for index := len(order) - 1; index > 0; index-- {
 		other := random.intn(index + 1)
 		order[index], order[other] = order[other], order[index]
@@ -465,27 +465,4 @@ func parsePlacementSeed(seed string) (int64, error) {
 		return 0, fmt.Errorf("%w: expected a canonical non-negative signed 64-bit integer", board.ErrInvalidSeed)
 	}
 	return seedValue, nil
-}
-
-type placementRandom struct {
-	state uint64
-}
-
-func (random *placementRandom) next() uint64 {
-	random.state += 0x9e3779b97f4a7c15
-	value := random.state
-	value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9
-	value = (value ^ (value >> 27)) * 0x94d049bb133111eb
-	return value ^ (value >> 31)
-}
-
-func (random *placementRandom) intn(limit int) int {
-	bound := uint64(limit)
-	threshold := -bound % bound
-	for {
-		value := random.next()
-		if value >= threshold {
-			return int(value % bound)
-		}
-	}
 }
