@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\GenerateBoardController;
 use App\Http\Controllers\Api\V1\InitialPlacementOptionsController;
 use App\Http\Controllers\Api\V1\StartGameRunController;
 use App\Http\Controllers\Api\V1\SubmitInitialPlacementController;
+use App\Http\Controllers\Api\V1\SubmitTurnCommandController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/v1/boards/generate', GenerateBoardController::class);
@@ -30,6 +31,10 @@ Route::get('/v1/games/{game}/initial-placement/options', InitialPlacementOptions
 Route::post('/v1/games/{game}/initial-placement', SubmitInitialPlacementController::class)
     ->middleware('auth:sanctum')
     ->name('api.v1.games.initial-placement.submit');
+
+Route::post('/v1/games/{game}/turn-commands', SubmitTurnCommandController::class)
+    ->middleware('auth:sanctum')
+    ->name('api.v1.games.turn-commands.submit');
 
 Route::get('/v1/games', [GameController::class, 'index'])
     ->middleware('auth:sanctum')
