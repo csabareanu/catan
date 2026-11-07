@@ -16,8 +16,10 @@ const (
 	TurnPhaseRobberRequired = "robber_required"
 
 	RollDiceCommandType = "roll_dice.v1"
+	EndTurnCommandType  = "end_turn.v1"
 
 	TurnStartedEventType       = "turn_started.v1"
+	TurnEndedEventType         = "turn_ended.v1"
 	DiceRolledEventType        = "dice_rolled.v1"
 	ResourcesProducedEventType = "resources_produced.v1"
 	RobberRequiredEventType    = "robber_required.v1"
@@ -27,6 +29,7 @@ const diceRollDerivationSalt uint64 = 0xd6e8feb86659fd93
 
 var (
 	ErrInvalidTurnState       = errors.New("invalid normal turn state")
+	ErrInvalidTurnPhase       = errors.New("command is not valid in the current turn phase")
 	ErrUnsupportedTurnCommand = errors.New("unsupported normal turn command")
 )
 
@@ -90,6 +93,14 @@ type TurnStartedPayload struct {
 }
 
 func (TurnStartedPayload) turnEventPayload() {}
+
+type TurnEndedPayload struct {
+	SeatNumber int
+	Round      int
+	TurnNumber int
+}
+
+func (TurnEndedPayload) turnEventPayload() {}
 
 type DiceRolledPayload struct {
 	SeatNumber int
@@ -163,14 +174,45 @@ func StartNormalTurn(state PlacementState, command TurnCommand, nextEventSequenc
 		Seats:            append([]Seat{}, state.Seats...),
 		Players:          players,
 	}
-	result, err := applyDiceRoll(turnState, command, nextEventSequence)
+	result, err := applyDiceRoll(turnState, command, nextEventSequence, true)
 	if err != nil {
 		return TurnResult{}, err
 	}
 	return result, nil
 }
 
-func applyDiceRoll(state TurnState, command TurnCommand, nextEventSequence int) (TurnResult, error) {
+// ApplyTurnCommand applies a command to an established state-v3 normal turn.
+func ApplyTurnCommand(state TurnState, command TurnCommand, nextEventSequence int) (TurnResult, error) {
+	if err := validateNextEventSequence(nextEventSequence, 1); err != nil {
+		return TurnResult{}, err
+	}
+	if command.CommandType != RollDiceCommandType && command.CommandType != EndTurnCommandType {
+		return TurnResult{}, fmt.Errorf("%w: %q", ErrUnsupportedTurnCommand, command.CommandType)
+	}
+	if err := validateTurnState(state); err != nil {
+		return TurnResult{}, err
+	}
+	if command.ActingSeatNumber != state.ActiveSeatNumber {
+		return TurnResult{}, fmt.Errorf("%w: seat %d, active seat is %d", ErrWrongActiveSeat, command.ActingSeatNumber, state.ActiveSeatNumber)
+	}
+
+	switch command.CommandType {
+	case RollDiceCommandType:
+		if state.TurnPhase != TurnPhaseAwaitingRoll {
+			return TurnResult{}, fmt.Errorf("%w: cannot roll during %q", ErrInvalidTurnPhase, state.TurnPhase)
+		}
+		return applyDiceRoll(state, command, nextEventSequence, false)
+	case EndTurnCommandType:
+		if state.TurnPhase != TurnPhaseAction {
+			return TurnResult{}, fmt.Errorf("%w: cannot end a turn during %q", ErrInvalidTurnPhase, state.TurnPhase)
+		}
+		return applyEndTurn(state, command, nextEventSequence)
+	default:
+		return TurnResult{}, fmt.Errorf("%w: %q", ErrUnsupportedTurnCommand, command.CommandType)
+	}
+}
+
+func applyDiceRoll(state TurnState, command TurnCommand, nextEventSequence int, includeTurnStarted bool) (TurnResult, error) {
 	roll, err := rollDiceForTurn(state.Board.Seed, state.TurnNumber)
 	if err != nil {
 		return TurnResult{}, err
@@ -183,7 +225,10 @@ func applyDiceRoll(state TurnState, command TurnCommand, nextEventSequence int) 
 			return TurnResult{}, err
 		}
 	}
-	eventCount := 2 + len(production)
+	eventCount := 1 + len(production)
+	if includeTurnStarted {
+		eventCount++
+	}
 	if roll.Total == 7 {
 		eventCount++
 	}
@@ -214,11 +259,13 @@ func applyDiceRoll(state TurnState, command TurnCommand, nextEventSequence int) 
 			Visibility: VisibilityPublic,
 		})
 	}
-	appendPublicEvent(TurnStartedEventType, TurnStartedPayload{
-		SeatNumber: state.ActiveSeatNumber,
-		Round:      state.Round,
-		TurnNumber: state.TurnNumber,
-	})
+	if includeTurnStarted {
+		appendPublicEvent(TurnStartedEventType, TurnStartedPayload{
+			SeatNumber: state.ActiveSeatNumber,
+			Round:      state.Round,
+			TurnNumber: state.TurnNumber,
+		})
+	}
 	appendPublicEvent(DiceRolledEventType, DiceRolledPayload{
 		SeatNumber: state.ActiveSeatNumber,
 		DieOne:     roll.DieOne,
@@ -245,6 +292,133 @@ func applyDiceRoll(state TurnState, command TurnCommand, nextEventSequence int) 
 	}
 
 	return newTurnResult(nextState, events, command), nil
+}
+
+func applyEndTurn(state TurnState, command TurnCommand, nextEventSequence int) (TurnResult, error) {
+	if err := validateNextEventSequence(nextEventSequence, 2); err != nil {
+		return TurnResult{}, err
+	}
+	maxInt := int(^uint(0) >> 1)
+	if state.TurnNumber == maxInt {
+		return TurnResult{}, fmt.Errorf("%w: turn number overflows", ErrInvalidTurnState)
+	}
+
+	activeOrderIndex := -1
+	for index, seatNumber := range state.SeatOrder {
+		if seatNumber == state.ActiveSeatNumber {
+			activeOrderIndex = index
+			break
+		}
+	}
+	if activeOrderIndex < 0 {
+		return TurnResult{}, fmt.Errorf("%w: active seat %d is not in seat order", ErrInvalidTurnState, state.ActiveSeatNumber)
+	}
+
+	nextOrderIndex := activeOrderIndex + 1
+	nextRound := state.Round
+	if nextOrderIndex == len(state.SeatOrder) {
+		nextOrderIndex = 0
+		if nextRound == maxInt {
+			return TurnResult{}, fmt.Errorf("%w: round number overflows", ErrInvalidTurnState)
+		}
+		nextRound++
+	}
+	nextTurnNumber := state.TurnNumber + 1
+	nextSeatNumber := state.SeatOrder[nextOrderIndex]
+
+	nextState := cloneTurnState(state)
+	nextState.ActiveSeatNumber = nextSeatNumber
+	nextState.Round = nextRound
+	nextState.TurnNumber = nextTurnNumber
+	nextState.TurnPhase = TurnPhaseAwaitingRoll
+	nextState.LastRoll = nil
+
+	events := []TurnEvent{
+		{
+			Sequence:   nextEventSequence,
+			EventType:  TurnEndedEventType,
+			Payload:    TurnEndedPayload{SeatNumber: state.ActiveSeatNumber, Round: state.Round, TurnNumber: state.TurnNumber},
+			Visibility: VisibilityPublic,
+		},
+		{
+			Sequence:   nextEventSequence + 1,
+			EventType:  TurnStartedEventType,
+			Payload:    TurnStartedPayload{SeatNumber: nextSeatNumber, Round: nextRound, TurnNumber: nextTurnNumber},
+			Visibility: VisibilityPublic,
+		},
+	}
+	return newTurnResult(nextState, events, command), nil
+}
+
+func validateTurnState(state TurnState) error {
+	if state.Phase != PhaseNormalTurn || state.Round < 1 || state.TurnNumber < 1 {
+		return fmt.Errorf("%w: invalid phase, round, or turn number", ErrInvalidTurnState)
+	}
+	if _, err := parsePlacementSeed(state.Board.Seed); err != nil {
+		return fmt.Errorf("%w: invalid board seed: %v", ErrInvalidTurnState, err)
+	}
+	seats, err := normalizeSeats(state.Seats)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidTurnState, err)
+	}
+	if err := validateSeatOrder(state.SeatOrder, seats); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidTurnState, err)
+	}
+	activeSeatFound := false
+	for _, seatNumber := range state.SeatOrder {
+		if seatNumber == state.ActiveSeatNumber {
+			activeSeatFound = true
+			break
+		}
+	}
+	if !activeSeatFound {
+		return fmt.Errorf("%w: active seat %d is not in seat order", ErrInvalidTurnState, state.ActiveSeatNumber)
+	}
+	if len(state.Players) != len(seats) {
+		return fmt.Errorf("%w: player count %d does not match seat count %d", ErrInvalidTurnState, len(state.Players), len(seats))
+	}
+	seatNumbers := make(map[int]struct{}, len(seats))
+	for _, seat := range seats {
+		seatNumbers[seat.SeatNumber] = struct{}{}
+	}
+	seenPlayers := make(map[int]struct{}, len(state.Players))
+	for _, player := range state.Players {
+		if _, exists := seatNumbers[player.SeatNumber]; !exists {
+			return fmt.Errorf("%w: player state contains unknown seat %d", ErrInvalidTurnState, player.SeatNumber)
+		}
+		if _, exists := seenPlayers[player.SeatNumber]; exists {
+			return fmt.Errorf("%w: player state repeats seat %d", ErrInvalidTurnState, player.SeatNumber)
+		}
+		if !validResourceCounts(player.Resources) {
+			return fmt.Errorf("%w: seat %d has invalid resource counts", ErrInvalidTurnState, player.SeatNumber)
+		}
+		seenPlayers[player.SeatNumber] = struct{}{}
+	}
+	if len(seenPlayers) != len(seatNumbers) {
+		return fmt.Errorf("%w: every seat must have one player state", ErrInvalidTurnState)
+	}
+
+	switch state.TurnPhase {
+	case TurnPhaseAwaitingRoll:
+		if state.LastRoll != nil {
+			return fmt.Errorf("%w: awaiting-roll state must not retain a dice result", ErrInvalidTurnState)
+		}
+	case TurnPhaseAction:
+		if !validDiceRoll(state.LastRoll) || state.LastRoll.Total == 7 {
+			return fmt.Errorf("%w: action phase requires a non-seven dice result", ErrInvalidTurnState)
+		}
+	case TurnPhaseRobberRequired:
+		if !validDiceRoll(state.LastRoll) || state.LastRoll.Total != 7 {
+			return fmt.Errorf("%w: robber-required phase requires a seven", ErrInvalidTurnState)
+		}
+	default:
+		return fmt.Errorf("%w: unsupported turn phase %q", ErrInvalidTurnState, state.TurnPhase)
+	}
+	return nil
+}
+
+func validDiceRoll(roll *DiceRoll) bool {
+	return roll != nil && roll.DieOne >= 1 && roll.DieOne <= 6 && roll.DieTwo >= 1 && roll.DieTwo <= 6 && roll.Total == roll.DieOne+roll.DieTwo
 }
 
 func calculateProduction(state TurnState, roll int) (map[int]ResourceCounts, error) {

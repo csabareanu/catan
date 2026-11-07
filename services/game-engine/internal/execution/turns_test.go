@@ -83,6 +83,205 @@ func TestStartNormalTurnUsesFirstSetupSeatAndRollsDeterministically(t *testing.T
 	}
 }
 
+func TestApplyTurnCommandRollsSubsequentTurnDeterministically(t *testing.T) {
+	seed := seedWithTurnRolls(t, 2, false)
+	setup := turnReadyPlacementState(t, seed, 3)
+	wantRoll, err := rollDiceForTurn(seed, 2)
+	if err != nil {
+		t.Fatalf("rollDiceForTurn() error = %v", err)
+	}
+	setTestHexNumber(&setup.Board, "hex:forest-seat-3", wantRoll.Total)
+
+	first, err := StartNormalTurn(setup, TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: setup.SeatOrder[0]}, 1)
+	if err != nil {
+		t.Fatalf("StartNormalTurn() error = %v", err)
+	}
+	nextEventSequence := 1 + len(first.Events)
+	ended, err := ApplyTurnCommand(first.State, TurnCommand{CommandType: EndTurnCommandType, ActingSeatNumber: first.State.ActiveSeatNumber}, nextEventSequence)
+	if err != nil {
+		t.Fatalf("first ApplyTurnCommand(end turn) error = %v", err)
+	}
+	nextEventSequence += len(ended.Events)
+
+	before := cloneTurnState(ended.State)
+	command := TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: ended.State.ActiveSeatNumber}
+	firstRoll, err := ApplyTurnCommand(ended.State, command, nextEventSequence)
+	if err != nil {
+		t.Fatalf("ApplyTurnCommand(roll dice) error = %v", err)
+	}
+	repeatedRoll, err := ApplyTurnCommand(ended.State, command, nextEventSequence)
+	if err != nil {
+		t.Fatalf("repeated ApplyTurnCommand(roll dice) error = %v", err)
+	}
+	if !reflect.DeepEqual(firstRoll, repeatedRoll) {
+		t.Fatal("same state, command, and event sequence produced different turn results")
+	}
+	if !reflect.DeepEqual(ended.State, before) {
+		t.Fatal("ApplyTurnCommand(roll dice) mutated the state-v3 input")
+	}
+
+	if firstRoll.State.TurnPhase != TurnPhaseAction || firstRoll.State.LastRoll == nil || *firstRoll.State.LastRoll != wantRoll {
+		t.Errorf("subsequent roll state = phase %q, roll %+v; want action and %+v", firstRoll.State.TurnPhase, firstRoll.State.LastRoll, wantRoll)
+	}
+	wantEventTypes := []string{DiceRolledEventType, ResourcesProducedEventType}
+	if len(firstRoll.Events) != len(wantEventTypes) {
+		t.Fatalf("subsequent roll events = %+v, want %v", firstRoll.Events, wantEventTypes)
+	}
+	for index, event := range firstRoll.Events {
+		if event.Sequence != nextEventSequence+index || event.EventType != wantEventTypes[index] {
+			t.Errorf("event %d = sequence %d type %q, want sequence %d type %q", index, event.Sequence, event.EventType, nextEventSequence+index, wantEventTypes[index])
+		}
+	}
+	production := firstRoll.Events[1]
+	if production.Visibility != VisibilitySeatPrivate || production.VisibleToSeatNumber == nil || *production.VisibleToSeatNumber != 3 {
+		t.Errorf("production visibility = %+v, want private to seat 3", production)
+	}
+	if got := seatResources(firstRoll.State.Players, 3).Lumber; got != seatResources(ended.State.Players, 3).Lumber+1 {
+		t.Errorf("seat 3 lumber after subsequent roll = %d, want one additional lumber", got)
+	}
+}
+
+func TestEndTurnAdvancesThreeAndFourSeatOrderAndWrapsRound(t *testing.T) {
+	for _, seatCount := range []int{3, 4} {
+		t.Run(fmt.Sprintf("%d seats", seatCount), func(t *testing.T) {
+			seed := seedWithTurnRolls(t, seatCount, false)
+			setup := turnReadyPlacementState(t, seed, seatCount)
+			first, err := StartNormalTurn(setup, TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: setup.SeatOrder[0]}, 1)
+			if err != nil {
+				t.Fatalf("StartNormalTurn() error = %v", err)
+			}
+			state := first.State
+			nextEventSequence := 1 + len(first.Events)
+
+			for orderIndex, seatNumber := range setup.SeatOrder {
+				if orderIndex > 0 {
+					rolled, err := ApplyTurnCommand(state, TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: state.ActiveSeatNumber}, nextEventSequence)
+					if err != nil {
+						t.Fatalf("roll for seat %d: %v", state.ActiveSeatNumber, err)
+					}
+					if len(rolled.Events) != 1 || rolled.Events[0].EventType != DiceRolledEventType || rolled.Events[0].Sequence != nextEventSequence {
+						t.Fatalf("roll events = %+v, want one ordered dice event", rolled.Events)
+					}
+					state = rolled.State
+					nextEventSequence += len(rolled.Events)
+				}
+				if state.ActiveSeatNumber != seatNumber || state.Round != 1 || state.TurnNumber != orderIndex+1 {
+					t.Fatalf("turn before ending = seat %d, round %d, number %d; want seat %d, round 1, number %d", state.ActiveSeatNumber, state.Round, state.TurnNumber, seatNumber, orderIndex+1)
+				}
+
+				before := cloneTurnState(state)
+				ended, err := ApplyTurnCommand(state, TurnCommand{CommandType: EndTurnCommandType, ActingSeatNumber: seatNumber}, nextEventSequence)
+				if err != nil {
+					t.Fatalf("end turn for seat %d: %v", seatNumber, err)
+				}
+				if !reflect.DeepEqual(state, before) {
+					t.Fatalf("ending seat %d mutated its state-v3 input", seatNumber)
+				}
+				if len(ended.Events) != 2 || ended.Events[0].EventType != TurnEndedEventType || ended.Events[1].EventType != TurnStartedEventType {
+					t.Fatalf("end-turn events = %+v, want turn-ended then turn-started", ended.Events)
+				}
+				for index, event := range ended.Events {
+					if event.Sequence != nextEventSequence+index || event.Visibility != VisibilityPublic {
+						t.Errorf("end-turn event %d = %+v, want public sequence %d", index, event, nextEventSequence+index)
+					}
+				}
+				endedPayload, ok := ended.Events[0].Payload.(TurnEndedPayload)
+				if !ok || endedPayload.SeatNumber != seatNumber || endedPayload.Round != 1 || endedPayload.TurnNumber != orderIndex+1 {
+					t.Errorf("turn-ended payload = %#v, want seat %d, round 1, turn %d", ended.Events[0].Payload, seatNumber, orderIndex+1)
+				}
+
+				nextSeatNumber := setup.SeatOrder[(orderIndex+1)%seatCount]
+				nextRound := 1
+				if orderIndex == seatCount-1 {
+					nextRound = 2
+				}
+				nextTurnNumber := orderIndex + 2
+				startedPayload, ok := ended.Events[1].Payload.(TurnStartedPayload)
+				if !ok || startedPayload.SeatNumber != nextSeatNumber || startedPayload.Round != nextRound || startedPayload.TurnNumber != nextTurnNumber {
+					t.Errorf("turn-started payload = %#v, want seat %d, round %d, turn %d", ended.Events[1].Payload, nextSeatNumber, nextRound, nextTurnNumber)
+				}
+				if ended.State.ActiveSeatNumber != nextSeatNumber || ended.State.Round != nextRound || ended.State.TurnNumber != nextTurnNumber || ended.State.TurnPhase != TurnPhaseAwaitingRoll || ended.State.LastRoll != nil {
+					t.Errorf("state after ending seat %d = seat %d, round %d, turn %d, phase %q, roll %+v", seatNumber, ended.State.ActiveSeatNumber, ended.State.Round, ended.State.TurnNumber, ended.State.TurnPhase, ended.State.LastRoll)
+				}
+				state = ended.State
+				nextEventSequence += len(ended.Events)
+			}
+		})
+	}
+}
+
+func TestApplyTurnCommandRejectsWrongSeatAndOutOfPhaseWithoutMutation(t *testing.T) {
+	setup := turnReadyPlacementState(t, seedWithTurnRolls(t, 1, false), 3)
+	first, err := StartNormalTurn(setup, TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: setup.SeatOrder[0]}, 1)
+	if err != nil {
+		t.Fatalf("StartNormalTurn() error = %v", err)
+	}
+	awaiting, err := ApplyTurnCommand(first.State, TurnCommand{CommandType: EndTurnCommandType, ActingSeatNumber: first.State.ActiveSeatNumber}, 1+len(first.Events))
+	if err != nil {
+		t.Fatalf("ApplyTurnCommand(end turn) error = %v", err)
+	}
+	sevenSetup := turnReadyPlacementState(t, seedWithTurnRolls(t, 1, true), 3)
+	seven, err := StartNormalTurn(sevenSetup, TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: sevenSetup.SeatOrder[0]}, 1)
+	if err != nil {
+		t.Fatalf("StartNormalTurn(seven) error = %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		state   TurnState
+		command TurnCommand
+		wantErr error
+	}{
+		{
+			name:    "wrong active seat",
+			state:   first.State,
+			command: TurnCommand{CommandType: EndTurnCommandType, ActingSeatNumber: setup.SeatOrder[1]},
+			wantErr: ErrWrongActiveSeat,
+		},
+		{
+			name:    "roll during action phase",
+			state:   first.State,
+			command: TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: first.State.ActiveSeatNumber},
+			wantErr: ErrInvalidTurnPhase,
+		},
+		{
+			name:    "end turn while awaiting roll",
+			state:   awaiting.State,
+			command: TurnCommand{CommandType: EndTurnCommandType, ActingSeatNumber: awaiting.State.ActiveSeatNumber},
+			wantErr: ErrInvalidTurnPhase,
+		},
+		{
+			name:    "roll after seven",
+			state:   seven.State,
+			command: TurnCommand{CommandType: RollDiceCommandType, ActingSeatNumber: seven.State.ActiveSeatNumber},
+			wantErr: ErrInvalidTurnPhase,
+		},
+		{
+			name:    "end turn after seven",
+			state:   seven.State,
+			command: TurnCommand{CommandType: EndTurnCommandType, ActingSeatNumber: seven.State.ActiveSeatNumber},
+			wantErr: ErrInvalidTurnPhase,
+		},
+		{
+			name:    "unsupported command",
+			state:   first.State,
+			command: TurnCommand{CommandType: "build_road.v1", ActingSeatNumber: first.State.ActiveSeatNumber},
+			wantErr: ErrUnsupportedTurnCommand,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			before := cloneTurnState(test.state)
+			if _, err := ApplyTurnCommand(test.state, test.command, 100); !errors.Is(err, test.wantErr) {
+				t.Fatalf("ApplyTurnCommand() error = %v, want %v", err, test.wantErr)
+			}
+			if !reflect.DeepEqual(test.state, before) {
+				t.Fatal("rejected turn command mutated its state-v3 input")
+			}
+		})
+	}
+}
+
 func TestCalculateProductionPaysTwoForCity(t *testing.T) {
 	seed := seedWithTurnRolls(t, 2, false)
 	setup := turnReadyPlacementState(t, seed, 3)
