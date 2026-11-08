@@ -32,7 +32,7 @@ class GameReplayProjection
     /**
      * @var list<string>
      */
-    private const SETUP_RESOURCE_FIELDS = [
+    private const RESOURCE_FIELDS = [
         'lumber',
         'wool',
         'grain',
@@ -185,17 +185,20 @@ class GameReplayProjection
     {
         $state = is_array($snapshot->state) ? $snapshot->state : [];
         $isPlacementState = $snapshot->state_schema_version === 'state-v2';
-        $viewerState = $isPlacementState
+        $isNormalTurnState = $snapshot->state_schema_version === 'state-v3';
+        $viewerState = $isPlacementState || $isNormalTurnState
             ? $this->projectViewerState($game, $state)
             : null;
         $frame = [
             'command_sequence' => (string) $snapshot->command_sequence,
             'event_sequence' => (string) $snapshot->event_sequence,
             'state_schema_version' => $snapshot->state_schema_version,
-            'public_projection_schema_version' => $isPlacementState
-                ? 'replay-public-v2'
-                : 'replay-public-v1',
-            'public_state' => $this->projectPublicState($state, $isPlacementState),
+            'public_projection_schema_version' => match ($snapshot->state_schema_version) {
+                'state-v2' => 'replay-public-v2',
+                'state-v3' => 'replay-public-v3',
+                default => 'replay-public-v1',
+            },
+            'public_state' => $this->projectPublicState($state, $isPlacementState, $isNormalTurnState),
         ];
 
         if ($viewerState !== null) {
@@ -211,34 +214,38 @@ class GameReplayProjection
      * @param  array<string, mixed>  $state
      * @return array<string, mixed>
      */
-    private function projectPublicState(array $state, bool $isPlacementState): array
+    private function projectPublicState(array $state, bool $isPlacementState, bool $isNormalTurnState): array
     {
         $publicState = collect(self::PUBLIC_STATE_FIELDS)
             ->filter(fn (string $field): bool => array_key_exists($field, $state))
             ->mapWithKeys(fn (string $field): array => [$field => $state[$field]])
             ->all();
 
-        if (! $isPlacementState) {
+        if (! $isPlacementState && ! $isNormalTurnState) {
             return $publicState;
         }
 
-        foreach (['seat_order', 'round', 'step'] as $field) {
+        $versionedFields = $isPlacementState
+            ? ['seat_order', 'round', 'step']
+            : ['seat_order', 'round', 'turn_number', 'last_roll'];
+
+        foreach ($versionedFields as $field) {
             if (array_key_exists($field, $state)) {
                 $publicState[$field] = $state[$field];
             }
         }
 
         if (array_key_exists('players', $state)) {
-            $publicState['players'] = $this->projectPublicPlayers($state['players']);
+            $publicState['players'] = $this->projectPublicPlayers($state['players'], $isNormalTurnState);
         }
 
         return $publicState;
     }
 
     /**
-     * @return list<array{seat_number: int, settlements: list<string>, roads: list<string>}>
+     * @return list<array{seat_number: int, settlements: list<string>, roads: list<string>, cities?: list<string>}>
      */
-    private function projectPublicPlayers(mixed $players): array
+    private function projectPublicPlayers(mixed $players, bool $includeCities): array
     {
         if (! is_array($players)) {
             return [];
@@ -247,11 +254,19 @@ class GameReplayProjection
         return collect($players)
             ->filter(fn (mixed $player): bool => is_array($player)
                 && is_int($player['seat_number'] ?? null))
-            ->map(fn (array $player): array => [
-                'seat_number' => $player['seat_number'],
-                'settlements' => $this->projectStructureIds($player['settlements'] ?? null),
-                'roads' => $this->projectStructureIds($player['roads'] ?? null),
-            ])
+            ->map(function (array $player) use ($includeCities): array {
+                $publicPlayer = [
+                    'seat_number' => $player['seat_number'],
+                    'settlements' => $this->projectStructureIds($player['settlements'] ?? null),
+                    'roads' => $this->projectStructureIds($player['roads'] ?? null),
+                ];
+
+                if ($includeCities) {
+                    $publicPlayer['cities'] = $this->projectStructureIds($player['cities'] ?? null);
+                }
+
+                return $publicPlayer;
+            })
             ->values()
             ->all();
     }
@@ -297,7 +312,7 @@ class GameReplayProjection
 
             $projectedResources = [];
 
-            foreach (self::SETUP_RESOURCE_FIELDS as $resource) {
+            foreach (self::RESOURCE_FIELDS as $resource) {
                 $count = $resources[$resource] ?? null;
 
                 if (! is_int($count) || $count < 0) {

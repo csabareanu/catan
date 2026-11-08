@@ -100,7 +100,7 @@ func (RandomPlacementPolicy) ChooseInitialPlacement(observation PlacementObserva
 	for _, option := range options {
 		_, _ = fmt.Fprintf(stateHasher, ":%d:%s", len(option.ID), option.ID)
 	}
-	random := placementRandom{state: stateHasher.Sum64() ^ initialPlacementPolicySalt}
+	random := deterministicRandom{state: stateHasher.Sum64() ^ initialPlacementPolicySalt}
 	return options[random.intn(len(options))].ID, nil
 }
 

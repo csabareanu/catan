@@ -104,9 +104,10 @@ The product will be delivered through vertical slices rather than a long, invisi
 2. Generate a seeded board through the API and render it in the browser.
 3. Add rules and visual feedback together in small, testable slices.
 4. Complete the setup observer, then let one human-controlled seat make its legal initial settlement and road placements through the same engine.
-5. Complete and verify headless AI gameplay across the core turns and special actions.
-6. Allow one human-controlled seat to submit core-turn commands through the same engine.
-7. Polish the complete human-versus-AI experience.
+5. After core economy and robber rules are ready, add a narrow human-turn pilot in the existing observer so the owner can take and inspect a real turn before the full AI game is complete.
+6. Complete and verify headless AI gameplay across the remaining core turns and special actions.
+7. Extend the human-turn pilot into a full human-versus-AI core-turn loop, with AI continuation until the next human decision.
+8. Polish the complete human-versus-AI experience.
 
 The API remains authoritative and independently operable throughout this process.
 
@@ -302,8 +303,13 @@ Decision updated 2026-11-02: keep `/games/:gameId/observe` as the shared
 destination during the current bootstrap stage. Feature 5d adds a narrow
 setup-only interaction when the owner's human seat is expected to place; the
 same screen continues to show the board and setup history. The preview/start
-journey continues to use this route. Normal turn input remains part of Feature
-11, and this does not add a new route.
+journey continues to use this route. This does not add a new route.
+
+Decision updated 2026-11-04: after the core economy and robber rules are ready,
+Feature 7b adds a one-turn human core-action pilot to the observer. It includes
+any mandatory robber decision and stops at the next AI turn boundary. Feature
+11 later adds AI continuation between human turns; the pilot is an early test
+path, not the complete human-versus-AI loop.
 
 | Situation | Future experience | History presentation |
 |---|---|---|

@@ -4,6 +4,8 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE_FILE="$(mktemp "${TMPDIR:-/tmp}/catan-compose-observer.XXXXXX")"
+REPLAY_FILE="${STATE_FILE}.replay.json"
+TURN_SMOKE_SEED=7
 dotenv_value() {
     local key="$1"
     local default="$2"
@@ -91,7 +93,7 @@ cleanup() {
             "$API_BASE_URL/api/v1/auth/logout" || true
     fi
 
-    rm -f "$STATE_FILE"
+    rm -f "$STATE_FILE" "$REPLAY_FILE"
     exit "$status"
 }
 
@@ -104,7 +106,8 @@ for required_command in curl docker; do
     fi
 done
 
-SMOKE_STATE_FILE="$STATE_FILE" "$ROOT_DIR/scripts/compose-smoke.sh"
+COMPOSE_SMOKE_SEED="$TURN_SMOKE_SEED" \
+    SMOKE_STATE_FILE="$STATE_FILE" "$ROOT_DIR/scripts/compose-smoke.sh"
 
 # shellcheck disable=SC1090
 source "$STATE_FILE"
@@ -115,6 +118,7 @@ printf 'Opening the real Compose observer for game %s at %s\n' "$game_id" "$WEB_
 "${COMPOSE[@]}" run --build --rm \
     --env "COMPOSE_OBSERVER_TOKEN=$token" \
     --env "COMPOSE_OBSERVER_GAME_ID=$game_id" \
+    --env "COMPOSE_OBSERVER_EXPECTED_SEED=$TURN_SMOKE_SEED" \
     --env "COMPOSE_WEB_BASE_URL=$WEB_BASE_URL" \
     web-e2e npm run test:e2e:compose
 
@@ -122,6 +126,80 @@ if ! [[ "$game_id" =~ ^[0-9]+$ ]]; then
     printf 'COMPOSE OBSERVER SMOKE FAILED: expected a numeric game id, got %s.\n' "$game_id" >&2
     exit 1
 fi
+
+replay_http_status="$(curl --silent --show-error --output "$REPLAY_FILE" --write-out '%{http_code}' \
+    --header 'Accept: application/json' \
+    --header "Authorization: Bearer $token" \
+    "$API_BASE_URL/api/v1/games/$game_id/replay")" || {
+    printf 'COMPOSE OBSERVER SMOKE FAILED: could not fetch the persisted turn replay.\n' >&2
+    exit 1
+}
+if [[ "$replay_http_status" != 200 ]]; then
+    printf 'COMPOSE OBSERVER SMOKE FAILED: latest replay returned HTTP %s.\n' "$replay_http_status" >&2
+    sed -n '1,160p' "$REPLAY_FILE" >&2
+    exit 1
+fi
+
+json_value() {
+    local json_file="$1"
+    local path="$2"
+
+    "${COMPOSE[@]}" exec -T api php -r '
+        $data = json_decode(file_get_contents("php://stdin"), true, 512, JSON_THROW_ON_ERROR);
+        $value = $data;
+        $path = $argv[1] ?? "";
+
+        foreach (explode(".", $path) as $segment) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
+                fwrite(STDERR, "Missing JSON path: {$path}\\n");
+                exit(1);
+            }
+
+            $value = $value[$segment];
+        }
+
+        if (is_bool($value)) {
+            echo $value ? "true" : "false";
+        } elseif (is_scalar($value) || $value === null) {
+            echo (string) $value;
+        } else {
+            echo json_encode($value, JSON_THROW_ON_ERROR);
+        }
+    ' "$path" < "$json_file"
+}
+
+replay_schema_version="$(json_value "$REPLAY_FILE" schema_version)"
+replay_command_sequence="$(json_value "$REPLAY_FILE" frame.command_sequence)"
+replay_event_sequence="$(json_value "$REPLAY_FILE" frame.event_sequence)"
+replay_state_schema="$(json_value "$REPLAY_FILE" frame.state_schema_version)"
+replay_public_schema="$(json_value "$REPLAY_FILE" frame.public_projection_schema_version)"
+replay_roll_die_one="$(json_value "$REPLAY_FILE" frame.public_state.last_roll.die_one)"
+replay_roll_die_two="$(json_value "$REPLAY_FILE" frame.public_state.last_roll.die_two)"
+replay_roll_total="$(json_value "$REPLAY_FILE" frame.public_state.last_roll.total)"
+replay_viewer_schema="$(json_value "$REPLAY_FILE" frame.viewer_projection_schema_version)"
+replay_viewer_seat="$(json_value "$REPLAY_FILE" frame.viewer_state.seat_number)"
+replay_resource_counts="$("${COMPOSE[@]}" exec -T api php -r '
+    $data = json_decode(file_get_contents("php://stdin"), true, 512, JSON_THROW_ON_ERROR);
+    $resources = $data["frame"]["viewer_state"]["resources"] ?? null;
+    $fields = ["lumber", "wool", "grain", "brick", "ore"];
+
+    if (! is_array($resources)) {
+        fwrite(STDERR, "Replay does not contain viewer resources.\\n");
+        exit(1);
+    }
+
+    foreach ($fields as $index => $field) {
+        if (! is_int($resources[$field] ?? null) || $resources[$field] < 0) {
+            fwrite(STDERR, "Replay viewer resource is missing or invalid: {$field}\\n");
+            exit(1);
+        }
+
+        echo ($index === 0 ? "" : "|").$resources[$field];
+    }
+' < "$REPLAY_FILE")" || {
+    printf 'COMPOSE OBSERVER SMOKE FAILED: could not parse the owner resource projection.\n' >&2
+    exit 1
+}
 
 setup_sql="
 SELECT
@@ -174,7 +252,66 @@ SELECT
     (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_settlement_placed.v1'),
     (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_road_placed.v1'),
     (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_resources_granted.v1'),
-    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_placement_completed.v1')
+    (SELECT count(*) FROM game_events WHERE game_id = ${game_id} AND event_type = 'initial_placement_completed.v1'),
+    game.seed,
+    game.current_state ->> 'turn_phase',
+    game.current_state ->> 'round',
+    game.current_state ->> 'turn_number',
+    game.current_state ->> 'active_seat_number',
+    game.human_seat_number,
+    game.current_state -> 'seat_order' ->> 0,
+    game.current_state -> 'last_roll' ->> 'die_one',
+    game.current_state -> 'last_roll' ->> 'die_two',
+    game.current_state -> 'last_roll' ->> 'total',
+    (SELECT count(*) FROM game_snapshots WHERE game_id = ${game_id} AND state_schema_version = 'state-v3'),
+    (SELECT count(*)
+       FROM game_snapshots AS snapshot
+      WHERE snapshot.game_id = ${game_id}
+        AND snapshot.command_sequence = game.last_command_sequence
+        AND snapshot.event_sequence = game.last_event_sequence
+        AND snapshot.state_schema_version = 'state-v3'
+        AND snapshot.state::jsonb = game.current_state::jsonb),
+    (SELECT count(*) FROM game_commands WHERE game_id = ${game_id} AND command_type = 'roll_dice.v1'),
+    (SELECT sequence FROM game_commands WHERE game_id = ${game_id} AND command_type = 'roll_dice.v1' LIMIT 1),
+    (SELECT acting_seat_number FROM game_commands WHERE game_id = ${game_id} AND command_type = 'roll_dice.v1' LIMIT 1),
+    (SELECT count(*)
+       FROM game_commands
+      WHERE game_id = ${game_id}
+        AND command_type = 'roll_dice.v1'
+        AND payload::jsonb IN ('{}'::jsonb, '[]'::jsonb)),
+    (SELECT coalesce(string_agg(event.event_type, ',' ORDER BY event.sequence), '')
+       FROM game_events AS event
+       JOIN game_commands AS command ON command.id = event.command_id
+      WHERE command.game_id = game.id
+        AND command.command_type = 'roll_dice.v1'),
+    (SELECT count(*)
+       FROM game_events AS event
+       JOIN game_commands AS command ON command.id = event.command_id
+      WHERE command.game_id = game.id
+        AND command.command_type = 'roll_dice.v1'),
+    (SELECT count(*)
+       FROM game_events AS event
+       JOIN game_commands AS command ON command.id = event.command_id
+      WHERE command.game_id = game.id
+        AND command.command_type = 'roll_dice.v1'
+        AND event.event_type = 'resources_produced.v1'
+        AND event.visibility = 'seat_private'
+        AND event.visible_to_seat_number = game.human_seat_number),
+    (SELECT coalesce(player.value -> 'resources' ->> 'lumber', '')
+       FROM jsonb_array_elements(game.current_state::jsonb -> 'players') AS player(value)
+      WHERE player.value ->> 'seat_number' = game.human_seat_number::text),
+    (SELECT coalesce(player.value -> 'resources' ->> 'wool', '')
+       FROM jsonb_array_elements(game.current_state::jsonb -> 'players') AS player(value)
+      WHERE player.value ->> 'seat_number' = game.human_seat_number::text),
+    (SELECT coalesce(player.value -> 'resources' ->> 'grain', '')
+       FROM jsonb_array_elements(game.current_state::jsonb -> 'players') AS player(value)
+      WHERE player.value ->> 'seat_number' = game.human_seat_number::text),
+    (SELECT coalesce(player.value -> 'resources' ->> 'brick', '')
+       FROM jsonb_array_elements(game.current_state::jsonb -> 'players') AS player(value)
+      WHERE player.value ->> 'seat_number' = game.human_seat_number::text),
+    (SELECT coalesce(player.value -> 'resources' ->> 'ore', '')
+       FROM jsonb_array_elements(game.current_state::jsonb -> 'players') AS player(value)
+      WHERE player.value ->> 'seat_number' = game.human_seat_number::text)
 FROM games AS game
 WHERE game.id = ${game_id};
 "
@@ -188,28 +325,81 @@ IFS='|' read -r lifecycle_status state_phase state_schema_version last_command_s
     first_command_sequence final_command_sequence event_count first_event_sequence final_event_sequence linked_event_count \
     snapshot_count initial_snapshot_count setup_snapshot_count final_snapshot_command_sequence final_snapshot_event_sequence \
     final_snapshot_schema initialized_event_count setup_started_event_count settlement_event_count road_event_count \
-    resource_event_count completed_event_count <<< "$db_counts"
+    resource_event_count completed_event_count game_seed turn_phase round turn_number active_seat_number \
+    human_seat_number first_turn_seat die_one die_two roll_total turn_snapshot_count matching_latest_snapshot_count \
+    roll_command_count roll_command_sequence roll_command_actor empty_roll_payload_count roll_event_types \
+    roll_event_count human_production_event_count database_lumber database_wool database_grain database_brick \
+    database_ore <<< "$db_counts"
 
-if [[ "$lifecycle_status" != running || "$state_phase" != turn_ready || "$state_schema_version" != state-v2 || \
-    "$last_command_sequence" != 8 || "$last_event_sequence" != 18 || "$bootstrap_count" != 1 || \
-    "$setup_start_count" != 1 || "$command_count" != 8 || "$placement_count" != 6 || \
+if [[ "$lifecycle_status" != 'awaiting human input' || "$state_phase" != normal_turn || \
+    "$state_schema_version" != state-v3 || "$turn_phase" != action || "$round" != 1 || \
+    "$turn_number" != 1 || "$active_seat_number" != "$human_seat_number" || \
+    "$first_turn_seat" != "$human_seat_number" || "$game_seed" != "$TURN_SMOKE_SEED" || \
+    "$die_one" != 5 || "$die_two" != 5 || "$roll_total" != 10 || \
+    "$last_command_sequence" != 9 || "$command_count" != 9 || "$bootstrap_count" != 1 || \
+    "$setup_start_count" != 1 || "$placement_count" != 6 || \
     "$human_placement_count" != 2 || "$ai_placement_count" != 4 || "$first_command_sequence" != 1 || \
-    "$final_command_sequence" != 8 || "$event_count" != 18 || "$first_event_sequence" != 1 || \
-    "$final_event_sequence" != 18 || "$linked_event_count" != 18 || "$snapshot_count" != 8 || \
+    "$final_command_sequence" != 9 || "$first_event_sequence" != 1 || \
+    "$final_event_sequence" != "$event_count" || "$last_event_sequence" != "$event_count" || \
+    "$linked_event_count" != "$event_count" || "$snapshot_count" != 9 || \
     "$initial_snapshot_count" != 1 || "$setup_snapshot_count" != 7 || \
-    "$final_snapshot_command_sequence" != 8 || "$final_snapshot_event_sequence" != 18 || \
-    "$final_snapshot_schema" != state-v2 || "$initialized_event_count" != 1 || \
+    "$turn_snapshot_count" != 1 || "$final_snapshot_command_sequence" != 9 || \
+    "$final_snapshot_event_sequence" != "$last_event_sequence" || "$final_snapshot_schema" != state-v3 || \
+    "$matching_latest_snapshot_count" != 1 || "$roll_command_count" != 1 || \
+    "$roll_command_sequence" != 9 || "$roll_command_actor" != "$human_seat_number" || \
+    "$empty_roll_payload_count" != 1 || "$initialized_event_count" != 1 || \
     "$setup_started_event_count" != 1 || "$settlement_event_count" != 6 || "$road_event_count" != 6 || \
-    "$resource_event_count" != 3 || "$completed_event_count" != 1 ]]; then
-    printf 'COMPOSE OBSERVER SMOKE FAILED: unexpected completed setup history for game %s.\n' "$game_id" >&2
-    printf '  lifecycle=%s phase=%s state=%s commands=%s placements=%s human=%s ai=%s events=%s snapshots=%s\n' \
-        "$lifecycle_status" "$state_phase" "$state_schema_version" "$command_count" "$placement_count" \
-        "$human_placement_count" "$ai_placement_count" "$event_count" "$snapshot_count" >&2
-    printf '  command cursor=%s event cursor=%s event range=%s-%s final snapshot=%s/%s (%s)\n' \
-        "$last_command_sequence" "$last_event_sequence" "$first_event_sequence" "$final_event_sequence" \
-        "$final_snapshot_command_sequence" "$final_snapshot_event_sequence" "$final_snapshot_schema" >&2
+    "$resource_event_count" != 3 || "$completed_event_count" != 1 || \
+    "$replay_schema_version" != replay-v1 || "$replay_command_sequence" != 9 || \
+    "$replay_event_sequence" != "$last_event_sequence" || "$replay_state_schema" != state-v3 || \
+    "$replay_public_schema" != replay-public-v3 || "$replay_roll_die_one" != 5 || \
+    "$replay_roll_die_two" != 5 || "$replay_roll_total" != 10 || \
+    "$replay_viewer_schema" != replay-viewer-v1 || "$replay_viewer_seat" != "$human_seat_number" ]]; then
+    printf 'COMPOSE OBSERVER SMOKE FAILED: persisted state did not match the fixed human-first roll.\n' >&2
+    printf '  seed=%s lifecycle=%s phase=%s state=%s turn=%s/%s round=%s active=%s human=%s order_first=%s roll=%s+%s=%s\n' \
+        "$game_seed" "$lifecycle_status" "$state_phase" "$state_schema_version" "$turn_number" \
+        "$turn_phase" "$round" "$active_seat_number" "$human_seat_number" "$first_turn_seat" \
+        "$die_one" "$die_two" "$roll_total" >&2
+    printf '  commands=%s (roll=%s by %s) events=%s/%s-%s snapshots=%s latest=%s/%s (%s) current-match=%s\n' \
+        "$command_count" "$roll_command_count" "$roll_command_actor" "$event_count" "$first_event_sequence" \
+        "$final_event_sequence" "$snapshot_count" "$final_snapshot_command_sequence" \
+        "$final_snapshot_event_sequence" "$final_snapshot_schema" "$matching_latest_snapshot_count" >&2
+    printf '  cursors command=%s event=%s; command range=%s-%s linked events=%s; snapshots initial=%s setup-v2=%s turn-v3=%s\n' \
+        "$last_command_sequence" "$last_event_sequence" "$first_command_sequence" "$final_command_sequence" \
+        "$linked_event_count" "$initial_snapshot_count" "$setup_snapshot_count" "$turn_snapshot_count" >&2
+    printf '  setup counts bootstrap=%s start=%s placements=%s human=%s ai=%s resources=%s completed=%s\n' \
+        "$bootstrap_count" "$setup_start_count" "$placement_count" "$human_placement_count" \
+        "$ai_placement_count" "$resource_event_count" "$completed_event_count" >&2
+    printf '  roll command sequence=%s empty-payload=%s; roll events=%s types=%s owner-private-production=%s\n' \
+        "$roll_command_sequence" "$empty_roll_payload_count" "$roll_event_count" \
+        "$roll_event_types" "$human_production_event_count" >&2
+    printf '  replay=%s/%s/%s command=%s event=%s roll=%s+%s=%s viewer=%s seat=%s\n' \
+        "$replay_schema_version" "$replay_state_schema" "$replay_public_schema" "$replay_command_sequence" \
+        "$replay_event_sequence" "$replay_roll_die_one" "$replay_roll_die_two" "$replay_roll_total" \
+        "$replay_viewer_schema" "$replay_viewer_seat" >&2
     exit 1
 fi
 
-printf 'PostgreSQL setup history: 2 human placements, 4 AI placements, 18 ordered events, and 8 snapshots; phase is turn_ready.\n'
-printf 'Compose observer smoke passed: React playback, Laravel persistence, and Go continuation agree for game %s.\n' "$game_id"
+if (( roll_event_count < 3 || human_production_event_count < 1 || event_count < 21 )); then
+    printf 'COMPOSE OBSERVER SMOKE FAILED: expected an owner-private production event after the fixed non-seven roll.\n' >&2
+    printf '  roll events=%s types=%s owner-private production=%s total events=%s\n' \
+        "$roll_event_count" "$roll_event_types" "$human_production_event_count" "$event_count" >&2
+    exit 1
+fi
+
+if [[ ! "$roll_event_types" =~ ^turn_started\.v1,dice_rolled\.v1(,resources_produced\.v1)+$ ]]; then
+    printf 'COMPOSE OBSERVER SMOKE FAILED: normal turn events were not ordered as start, roll, and production.\n' >&2
+    printf '  roll event types: %s\n' "$roll_event_types" >&2
+    exit 1
+fi
+
+database_resource_counts="$database_lumber|$database_wool|$database_grain|$database_brick|$database_ore"
+if [[ "$database_resource_counts" != "$replay_resource_counts" ]]; then
+    printf 'COMPOSE OBSERVER SMOKE FAILED: PostgreSQL and replay owner resources differ.\n' >&2
+    printf '  PostgreSQL: %s\n  Replay:     %s\n' "$database_resource_counts" "$replay_resource_counts" >&2
+    exit 1
+fi
+
+printf 'PostgreSQL turn history: seed %s gave human seat %s first turn and dice %s+%s; command, ordered events, and state-v3 snapshot agree.\n' \
+    "$game_seed" "$human_seat_number" "$die_one" "$die_two"
+printf 'Compose observer smoke passed: React, Laravel, Go, and PostgreSQL agree for game %s.\n' "$game_id"

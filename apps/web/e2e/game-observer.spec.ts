@@ -170,6 +170,84 @@ for (const seatCount of [3, 4]) {
   })
 }
 
+test('renders public normal-turn metadata and the owner resources with readable turn events', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.route('**/api/v1/games/80/replay', (route) =>
+    route.fulfill({ status: 200, json: normalTurnReplayResponse() }),
+  )
+
+  await page.goto('/games/80/observe')
+
+  const statusPanel = page.locator('.observer-status-panel')
+  await expect(statusPanel).toContainText('Normal Turn')
+  await expect(statusPanel).toContainText('Action')
+  const roundStatus = statusPanel.locator('.observer-status-list > div')
+    .filter({ hasText: 'Round' })
+  await expect(roundStatus.locator('dd')).toHaveText('2')
+  const turnNumberStatus = statusPanel.locator('.observer-status-list > div')
+    .filter({ hasText: 'Turn number' })
+  await expect(turnNumberStatus.locator('dd')).toHaveText('5')
+  await expect(statusPanel).toContainText('2 + 3 = 5')
+  await expect(statusPanel).toContainText('Ada Player')
+
+  const resources = page.locator('.observer-setup-resources')
+  await expect(resources).toBeVisible()
+  await expect(resources.locator('[data-resource="lumber"]')).toContainText('5')
+  await expect(resources.locator('[data-resource="wool"]')).toContainText('3')
+  await expect(resources.locator('[data-resource="grain"]')).toContainText('3')
+  await expect(resources.locator('[data-resource="brick"]')).toContainText('1')
+  await expect(resources.locator('[data-resource="ore"]')).toContainText('0')
+  await expect(resources).not.toContainText('702')
+
+  await expect(page.locator('.observer-history-event strong')).toHaveText([
+    'Turn Started',
+    'Dice Rolled',
+    'Resources Produced',
+  ])
+  await expect(page.locator('.observer-history-event p')).toHaveText([
+    'Ada Player began round 2, turn 5.',
+    'Ada Player rolled 2 + 3 = 5.',
+    'You gained 1 Lumber and 1 Grain.',
+  ])
+
+  const settlementID = boardData().vertices[0]?.id
+  const roadID = boardData().edges[0]?.id
+
+  if (!settlementID || !roadID) {
+    throw new Error('The normal-turn fixture must provide a public settlement and road.')
+  }
+
+  await expect(page.locator(`[data-board-settlement-id="${settlementID}"]`)).toBeVisible()
+  await expect(page.locator(`[data-board-road-edge-id="${roadID}"]`)).toBeVisible()
+})
+
+test('describes an ended turn and the next active seat from a state-v3 frame', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.route('**/api/v1/games/81/replay', (route) =>
+    route.fulfill({ status: 200, json: normalTurnReplayAfterEndResponse() }),
+  )
+
+  await page.goto('/games/81/observe')
+
+  await expect(page.locator('.observer-history-event strong')).toHaveText([
+    'Turn Started',
+    'Dice Rolled',
+    'Resources Produced',
+    'Turn Ended',
+    'Turn Started',
+  ])
+  await expect(page.locator('.observer-history-event p')).toHaveText([
+    'Ada Player began round 2, turn 5.',
+    'Ada Player rolled 2 + 3 = 5.',
+    'You gained 1 Lumber and 1 Grain.',
+    'Ada Player ended round 2, turn 5.',
+    'AI 2 began round 2, turn 6.',
+  ])
+  await expect(page.locator('.observer-status-panel')).toContainText('AI 2')
+  await expect(page.locator('.observer-status-panel')).toContainText('Turn number')
+  await expect(page.locator('.observer-status-panel')).toContainText('6')
+})
+
 test('lets the owner choose a legal pair, submit once, and watch the saved continuation', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const legalOptions = humanPlacementOptions()
@@ -1631,6 +1709,130 @@ function replayResponse(
         }
       : null,
   }
+}
+
+function normalTurnReplayResponse(): ReplayResponse {
+  const response = replayResponse('awaiting human input', true)
+  const desertHexID = boardData().hexes.find((hex) => hex.terrain === 'desert')?.id
+
+  if (!response.frame || !desertHexID) {
+    throw new Error('The normal-turn fixture must include a frame and desert hex.')
+  }
+
+  const players = response.context.seats.map((seat, index) => {
+    const settlementID = boardData().vertices[index]?.id
+    const roadID = boardData().edges[index]?.id
+
+    if (!settlementID || !roadID) {
+      throw new Error('The normal-turn fixture must provide public structure positions.')
+    }
+
+    return {
+      seat_number: seat.seat_number,
+      settlements: [settlementID],
+      roads: [roadID],
+      cities: [],
+    }
+  })
+
+  response.context.game.lifecycle_status = 'awaiting human input'
+  response.context.game.state_schema_version = 'state-v3'
+  response.snapshot_index = [{
+    command_sequence: '5',
+    event_sequence: '3',
+    state_schema_version: 'state-v3',
+    created_at: user.created_at,
+  }]
+  response.events = [
+    {
+      sequence: '1',
+      event_type: 'turn_started.v1',
+      payload: { seat_number: 1, round: 2, turn_number: 5 },
+      occurred_at: user.created_at,
+    },
+    {
+      sequence: '2',
+      event_type: 'dice_rolled.v1',
+      payload: { seat_number: 1, die_one: 2, die_two: 3, total: 5 },
+      occurred_at: user.created_at,
+    },
+    {
+      sequence: '3',
+      event_type: 'resources_produced.v1',
+      payload: {
+        seat_number: 1,
+        delta: { lumber: 1, wool: 0, grain: 1, brick: 0, ore: 0 },
+      },
+      occurred_at: user.created_at,
+    },
+  ]
+  response.event_cursor = {
+    requested_after_sequence: '0',
+    returned_through_sequence: '3',
+    has_more: false,
+    next_after_sequence: null,
+  }
+  response.frame.command_sequence = '5'
+  response.frame.event_sequence = '3'
+  response.frame.state_schema_version = 'state-v3'
+  response.frame.public_projection_schema_version = 'replay-public-v3'
+  response.frame.public_state = {
+    phase: 'normal_turn',
+    seat_order: [1, 2, 3],
+    round: 2,
+    turn_number: 5,
+    active_seat_number: 1,
+    turn_phase: 'action',
+    robber_position: desertHexID,
+    last_roll: { die_one: 2, die_two: 3, total: 5 },
+    players,
+  }
+  response.frame.viewer_projection_schema_version = 'replay-viewer-v1'
+  response.frame.viewer_state = {
+    seat_number: 1,
+    resources: { lumber: 5, wool: 3, grain: 3, brick: 1, ore: 0 },
+  }
+
+  return response
+}
+
+function normalTurnReplayAfterEndResponse(): ReplayResponse {
+  const response = normalTurnReplayResponse()
+
+  if (!response.frame) {
+    throw new Error('The normal-turn fixture must include a frame.')
+  }
+
+  response.context.game.lifecycle_status = 'running'
+  response.events.push(
+    {
+      sequence: '4',
+      event_type: 'turn_ended.v1',
+      payload: { seat_number: 1, round: 2, turn_number: 5 },
+      occurred_at: user.created_at,
+    },
+    {
+      sequence: '5',
+      event_type: 'turn_started.v1',
+      payload: { seat_number: 2, round: 2, turn_number: 6 },
+      occurred_at: user.created_at,
+    },
+  )
+  response.event_cursor.returned_through_sequence = '5'
+  response.snapshot_index[0]!.command_sequence = '6'
+  response.snapshot_index[0]!.event_sequence = '5'
+  response.frame.command_sequence = '6'
+  response.frame.event_sequence = '5'
+  response.frame.public_state = {
+    ...response.frame.public_state,
+    active_seat_number: 2,
+    round: 2,
+    turn_number: 6,
+    turn_phase: 'awaiting_roll',
+    last_roll: null,
+  }
+
+  return response
 }
 
 function setupReplayResponse(

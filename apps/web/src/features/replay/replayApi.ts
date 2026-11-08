@@ -22,7 +22,10 @@ export type ReplaySnapshotIndexEntry = {
   created_at: string | null
 }
 
-export type ReplayPublicProjectionSchemaVersion = 'replay-public-v1' | 'replay-public-v2'
+export type ReplayPublicProjectionSchemaVersion =
+  | 'replay-public-v1'
+  | 'replay-public-v2'
+  | 'replay-public-v3'
 export type ReplayViewerProjectionSchemaVersion = 'replay-viewer-v1'
 
 export type ReplayFrame = {
@@ -348,7 +351,9 @@ function isReplayFrame(value: unknown): value is ReplayFrame {
 function isReplayPublicProjectionSchemaVersion(
   value: unknown,
 ): value is ReplayPublicProjectionSchemaVersion {
-  return value === 'replay-public-v1' || value === 'replay-public-v2'
+  return value === 'replay-public-v1' ||
+    value === 'replay-public-v2' ||
+    value === 'replay-public-v3'
 }
 
 function isReplayViewerProjectionSchemaVersion(

@@ -15,7 +15,17 @@ export type SetupPlayerStructures = {
   roads: string[]
 }
 
+export type ReplayPlayerStructures = SetupPlayerStructures & {
+  cities?: string[]
+}
+
 export type ViewerResources = Record<ResourceType, number>
+
+export type PublicDiceRoll = {
+  dieOne: number
+  dieTwo: number
+  total: number
+}
 
 export type SetupPlaybackEventKind =
   | 'started'
@@ -45,9 +55,13 @@ export type PublicReplayState = {
   phase: string | null
   turnPhase: string | null
   activeSeatNumber: number | null
+  round: number | null
+  turnNumber: number | null
+  lastRoll: PublicDiceRoll | null
   scores: ReadonlyMap<number, number>
   awards: PublicAward[]
   setup: SetupReplayState | null
+  players: ReplayPlayerStructures[]
   viewerResources: ViewerResources | null
 }
 
@@ -58,23 +72,32 @@ export function readPublicReplayState(
   const state = frame?.public_state
   const hasSetupProjection = frame?.state_schema_version === 'state-v2' &&
     frame.public_projection_schema_version === 'replay-public-v2'
+  const hasTurnProjection = frame?.state_schema_version === 'state-v3' &&
+    frame.public_projection_schema_version === 'replay-public-v3'
   const isInitialPlacement = hasSetupProjection && state?.phase === 'initial_placement'
+  const setup = hasSetupProjection
+    ? {
+        seatOrder: readSeatOrder(state?.seat_order),
+        round: readPositiveInteger(state?.round),
+        step: readStateLabel(state?.step),
+        players: readSetupPlayers(state?.players),
+      }
+    : null
 
   return {
     phase: readStateLabel(state?.phase),
     turnPhase: readStateLabel(state?.turn_phase),
     activeSeatNumber: readSeatNumber(state?.active_seat_number),
+    round: hasTurnProjection ? readPositiveInteger(state?.round) : null,
+    turnNumber: hasTurnProjection ? readPositiveInteger(state?.turn_number) : null,
+    lastRoll: hasTurnProjection ? readPublicDiceRoll(state?.last_roll) : null,
     scores: readPublicScores(state?.public_scores),
     awards: readPublicAwards(state?.public_awards),
-    setup: hasSetupProjection
-      ? {
-          seatOrder: readSeatOrder(state?.seat_order),
-          round: readPositiveInteger(state?.round),
-          step: readStateLabel(state?.step),
-          players: readSetupPlayers(state?.players),
-        }
-      : null,
-    viewerResources: isInitialPlacement
+    setup,
+    players: hasTurnProjection
+      ? readTurnPlayers(state?.players)
+      : setup?.players ?? [],
+    viewerResources: isInitialPlacement || hasTurnProjection
       ? readViewerResources(frame, humanSeatNumber)
       : null,
   }
@@ -190,6 +213,59 @@ function readSetupPlayers(value: unknown): SetupPlayerStructures[] {
       roads: readStructureIDs(player.roads),
     }]
   })
+}
+
+function readTurnPlayers(value: unknown): ReplayPlayerStructures[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const seenSeats = new Set<number>()
+
+  return value.flatMap((player): ReplayPlayerStructures[] => {
+    if (!isRecord(player)) {
+      return []
+    }
+
+    const seatNumber = readSeatNumber(player.seat_number)
+
+    if (seatNumber === null || seenSeats.has(seatNumber)) {
+      return []
+    }
+
+    seenSeats.add(seatNumber)
+
+    return [{
+      seatNumber,
+      settlements: readStructureIDs(player.settlements),
+      roads: readStructureIDs(player.roads),
+      cities: readStructureIDs(player.cities),
+    }]
+  })
+}
+
+function readPublicDiceRoll(value: unknown): PublicDiceRoll | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const dieOne = value.die_one
+  const dieTwo = value.die_two
+  const total = value.total
+
+  if (
+    !isInteger(dieOne) ||
+    dieOne < 1 ||
+    dieOne > 6 ||
+    !isInteger(dieTwo) ||
+    dieTwo < 1 ||
+    dieTwo > 6 ||
+    total !== dieOne + dieTwo
+  ) {
+    return null
+  }
+
+  return { dieOne, dieTwo, total }
 }
 
 function readStructureIDs(value: unknown): string[] {

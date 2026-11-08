@@ -94,6 +94,7 @@ func NewHandler() http.Handler {
 	mux.HandleFunc("/v1/runs/initial-placement", initialPlacementRun)
 	mux.HandleFunc("/v1/initial-placement/options", initialPlacementOptions)
 	mux.HandleFunc("/v1/runs/initial-placement/continue", initialPlacementContinue)
+	mux.HandleFunc("/v1/turns/command", turnCommand)
 	return mux
 }
 

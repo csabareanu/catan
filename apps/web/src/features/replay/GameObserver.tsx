@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AccessShell } from '../auth/AuthShell'
 import type { AuthenticatedUser } from '../auth/authApi'
+import { isInteger, isRecord } from '../../lib/apiClient'
 import {
   BoardHelp,
   BoardSvg,
@@ -18,6 +19,7 @@ import {
 } from './publicReplayState'
 import type {
   InitialPlacementCommandResponse,
+  ReplayEvent,
   ReplayResponse,
 } from './replayApi'
 import { useHumanInitialPlacement } from './useHumanInitialPlacement'
@@ -374,7 +376,7 @@ function ObserverContent({
     setupPlaybackEvents.map((event) => [event.sequence, event]),
   )
   const visibleSetupPlayers = setupPlaybackCount === null
-    ? publicState.setup?.players ?? []
+    ? publicState.players
     : getSetupPlayersAtPlaybackPosition(setupPlaybackEvents, visibleSetupPlaybackCount ?? 0)
   const mostRecentPlacementEvent = latestSetupEvent?.kind === 'settlement' || latestSetupEvent?.kind === 'road'
     ? latestSetupEvent
@@ -781,9 +783,10 @@ function ObserverContent({
                   <div>
                     <strong>{eventLabel(event.event_type)}</strong>
                     <p>{eventDescription(
-                      event.event_type,
+                      event,
                       setupPlaybackEventBySequence.get(event.sequence) ?? null,
                       context.seats,
+                      game.human_seat_number,
                     )}</p>
                   </div>
                 </li>
@@ -1021,9 +1024,11 @@ function TurnActionPanel({
   const phaseLabel = publicState.phase === null
     ? 'Game phase unavailable'
     : stateLabel(publicState.phase)
-  const positionLabel = publicState.setup?.round === null || publicState.setup?.round === undefined
+  const round = publicState.setup?.round ?? publicState.round
+  const roundLabel = publicState.setup !== null ? 'Setup round' : 'Round'
+  const positionLabel = round === null
     ? phaseLabel
-    : `${phaseLabel} · Setup round ${publicState.setup.round}`
+    : `${phaseLabel} · ${roundLabel} ${round}`
   const activeSeatLabel = activeSeat === null
     ? 'No active player'
     : seatDisplayName(activeSeat.label, activeSeat.seat_number)
@@ -1302,6 +1307,9 @@ function ObserverStatus({
   const hasStatus = publicState.phase !== null ||
     publicState.turnPhase !== null ||
     activeSeat !== null ||
+    publicState.round !== null ||
+    publicState.turnNumber !== null ||
+    publicState.lastRoll !== null ||
     publicState.awards.length > 0 ||
     publicState.setup?.round !== null && publicState.setup?.round !== undefined ||
     publicState.setup?.step !== null && publicState.setup?.step !== undefined ||
@@ -1333,6 +1341,24 @@ function ObserverStatus({
               <div>
                 <dt>Setup round</dt>
                 <dd>{publicState.setup.round}</dd>
+              </div>
+            )}
+            {publicState.setup === null && publicState.round !== null && (
+              <div>
+                <dt>Round</dt>
+                <dd>{publicState.round}</dd>
+              </div>
+            )}
+            {publicState.turnNumber !== null && (
+              <div>
+                <dt>Turn number</dt>
+                <dd>{publicState.turnNumber}</dd>
+              </div>
+            )}
+            {publicState.lastRoll !== null && (
+              <div>
+                <dt>Last roll</dt>
+                <dd>{publicState.lastRoll.dieOne} + {publicState.lastRoll.dieTwo} = {publicState.lastRoll.total}</dd>
               </div>
             )}
             {publicState.setup?.step !== null && publicState.setup?.step !== undefined && (
@@ -1641,6 +1667,11 @@ function eventCountLabel(count: number): string {
 function eventLabel(eventType: string): string {
   const labels: Record<string, string> = {
     'game_initialized.v1': 'Game initialized',
+    'turn_started.v1': 'Turn Started',
+    'dice_rolled.v1': 'Dice Rolled',
+    'resources_produced.v1': 'Resources Produced',
+    'robber_required.v1': 'Robber Required',
+    'turn_ended.v1': 'Turn Ended',
     'initial_placement_started.v1': 'Initial placement started',
     'initial_settlement_placed.v1': 'Initial settlement placed',
     'initial_road_placed.v1': 'Initial road placed',
@@ -1656,19 +1687,100 @@ function eventLabel(eventType: string): string {
 }
 
 function eventDescription(
-  eventType: string,
+  event: ReplayEvent,
   setupEvent: SetupPlaybackEvent | null,
   seats: ReplayResponse['context']['seats'],
+  humanSeatNumber: number | null,
 ): string {
   if (setupEvent !== null) {
     return describeSetupPlaybackEvent(setupEvent, seats)
   }
 
+  const { event_type: eventType, payload } = event
+
   if (eventType === 'game_initialized.v1') {
     return 'The board and players are ready.'
   }
 
+  const seatNumber = payload.seat_number
+  const seatName = isInteger(seatNumber) && seatNumber > 0
+    ? seatDisplayName(
+        seats.find((seat) => seat.seat_number === seatNumber)?.label ?? null,
+        seatNumber,
+      )
+    : 'A player'
+
+  if (eventType === 'turn_started.v1') {
+    const round = payload.round
+    const turnNumber = payload.turn_number
+
+    return isInteger(round) && round > 0 && isInteger(turnNumber) && turnNumber > 0
+      ? `${seatName} began round ${round}, turn ${turnNumber}.`
+      : `${seatName} began a turn.`
+  }
+
+  if (eventType === 'dice_rolled.v1') {
+    const dieOne = payload.die_one
+    const dieTwo = payload.die_two
+    const total = payload.total
+
+    return isInteger(dieOne) && dieOne >= 1 && dieOne <= 6 &&
+      isInteger(dieTwo) && dieTwo >= 1 && dieTwo <= 6 &&
+      total === dieOne + dieTwo
+      ? `${seatName} rolled ${dieOne} + ${dieTwo} = ${total}.`
+      : `${seatName} rolled the dice.`
+  }
+
+  if (eventType === 'resources_produced.v1') {
+    if (!isInteger(humanSeatNumber) || humanSeatNumber < 1 || seatNumber !== humanSeatNumber) {
+      return 'Private resources were updated.'
+    }
+
+    const delta = payload.delta
+
+    if (!isRecord(delta)) {
+      return 'Your private resources were updated.'
+    }
+
+    const changes = Object.entries(delta).flatMap(([resource, count]) => {
+      if (
+        !Object.prototype.hasOwnProperty.call(RESOURCE_LABELS, resource) ||
+        !isInteger(count) ||
+        count < 1
+      ) {
+        return []
+      }
+
+      return [`${count} ${RESOURCE_LABELS[resource as ResourceType]}`]
+    })
+
+    return changes.length === 0
+      ? 'You gained no resources.'
+      : `You gained ${joinLabels(changes)}.`
+  }
+
+  if (eventType === 'turn_ended.v1') {
+    const round = payload.round
+    const turnNumber = payload.turn_number
+
+    return isInteger(round) && round > 0 && isInteger(turnNumber) && turnNumber > 0
+      ? `${seatName} ended round ${round}, turn ${turnNumber}.`
+      : `${seatName} ended a turn.`
+  }
+
+  if (eventType === 'robber_required.v1') {
+    return `Robber resolution is required for ${seatName}.`
+  }
+
   return 'This event is available in the saved history.'
+}
+
+function joinLabels(labels: string[]): string {
+  if (labels.length < 2) {
+    return labels[0] ?? ''
+  }
+
+  return `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)}`
 }
 
 function compareDecimalSequences(left: string, right: string): number {

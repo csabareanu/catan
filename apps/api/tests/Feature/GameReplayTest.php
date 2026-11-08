@@ -285,6 +285,120 @@ class GameReplayTest extends TestCase
         $this->assertArrayNotHasKey('viewer_projection_schema_version', $projection['frame']);
     }
 
+    public function test_state_v3_replay_projects_public_turn_data_and_only_the_owner_resources_and_events(): void
+    {
+        $owner = User::factory()->create();
+        $token = $owner->createToken('test-client')->plainTextToken;
+        $state = [
+            'phase' => 'normal_turn',
+            'seat_order' => [1, 2],
+            'round' => 2,
+            'turn_number' => 5,
+            'active_seat_number' => 1,
+            'turn_phase' => 'action',
+            'robber_position' => 'hex:desert',
+            'last_roll' => ['die_one' => 2, 'die_two' => 3, 'total' => 5],
+            'board' => ['private_board_data' => true],
+            'seats' => [['seat_number' => 1], ['seat_number' => 2]],
+            'players' => [
+                [
+                    'seat_number' => 1,
+                    'resources' => ['lumber' => 4, 'wool' => 3, 'grain' => 2, 'brick' => 1, 'ore' => 0],
+                    'settlements' => ['vertex:owner'],
+                    'roads' => ['edge:owner'],
+                    'cities' => ['vertex:owner-city'],
+                ],
+                [
+                    'seat_number' => 2,
+                    'resources' => ['lumber' => 902, 'wool' => 903, 'grain' => 904, 'brick' => 905, 'ore' => 906],
+                    'settlements' => ['vertex:ai'],
+                    'roads' => ['edge:ai'],
+                    'cities' => [],
+                ],
+            ],
+            'secret' => 'canonical-only',
+        ];
+        $game = Game::factory()->for($owner, 'owner')->create([
+            'human_seat_number' => 1,
+            'state_schema_version' => 'state-v3',
+            'last_command_sequence' => 5,
+            'last_event_sequence' => 4,
+        ]);
+        $this->createReplaySeats($game, $owner);
+        $this->createReplayEvent($game, 1, 'turn_started.v1', [
+            'payload' => ['seat_number' => 1, 'round' => 2, 'turn_number' => 5],
+        ]);
+        $this->createReplayEvent($game, 2, 'dice_rolled.v1', [
+            'payload' => ['seat_number' => 1, 'die_one' => 2, 'die_two' => 3, 'total' => 5],
+        ]);
+        $this->createReplayEvent($game, 3, 'resources_produced.v1', [
+            'visibility' => 'seat_private',
+            'visible_to_seat_number' => 2,
+            'payload' => [
+                'seat_number' => 2,
+                'delta' => ['lumber' => 0, 'wool' => 1, 'grain' => 0, 'brick' => 0, 'ore' => 0],
+            ],
+        ]);
+        $this->createReplayEvent($game, 4, 'resources_produced.v1', [
+            'visibility' => 'seat_private',
+            'visible_to_seat_number' => 1,
+            'payload' => [
+                'seat_number' => 1,
+                'delta' => ['lumber' => 1, 'wool' => 0, 'grain' => 1, 'brick' => 0, 'ore' => 0],
+            ],
+        ]);
+        GameSnapshot::factory()->for($game)->create([
+            'command_sequence' => 5,
+            'event_sequence' => 4,
+            'state_schema_version' => 'state-v3',
+            'state' => $state,
+        ]);
+
+        $firstPage = $this->withToken($token)
+            ->getJson('/api/v1/games/'.$game->id.'/replay?limit=2');
+
+        $firstPage->assertOk()
+            ->assertJsonPath('schema_version', 'replay-v1')
+            ->assertJsonPath('frame.state_schema_version', 'state-v3')
+            ->assertJsonPath('frame.public_projection_schema_version', 'replay-public-v3')
+            ->assertJsonPath('frame.public_state.round', 2)
+            ->assertJsonPath('frame.public_state.turn_number', 5)
+            ->assertJsonPath('frame.public_state.turn_phase', 'action')
+            ->assertJsonPath('frame.public_state.last_roll.total', 5)
+            ->assertJsonPath('frame.public_state.players.0.cities', ['vertex:owner-city'])
+            ->assertJsonPath('frame.public_state.players.1.cities', [])
+            ->assertJsonMissingPath('frame.public_state.board')
+            ->assertJsonMissingPath('frame.public_state.seats')
+            ->assertJsonMissingPath('frame.public_state.secret')
+            ->assertJsonMissingPath('frame.public_state.players.0.resources')
+            ->assertJsonMissingPath('frame.public_state.players.1.resources')
+            ->assertJsonPath('frame.viewer_projection_schema_version', 'replay-viewer-v1')
+            ->assertJsonPath('frame.viewer_state.seat_number', 1)
+            ->assertJsonPath('frame.viewer_state.resources', [
+                'lumber' => 4,
+                'wool' => 3,
+                'grain' => 2,
+                'brick' => 1,
+                'ore' => 0,
+            ])
+            ->assertJsonPath('event_cursor.has_more', true)
+            ->assertJsonPath('event_cursor.next_after_sequence', '2');
+        $this->assertSame(['1', '2'], array_column($firstPage->json('events'), 'sequence'));
+        $this->assertArrayNotHasKey('current_state', $firstPage->json());
+
+        $secondPage = $this->withToken($token)
+            ->getJson('/api/v1/games/'.$game->id.'/replay?after_event_sequence=2&limit=2');
+
+        $secondPage->assertOk()
+            ->assertJsonPath('schema_version', 'replay-v1')
+            ->assertJsonPath('event_cursor.has_more', false)
+            ->assertJsonPath('event_cursor.next_after_sequence', null);
+        $this->assertSame(['4'], array_column($secondPage->json('events'), 'sequence'));
+        $this->assertSame(1, $secondPage->json('events.0.payload.seat_number'));
+        $this->assertSame(1, $secondPage->json('events.0.payload.delta.lumber'));
+        $this->assertSame(1, $secondPage->json('events.0.payload.delta.grain'));
+    }
+
     public function test_an_ai_only_game_projects_public_events_without_private_ai_events(): void
     {
         $game = Game::factory()->create([

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\GameEngineProtocolException;
 use App\Exceptions\GameEngineUnavailable;
 use App\Exceptions\InitialPlacementCommandRejected;
+use App\Exceptions\TurnCommandRejected;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -135,6 +136,259 @@ class GameEngineClient
         }
 
         return $body;
+    }
+
+    /**
+     * Apply one versioned roll or end-turn command through the stateless Go service.
+     *
+     * @param  array{
+     *     state_schema_version: 'state-v2'|'state-v3',
+     *     state: array<string, mixed>,
+     *     next_event_sequence: int,
+     *     command: array{command_type: 'roll_dice.v1'|'end_turn.v1', acting_seat_number: int, payload: object}
+     * }  $payload
+     * @return array<string, mixed>
+     */
+    public function turnCommand(array $payload): array
+    {
+        $body = $this->post('/v1/turns/command', $payload, rejectTurnCommand: true);
+
+        if (! $this->isTurnCommandResponse($body, $payload)) {
+            throw new GameEngineProtocolException('The game engine returned an invalid turn command response.');
+        }
+
+        return $body;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function isTurnCommandResponse(mixed $body, array $payload): bool
+    {
+        $data = is_array($body) ? ($body['data'] ?? null) : null;
+        $sourceState = $payload['state'] ?? null;
+        $command = $payload['command'] ?? null;
+        $sourceBoard = is_array($sourceState) ? ($sourceState['board'] ?? null) : null;
+        $expectedSeats = is_array($sourceState) ? ($sourceState['seats'] ?? null) : null;
+        $state = is_array($data) ? ($data['state'] ?? null) : null;
+        $events = is_array($data) ? ($data['events'] ?? null) : null;
+        $responseData = [
+            'seed' => is_array($sourceBoard) ? ($sourceBoard['seed'] ?? null) : null,
+            'ruleset' => is_array($sourceBoard) ? ($sourceBoard['ruleset'] ?? null) : null,
+            'map' => is_array($sourceBoard) ? ($sourceBoard['map'] ?? null) : null,
+        ];
+
+        if (! is_array($data)
+            || ($data['turn_command_schema_version'] ?? null) !== '1'
+            || ($data['execution_schema_version'] ?? null) !== '1'
+            || ! in_array($payload['state_schema_version'] ?? null, ['state-v2', 'state-v3'], true)
+            || ! is_array($sourceState)
+            || ! $this->isBoardData($sourceBoard)
+            || ! $this->isSeatList($expectedSeats)
+            || ! is_int($payload['next_event_sequence'] ?? null)
+            || $payload['next_event_sequence'] < 1
+            || ! is_array($command)
+            || ! in_array($command['command_type'] ?? null, ['roll_dice.v1', 'end_turn.v1'], true)
+            || ! is_int($command['acting_seat_number'] ?? null)
+            || ! is_object($command['payload'] ?? null)
+            || get_object_vars($command['payload']) !== []
+            || ($data['command_type'] ?? null) !== ($command['command_type'] ?? null)
+            || ($data['acting_seat_number'] ?? null) !== ($command['acting_seat_number'] ?? null)
+            || ($data['state_schema_version'] ?? null) !== 'state-v3'
+            || ! $this->isTurnState($state, $sourceState, $responseData, $expectedSeats)
+            || ! $this->isTurnEventList($events, $payload['next_event_sequence'], count($expectedSeats))) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $sourceState
+     * @param  array<string, mixed>  $responseData
+     * @param  list<array{seat_number: int, controller_type: 'human'|'ai'}>  $expectedSeats
+     */
+    private function isTurnState(mixed $state, array $sourceState, array $responseData, array $expectedSeats): bool
+    {
+        if (! is_array($state)
+            || ($state['phase'] ?? null) !== 'normal_turn'
+            || ! is_array($state['seat_order'] ?? null)
+            || ! array_is_list($state['seat_order'])
+            || count($state['seat_order']) !== count($expectedSeats)
+            || ! is_int($state['round'] ?? null)
+            || $state['round'] < 1
+            || ! is_int($state['turn_number'] ?? null)
+            || $state['turn_number'] < 1
+            || ! is_int($state['active_seat_number'] ?? null)
+            || ! in_array($state['turn_phase'] ?? null, ['awaiting_roll', 'action', 'robber_required'], true)
+            || ! is_string($state['robber_position'] ?? null)
+            || $state['robber_position'] === ''
+            || ! $this->isBoardData($state['board'] ?? null)
+            || ($state['board']['board_schema_version'] ?? null) !== '1'
+            || ! $this->isBoardMetadataConsistent($state['board'], $responseData)
+            || ! $this->sameCanonicalValue($state['board'], $sourceState['board'] ?? null)
+            || ! $this->isSeatList($state['seats'] ?? null, $expectedSeats)
+            || ! $this->isSameSeatOrder($state['seat_order'], $sourceState['seat_order'] ?? null, $expectedSeats)
+            || ! $this->isTurnPlayers($state['players'] ?? null, $expectedSeats)
+            || ! $this->isTurnDiceRoll($state['last_roll'] ?? null, allowsNull: true)) {
+            return false;
+        }
+
+        $seatNumbers = array_column($expectedSeats, 'seat_number');
+        if (! in_array($state['active_seat_number'], $seatNumbers, true)) {
+            return false;
+        }
+
+        $hexIds = array_column($state['board']['hexes'], 'id');
+
+        return in_array($state['robber_position'], $hexIds, true);
+    }
+
+    /**
+     * @param  list<int>  $seatOrder
+     * @param  list<array{seat_number: int, controller_type: 'human'|'ai'}>  $expectedSeats
+     */
+    private function isSameSeatOrder(array $seatOrder, mixed $sourceSeatOrder, array $expectedSeats): bool
+    {
+        if (! is_array($sourceSeatOrder)
+            || ! array_is_list($sourceSeatOrder)
+            || count($seatOrder) !== count($expectedSeats)
+            || count($sourceSeatOrder) !== count($expectedSeats)) {
+            return false;
+        }
+
+        $seatNumbers = array_column($expectedSeats, 'seat_number');
+        $seen = [];
+
+        foreach ($seatOrder as $index => $seatNumber) {
+            if (! is_int($seatNumber)
+                || ! in_array($seatNumber, $seatNumbers, true)
+                || isset($seen[$seatNumber])
+                || ($sourceSeatOrder[$index] ?? null) !== $seatNumber) {
+                return false;
+            }
+
+            $seen[$seatNumber] = true;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<array{seat_number: int, controller_type: 'human'|'ai'}>  $expectedSeats
+     */
+    private function isTurnPlayers(mixed $players, array $expectedSeats): bool
+    {
+        if (! is_array($players) || ! array_is_list($players) || count($players) !== count($expectedSeats)) {
+            return false;
+        }
+
+        foreach ($players as $index => $player) {
+            if (! is_array($player)
+                || ($player['seat_number'] ?? null) !== $expectedSeats[$index]['seat_number']
+                || ! $this->isResourceCounts($player['resources'] ?? null)) {
+                return false;
+            }
+
+            foreach (['settlements', 'roads', 'cities'] as $structure) {
+                if (! is_array($player[$structure] ?? null)
+                    || ! array_is_list($player[$structure])) {
+                    return false;
+                }
+
+                foreach ($player[$structure] as $pieceId) {
+                    if (! is_string($pieceId) || $pieceId === '') {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private function isTurnDiceRoll(mixed $roll, bool $allowsNull): bool
+    {
+        if ($roll === null) {
+            return $allowsNull;
+        }
+
+        return is_array($roll)
+            && is_int($roll['die_one'] ?? null)
+            && $roll['die_one'] >= 1
+            && $roll['die_one'] <= 6
+            && is_int($roll['die_two'] ?? null)
+            && $roll['die_two'] >= 1
+            && $roll['die_two'] <= 6
+            && ($roll['total'] ?? null) === $roll['die_one'] + $roll['die_two'];
+    }
+
+    private function isTurnEventList(mixed $events, int $firstSequence, int $seatCount): bool
+    {
+        if (! is_array($events) || ! array_is_list($events) || $events === []) {
+            return false;
+        }
+
+        $allowedTypes = [
+            'turn_started.v1',
+            'turn_ended.v1',
+            'dice_rolled.v1',
+            'resources_produced.v1',
+            'robber_required.v1',
+        ];
+
+        foreach ($events as $index => $event) {
+            $payload = is_array($event) ? ($event['payload'] ?? null) : null;
+            $eventType = is_array($event) ? ($event['event_type'] ?? null) : null;
+            $visibility = is_array($event) ? ($event['visibility'] ?? null) : null;
+            $visibleSeat = is_array($event) ? ($event['visible_to_seat_number'] ?? null) : null;
+            $seatNumber = is_array($payload) ? ($payload['seat_number'] ?? null) : null;
+
+            if (! is_array($event)
+                || ($event['sequence'] ?? null) !== $firstSequence + $index
+                || ! is_string($eventType)
+                || ! in_array($eventType, $allowedTypes, true)
+                || ! is_array($payload)
+                || ! is_int($seatNumber)
+                || $seatNumber < 1
+                || $seatNumber > $seatCount
+                || ! array_key_exists('visible_to_seat_number', $event)) {
+                return false;
+            }
+
+            if ($eventType === 'resources_produced.v1') {
+                if ($visibility !== 'seat_private'
+                    || $visibleSeat !== $seatNumber
+                    || ! $this->isResourceCounts($payload['delta'] ?? null)) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if ($visibility !== 'public' || $visibleSeat !== null) {
+                return false;
+            }
+
+            if (in_array($eventType, ['turn_started.v1', 'turn_ended.v1'], true)
+                && (! is_int($payload['round'] ?? null)
+                    || $payload['round'] < 1
+                    || ! is_int($payload['turn_number'] ?? null)
+                    || $payload['turn_number'] < 1)) {
+                return false;
+            }
+
+            if ($eventType === 'dice_rolled.v1'
+                && ! $this->isTurnDiceRoll([
+                    'die_one' => $payload['die_one'] ?? null,
+                    'die_two' => $payload['die_two'] ?? null,
+                    'total' => $payload['total'] ?? null,
+                ], allowsNull: false)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -469,8 +723,12 @@ class GameEngineClient
     /**
      * @param  array<string, mixed>  $payload
      */
-    private function post(string $path, array $payload, bool $rejectIllegalPlacement = false): mixed
-    {
+    private function post(
+        string $path,
+        array $payload,
+        bool $rejectIllegalPlacement = false,
+        bool $rejectTurnCommand = false,
+    ): mixed {
         try {
             $response = Http::baseUrl($this->baseUrl)
                 ->acceptJson()
@@ -491,6 +749,13 @@ class GameEngineClient
                 && is_array($body)
                 && ($body['error']['code'] ?? null) === 'illegal_placement') {
                 throw new InitialPlacementCommandRejected;
+            }
+
+            if ($rejectTurnCommand
+                && $response->status() === 422
+                && is_array($body)
+                && in_array($body['error']['code'] ?? null, ['wrong_active_seat', 'invalid_turn_phase'], true)) {
+                throw new TurnCommandRejected($body['error']['code']);
             }
 
             throw new GameEngineProtocolException(

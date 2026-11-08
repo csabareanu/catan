@@ -245,7 +245,7 @@ TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/catan-compose-smoke.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
 EMAIL="catan-smoke-$(date +%s)-${RANDOM}@example.test"
-SEED="$(date +%s)"
+SEED="${COMPOSE_SMOKE_SEED:-$(date +%s)}"
 REGISTER_PAYLOAD="$(printf '{"name":"Compose Smoke","email":"%s","password":"password123","password_confirmation":"password123","token_name":"compose-smoke"}' "$EMAIL")"
 GAME_PAYLOAD="$(printf '{"seed":"%s","ruleset_key":"base","map_key":"standard","ai_count":2}' "$SEED")"
 
